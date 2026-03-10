@@ -1,0 +1,62 @@
+services:
+
+  cloudflare:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - /etc/cloudflared:/etc/cloudflared
+    networks:
+      - public
+
+
+  api-gateway:
+    image: node:20-alpine
+    networks:
+      - app
+      - data
+
+
+  nginx:
+    image: nginx:alpine
+    networks:
+      - app
+      - public
+
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - /home/scrippa/server-data/postgres:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: ${postgres_USER}
+      POSTGRES_PASSWORD: ${postgres_PASS}
+      POSTGRES_DB: ${postgres_DB}
+    networks:
+      - data
+
+  redis:
+    image: redis
+    volumes:
+      - /home/scrippa/server-data/redis:/data
+    networks:
+      - data
+
+  wallet-generator:
+    image: node:20-alpine
+    networks:
+      - app
+
+  coin-launcher:
+    image: node:20-alpine
+    networks:
+      - app
+
+  frontend:
+    image: node:20-alpine
+    networks:
+      - app
+
+
+networks:
+  public: {}
+  app: {}
+  data: {}
