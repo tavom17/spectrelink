@@ -1,5 +1,4 @@
 services:
-
   cloudflare:
     image: cloudflare/cloudflared:latest
     command: tunnel --config /etc/cloudflared/config.yml run
@@ -8,6 +7,22 @@ services:
     networks:
       - public
 
+  nginx:
+    image: nginx:alpine
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+    networks:
+      - public
+      - app
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    networks:
+      - app
 
   api-gateway:
     image: node:20-alpine
@@ -15,12 +30,15 @@ services:
       - app
       - data
 
-
-  nginx:
-    image: nginx:alpine
+  wallet-generator:
+    image: node:20-alpine
     networks:
       - app
-      - public
+
+  coin-launcher:
+    image: node:20-alpine
+    networks:
+      - app
 
   postgres:
     image: postgres:16-alpine
@@ -39,22 +57,6 @@ services:
       - /home/scrippa/server-data/redis:/data
     networks:
       - data
-
-  wallet-generator:
-    image: node:20-alpine
-    networks:
-      - app
-
-  coin-launcher:
-    image: node:20-alpine
-    networks:
-      - app
-
-  frontend:
-    image: node:20-alpine
-    networks:
-      - app
-
 
 networks:
   public: {}
