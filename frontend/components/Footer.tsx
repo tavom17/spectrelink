@@ -1,24 +1,38 @@
 export default function Footer() {
   return (
     <footer
-      className="flex justify-between items-center px-20 py-10"
-      style={{ borderTop: '1px solid var(--glass-border)' }}
+      className="flex justify-between items-center flex-wrap px-20 py-10"
+      style={{ borderTop: '1px solid var(--glass-border)', gap: '16px' }}
     >
       <span style={{
         fontFamily: "'Bebas Neue', sans-serif",
-        fontSize: '18px',
+        fontSize: '22px',
         letterSpacing: '0.12em',
-        color: 'rgba(255,255,255,0.2)',
+        color: '#f0f0f0',
+        paddingLeft: '24px',
       }}>
-        SPECTRELINK
+        Spectre Link LLC
       </span>
+
       <span style={{
         fontFamily: "'Share Tech Mono', monospace",
-        fontSize: '10px',
-        color: 'rgba(255,255,255,0.15)',
-        letterSpacing: '0.1em',
+        fontSize: '14px',
+        color: '#f0f0f0',
+        letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        textAlign: 'center',
       }}>
-        © 2025 SPECTRELINK — INTERNAL PLATFORM — ALL RIGHTS RESERVED
+        BETA &mdash; Solana Network Only
+      </span>
+
+      <span style={{
+        fontFamily: "'Share Tech Mono', monospace",
+        fontSize: '14px',
+        color: '#f0f0f0',
+        letterSpacing: '0.1em',
+        textTransform: 'uppercase',
+      }}>
+        Powered by Helius
       </span>
     </footer>
   )
