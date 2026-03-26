@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #050810;
+    --bg2: #080d1a;
+    --grid: rgba(0,200,255,0.03);
+    --cyan: #00d4ff;
+    --cyan2: #00ffcc;
+    --orange: #ff6b2b;
+    --purple: #7b4fff;
+    --green: #00ff88;
+    --red: #ff3366;
+    --yellow: #ffd700;
+    --dim: rgba(0,212,255,0.15);
+    --border: rgba(0,212,255,0.25);
+    --text: #c8e0ff;
+    --mono: 'Share Tech Mono', monospace;
+    --display: 'Rajdhani', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--display);
+    min-height: 100vh;
+    overflow-x: hidden;
+    position: relative;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Scanline effect */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.08) 2px,
+      rgba(0,0,0,0.08) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .container {
+    position: relative;
+    z-index: 2;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 20px 80px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 60px;
+    position: relative;
+  }
+
+  .header-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 6px;
+    color: var(--cyan);
+    opacity: 0.7;
+    margin-bottom: 12px;
+    animation: fadeIn 1s ease forwards;
+  }
+
+  .header h1 {
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, var(--cyan), var(--cyan2), var(--purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: fadeIn 1s ease 0.2s both;
+  }
+
+  .header-line {
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+    margin: 16px auto 0;
+    animation: expandWidth 1s ease 0.5s both;
+  }
+
+  @keyframes expandWidth {
+    from { width: 0; opacity: 0; }
+    to { width: 200px; opacity: 1; }
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Flow layout */
+  .flow {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    align-items: center;
+  }
+
+  /* Layer */
+  .layer {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    animation: slideUp 0.6s ease both;
+  }
+
+  .layer:nth-child(1) { animation-delay: 0.1s; }
+  .layer:nth-child(2) { animation-delay: 0.2s; }
+  .layer:nth-child(3) { animation-delay: 0.3s; }
+  .layer:nth-child(4) { animation-delay: 0.4s; }
+  .layer:nth-child(5) { animation-delay: 0.5s; }
+  .layer:nth-child(6) { animation-delay: 0.6s; }
+  .layer:nth-child(7) { animation-delay: 0.7s; }
+  .layer:nth-child(8) { animation-delay: 0.8s; }
+
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(30px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Layer label */
+  .layer-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 4px;
+    opacity: 0.4;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  /* Node row */
+  .node-row {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  /* Node */
+  .node {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px 20px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: var(--bg2);
+    overflow: hidden;
+    min-width: 160px;
+    text-align: center;
+  }
+
+  .node::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, transparent 60%, rgba(0,212,255,0.03));
+    pointer-events: none;
+  }
+
+  .node::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--node-color, var(--cyan)), transparent);
+    opacity: 0.6;
+  }
+
+  .node:hover {
+    border-color: var(--node-color, var(--cyan));
+    transform: translateY(-3px);
+    box-shadow:
+      0 0 20px rgba(0,212,255,0.1),
+      0 8px 32px rgba(0,0,0,0.4),
+      inset 0 0 20px rgba(0,212,255,0.02);
+  }
+
+  .node:hover .node-glow {
+    opacity: 1;
+  }
+
+  .node-glow {
+    position: absolute;
+    inset: -1px;
+    border-radius: 4px;
+    border: 1px solid var(--node-color, var(--cyan));
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    box-shadow: 0 0 15px var(--node-color, var(--cyan));
+  }
+
+  .node-icon {
+    font-size: 20px;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .node-title {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--node-color, var(--cyan));
+    margin-bottom: 4px;
+  }
+
+  .node-sub {
+    font-family: var(--mono);
+    font-size: 9px;
+    opacity: 0.5;
+    letter-spacing: 1px;
+  }
+
+  .node-badge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    font-family: var(--mono);
+    font-size: 8px;
+    padding: 2px 5px;
+    border-radius: 2px;
+    background: rgba(0,212,255,0.1);
+    border: 1px solid rgba(0,212,255,0.2);
+    color: var(--cyan);
+    letter-spacing: 1px;
+  }
+
+  /* Color variants */
+  .node.cyan   { --node-color: var(--cyan); }
+  .node.green  { --node-color: var(--green); }
+  .node.orange { --node-color: var(--orange); }
+  .node.purple { --node-color: var(--purple); }
+  .node.red    { --node-color: var(--red); }
+  .node.yellow { --node-color: var(--yellow); }
+  .node.cyan2  { --node-color: var(--cyan2); }
+
+  /* Wide node */
+  .node.wide {
+    min-width: 280px;
+    max-width: 500px;
+    flex: 1;
+  }
+
+  .node.full {
+    width: 100%;
+    max-width: 700px;
+  }
+
+  /* Connector */
+  .connector {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 4px 0;
+    position: relative;
+  }
+
+  .connector-line {
+    width: 1px;
+    height: 30px;
+    background: linear-gradient(180deg, var(--conn-color, var(--cyan)), transparent);
+    position: relative;
+    opacity: 0.5;
+  }
+
+  .connector-line.animated::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -1px;
+    width: 3px;
+    height: 8px;
+    background: var(--conn-color, var(--cyan));
+    border-radius: 2px;
+    animation: flow 1.5s ease-in-out infinite;
+    box-shadow: 0 0 6px var(--conn-color, var(--cyan));
+  }
+
+  @keyframes flow {
+    0% { top: -8px; opacity: 0; }
+    20% { opacity: 1; }
+    80% { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+
+  .connector-label {
+    font-family: var(--mono);
+    font-size: 8px;
+    letter-spacing: 2px;
+    color: var(--conn-color, var(--cyan));
+    opacity: 0.6;
+    background: var(--bg);
+    padding: 2px 8px;
+    border: 1px solid rgba(0,212,255,0.1);
+    border-radius: 2px;
+    margin: 4px 0;
+    white-space: nowrap;
+  }
+
+  .connector-arrow {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 6px solid var(--conn-color, var(--cyan));
+    opacity: 0.6;
+  }
+
+  /* Split connector */
+  .split-connector {
+    display: flex;
+    width: 100%;
+    max-width: 700px;
+    justify-content: center;
+    position: relative;
+    margin: 4px 0;
+    height: 50px;
+  }
+
+  .split-connector svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  /* Section divider */
+  .section-divider {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 20px 0;
+    opacity: 0.3;
+  }
+
+  .section-divider::before,
+  .section-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  }
+
+  .section-divider span {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 3px;
+    white-space: nowrap;
+  }
+
+  /* Network badge row */
+  .network-row {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 8px 0;
+  }
+
+  .net-badge {
+    font-family: var(--mono);
+    font-size: 8px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    letter-spacing: 2px;
+    border: 1px solid;
+  }
+
+  .net-badge.public  { border-color: var(--cyan);   color: var(--cyan);   background: rgba(0,212,255,0.05); }
+  .net-badge.app     { border-color: var(--green);  color: var(--green);  background: rgba(0,255,136,0.05); }
+  .net-badge.data    { border-color: var(--orange); color: var(--orange); background: rgba(255,107,43,0.05); }
+
+  /* API modules section */
+  .api-internals {
+    width: 100%;
+    max-width: 800px;
+    border: 1px solid rgba(0,255,136,0.15);
+    border-radius: 6px;
+    padding: 20px;
+    background: rgba(0,255,136,0.02);
+    position: relative;
+  }
+
+  .api-internals::before {
+    content: 'API CONTAINER';
+    position: absolute;
+    top: -8px;
+    left: 20px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--green);
+    background: var(--bg);
+    padding: 0 8px;
+  }
+
+  .api-modules {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .api-module {
+    border: 1px solid rgba(0,255,136,0.2);
+    border-radius: 4px;
+    padding: 12px;
+    text-align: center;
+    background: rgba(0,255,136,0.03);
+    transition: all 0.3s ease;
+    cursor: pointer;
+  }
+
+  .api-module:hover {
+    border-color: var(--green);
+    box-shadow: 0 0 15px rgba(0,255,136,0.1);
+    transform: translateY(-2px);
+  }
+
+  .api-module-title {
+    font-family: var(--display);
+    font-weight: 600;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--green);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .api-module-routes {
+    font-family: var(--mono);
+    font-size: 8px;
+    opacity: 0.5;
+    line-height: 1.6;
+  }
+
+  .api-shared {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0,255,136,0.1);
+  }
+
+  .api-shared-item {
+    font-family: var(--mono);
+    font-size: 8px;
+    padding: 3px 10px;
+    border: 1px solid rgba(0,255,136,0.2);
+    border-radius: 2px;
+    color: var(--green);
+    opacity: 0.7;
+    letter-spacing: 1px;
+  }
+
+  /* Data layer */
+  .data-container {
+    width: 100%;
+    max-width: 800px;
+    border: 1px solid rgba(255,107,43,0.15);
+    border-radius: 6px;
+    padding: 20px;
+    background: rgba(255,107,43,0.02);
+    position: relative;
+  }
+
+  .data-container::before {
+    content: 'DATA NETWORK — INTERNAL ONLY';
+    position: absolute;
+    top: -8px;
+    left: 20px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 3px;
+    color: var(--orange);
+    background: var(--bg);
+    padding: 0 8px;
+  }
+
+  .data-nodes {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* Tooltip */
+  .tooltip {
+    position: fixed;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px;
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1.8;
+    color: var(--text);
+    pointer-events: none;
+    z-index: 100;
+    max-width: 260px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+
+  .tooltip.visible { opacity: 1; }
+
+  .tooltip-title {
+    color: var(--cyan);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    font-size: 11px;
+  }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(0,212,255,0.08);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 2px;
+    opacity: 0.5;
+  }
+
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Pulse animation on key nodes */
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(0,212,255,0.1); }
+    50% { box-shadow: 0 0 0 6px rgba(0,212,255,0); }
+  }
+
+  .node.pulse {
+    animation: nodePulse 3s ease-in-out infinite;
+  }
+
+  @keyframes nodePulse {
+    0%, 100% { border-color: var(--border); }
+    50% { border-color: var(--node-color, var(--cyan)); box-shadow: 0 0 20px rgba(0,212,255,0.15); }
+  }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    .api-modules { grid-template-columns: 1fr; }
+    .node.wide { min-width: 140px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="tooltip" id="tooltip">
+  <div class="tooltip-title" id="tooltip-title"></div>
+  <div id="tooltip-body"></div>
+</div>
+
+<div class="container">
+
+  <div class="header">
+    <div class="header-label">// SYSTEM ARCHITECTURE v1.0</div>
+    <h1>Solana Dev Platform</h1>
+    <div class="header-line"></div>
+  </div>
+
+  <div class="flow">
+
+    <!-- INTERNET -->
+    <div class="layer">
+      <div class="layer-label">// external</div>
+      <div class="node-row">
+        <div class="node cyan wide pulse"
+          data-title="INTERNET / USER"
+          data-info="Public users accessing yoursite.com via browser over HTTPS port 443. DNS managed by Cloudflare.">
+          <div class="node-glow"></div>
+          <span class="node-icon">🌐</span>
+          <div class="node-title">Internet</div>
+          <div class="node-sub">HTTPS:443 · yoursite.com</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONNECTOR -->
+    <div class="connector" style="--conn-color: var(--cyan)">
+      <div class="connector-line animated"></div>
+      <div class="connector-label">HTTPS · TLS ENCRYPTED</div>
+      <div class="connector-line"></div>
+      <div class="connector-arrow"></div>
+    </div>
+
+    <!-- CLOUDFLARE -->
+    <div class="layer">
+      <div class="layer-label">// cloudflare edge</div>
+      <div class="node-row">
+        <div class="node orange wide pulse"
+          data-title="CLOUDFLARE EDGE"
+          data-info="Cloudflare sits between the internet and your server. Hides your real home IP, handles DDoS protection, SSL termination at edge, and dynamic DNS updates via Tunnel. No port forwarding needed on your router.">
+          <div class="node-glow"></div>
+          <div class="node-badge">DDNS</div>
+          <span class="node-icon">☁️</span>
+          <div class="node-title">Cloudflare</div>
+          <div class="node-sub">DDoS · SSL · Dynamic DNS · IP Masking</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONNECTOR -->
+    <div class="connector" style="--conn-color: var(--orange)">
+      <div class="connector-line animated"></div>
+      <div class="connector-label">ENCRYPTED TUNNEL · OUTBOUND</div>
+      <div class="connector-line"></div>
+      <div class="connector-arrow" style="border-top-color: var(--orange)"></div>
+    </div>
+
+    <!-- GEEKOM SERVER -->
+    <div class="layer">
+      <div class="layer-label">// geekom a8 · ubuntu server · bare metal</div>
+      <div class="node-row">
+        <div class="node yellow wide"
+          data-title="GEEKOM A8"
+          data-info="Bare metal Ubuntu Server. Runs Docker Engine. All services containerized. Cloudflare Tunnel container establishes outbound connection — no inbound ports exposed on your router.">
+          <div class="node-glow"></div>
+          <div class="node-badge">BARE METAL</div>
+          <span class="node-icon">🖥️</span>
+          <div class="node-title">Geekom A8</div>
+          <div class="node-sub">Ubuntu Server · Docker Engine · Local Network</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-divider"><span>DOCKER ENVIRONMENT</span></div>
+
+    <!-- CLOUDFLARE TUNNEL CONTAINER -->
+    <div class="layer">
+      <div class="layer-label">// public network</div>
+      <div class="network-row">
+        <span class="net-badge public">PUBLIC NETWORK</span>
+      </div>
+      <div class="node-row" style="margin-top: 8px;">
+        <div class="node cyan"
+          data-title="CLOUDFLARE TUNNEL CONTAINER"
+          data-info="cloudflare/cloudflared:latest. Authenticates to Cloudflare via TUNNEL_TOKEN env var. Establishes persistent outbound tunnel. Routes incoming traffic to Nginx. No exposed ports on host.">
+          <div class="node-glow"></div>
+          <div class="node-badge">CONTAINER</div>
+          <span class="node-icon">🔗</span>
+          <div class="node-title">CF Tunnel</div>
+          <div class="node-sub">cloudflared:latest</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONNECTOR -->
+    <div class="connector" style="--conn-color: var(--cyan)">
+      <div class="connector-line animated"></div>
+      <div class="connector-label">INTERNAL DOCKER NETWORK</div>
+      <div class="connector-line"></div>
+      <div class="connector-arrow"></div>
+    </div>
+
+    <!-- NGINX -->
+    <div class="layer">
+      <div class="layer-label">// public + app network</div>
+      <div class="network-row">
+        <span class="net-badge public">PUBLIC NETWORK</span>
+        <span class="net-badge app">APP NETWORK</span>
+      </div>
+      <div class="node-row" style="margin-top: 8px;">
+        <div class="node cyan2 wide"
+          data-title="NGINX CONTAINER"
+          data-info="nginx:alpine. Acts as reverse proxy. Routes yoursite.com → Frontend container. Routes yoursite.com/api/* → API container. Handles SSL internally. Bridges public and app networks.">
+          <div class="node-glow"></div>
+          <div class="node-badge">CONTAINER</div>
+          <span class="node-icon">⚡</span>
+          <div class="node-title">Nginx</div>
+          <div class="node-sub">Reverse Proxy · SSL Termination · Request Routing</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SPLIT TO FRONTEND + API -->
+    <div class="connector" style="--conn-color: var(--cyan2)">
+      <div class="connector-line animated"></div>
+      <div class="connector-label">yoursite.com → FRONTEND &nbsp;|&nbsp; /api/* → API</div>
+      <div class="connector-line"></div>
+      <div class="connector-arrow" style="border-top-color: var(--cyan2)"></div>
+    </div>
+
+    <!-- FRONTEND + API LAYER -->
+    <div class="layer">
+      <div class="layer-label">// app network</div>
+      <div class="network-row">
+        <span class="net-badge app">APP NETWORK</span>
+      </div>
+      <div class="node-row" style="margin-top: 8px;">
+
+        <div class="node purple wide"
+          data-title="FRONTEND CONTAINER"
+          data-info="Next.js + TypeScript + Tailwind + shadcn/ui. Multi-stage Docker build. Serves SSR pages to browser. Makes REST calls to API container via internal Docker network. No direct DB access.">
+          <div class="node-glow"></div>
+          <div class="node-badge">CONTAINER</div>
+          <span class="node-icon">🎨</span>
+          <div class="node-title">Frontend</div>
+          <div class="node-sub">Next.js · TypeScript · Tailwind · shadcn/ui</div>
+        </div>
+
+        <!-- API CONTAINER -->
+        <div class="api-internals" style="flex: 1; min-width: 300px;"
+          data-title="API CONTAINER"
+          data-info="Node.js + Fastify + TypeScript. Single modular API serving all three application domains. Shared middleware for auth, error handling. Connects to Postgres and Redis on data network only.">
+          <div class="api-modules">
+            <div class="api-module"
+              data-title="WALLET MODULE"
+              data-info="POST /api/wallet/create&#10;GET /api/wallet/:id&#10;GET /api/wallet/list&#10;POST /api/wallet/import&#10;DELETE /api/wallet/:id&#10;&#10;HD wallet generation, key derivation, encrypted storage, JSON import/export.">
+              <div class="api-module-title">💰 Wallet</div>
+              <div class="api-module-routes">
+                /wallet/create<br>
+                /wallet/:id<br>
+                /wallet/list<br>
+                /wallet/import
+              </div>
+            </div>
+            <div class="api-module"
+              data-title="COIN LAUNCHER MODULE"
+              data-info="POST /api/launcher/create&#10;POST /api/launcher/deploy&#10;GET /api/launcher/status/:id&#10;POST /api/launcher/mint&#10;&#10;Token creation, deployment configuration, mint authority management.">
+              <div class="api-module-title">🚀 Launcher</div>
+              <div class="api-module-routes">
+                /launcher/create<br>
+                /launcher/deploy<br>
+                /launcher/status<br>
+                /launcher/mint
+              </div>
+            </div>
+            <div class="api-module"
+              data-title="LIQUIDITY MANAGER MODULE"
+              data-info="POST /api/liquidity/add&#10;POST /api/liquidity/remove&#10;GET /api/liquidity/pools&#10;GET /api/liquidity/stats/:id&#10;&#10;Pool management, liquidity operations, position tracking.">
+              <div class="api-module-title">💧 Liquidity</div>
+              <div class="api-module-routes">
+                /liquidity/add<br>
+                /liquidity/remove<br>
+                /liquidity/pools<br>
+                /liquidity/stats
+              </div>
+            </div>
+          </div>
+          <div class="api-shared">
+            <span class="api-shared-item">AUTH MIDDLEWARE</span>
+            <span class="api-shared-item">ERROR HANDLER</span>
+            <span class="api-shared-item">JWT</span>
+            <span class="api-shared-item">SHARED TYPES</span>
+            <span class="api-shared-item">DB CLIENT</span>
+            <span class="api-shared-item">REDIS CLIENT</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- CONNECTOR TO DATA -->
+    <div class="connector" style="--conn-color: var(--orange)">
+      <div class="connector-line animated" style="--conn-color: var(--orange)"></div>
+      <div class="connector-label" style="color: var(--orange); border-color: rgba(255,107,43,0.2)">API → DATA NETWORK ONLY</div>
+      <div class="connector-line" style="--conn-color: var(--orange)"></div>
+      <div class="connector-arrow" style="border-top-color: var(--orange)"></div>
+    </div>
+
+    <!-- DATA LAYER -->
+    <div class="layer">
+      <div class="layer-label">// data network — not reachable from frontend or nginx</div>
+      <div class="network-row">
+        <span class="net-badge data">DATA NETWORK</span>
+      </div>
+      <div style="margin-top: 8px; width: 100%; max-width: 800px;">
+        <div class="data-container">
+          <div class="data-nodes">
+
+            <div class="node orange wide"
+              data-title="POSTGRES CONTAINER"
+              data-info="postgres:16-alpine. Bind mount to /home/user/server-data/postgres on host. Stores: users, wallets (encrypted mnemonic, pubkeys, metadata), sessions, token configs, liquidity positions. Only reachable by API container on data network.">
+              <div class="node-glow"></div>
+              <div class="node-badge">CONTAINER</div>
+              <span class="node-icon">🗄️</span>
+              <div class="node-title">Postgres</div>
+              <div class="node-sub">Users · Wallets · Tokens · Positions</div>
+              <div style="margin-top: 8px; font-family: var(--mono); font-size: 8px; opacity: 0.4; line-height: 1.8; text-align: left;">
+                📁 /home/user/server-data/postgres<br>
+                🔒 Encrypted wallet mnemonics<br>
+                🔑 Public keys in plaintext<br>
+                👤 User accounts + auth
+              </div>
+            </div>
+
+            <div class="node red wide"
+              data-title="REDIS CONTAINER"
+              data-info="redis:7-alpine. Bind mount to /home/user/server-data/redis. Used for: JWT session storage with TTL, wallet data caching to reduce DB load, async job queues for blockchain operations. Password protected.">
+              <div class="node-glow"></div>
+              <div class="node-badge">CONTAINER</div>
+              <span class="node-icon">⚡</span>
+              <div class="node-title">Redis</div>
+              <div class="node-sub">Sessions · Cache · Job Queues</div>
+              <div style="margin-top: 8px; font-family: var(--mono); font-size: 8px; opacity: 0.4; line-height: 1.8; text-align: left;">
+                🔐 Session tokens + TTL<br>
+                ⚡ Wallet list cache<br>
+                📋 Async job queues<br>
+                📁 /home/user/server-data/redis
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LEGEND -->
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background: var(--cyan)"></div>
+        PUBLIC NETWORK
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: var(--green)"></div>
+        APP NETWORK
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: var(--orange)"></div>
+        DATA NETWORK
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: var(--purple)"></div>
+        FRONTEND
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: var(--red)"></div>
+        CACHE / QUEUE
+      </div>
+      <div class="legend-item" style="opacity: 0.3">
+        HOVER NODES FOR DETAILS
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const tooltip = document.getElementById('tooltip');
+  const tooltipTitle = document.getElementById('tooltip-title');
+  const tooltipBody = document.getElementById('tooltip-body');
+
+  document.querySelectorAll('[data-title]').forEach(el => {
+    el.addEventListener('mouseenter', (e) => {
+      tooltipTitle.textContent = el.dataset.title;
+      tooltipBody.innerHTML = (el.dataset.info || '').replace(/\n/g, '<br>');
+      tooltip.classList.add('visible');
+      moveTooltip(e);
+    });
+
+    el.addEventListener('mousemove', moveTooltip);
+
+    el.addEventListener('mouseleave', () => {
+      tooltip.classList.remove('visible');
+    });
+  });
+
+  function moveTooltip(e) {
+    const x = e.clientX + 16;
+    const y = e.clientY + 16;
+    const tw = tooltip.offsetWidth;
+    const th = tooltip.offsetHeight;
+    const wx = window.innerWidth;
+    const wy = window.innerHeight;
+    tooltip.style.left = (x + tw > wx ? x - tw - 32 : x) + 'px';
+    tooltip.style.top  = (y + th > wy ? y - th - 32 : y) + 'px';
+  }
+</script>
+</body>
+</html>
