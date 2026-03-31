@@ -34,13 +34,18 @@ services:
       - app
       - data
 
-  wallet-generator:
-    image: node:20-alpine
+  wallet-app:
+    build:
+      context: ./wallet-app
+      dockerfile: Dockerfile
     networks:
       - app
+      - data
 
   coin-launcher:
-    image: node:20-alpine
+    build:
+      context: ./coin-launcher
+      dockerfile: Dockerfile
     networks:
       - app
 

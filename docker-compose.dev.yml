@@ -1,0 +1,87 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend
+    networks:
+      - public
+      - app
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    ports:
+      - "3000:3000"
+    networks:
+      - app
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    volumes:
+      - ./api-gateway/src:/app/src
+    ports:
+      - "3001:3001"
+    networks:
+      - app
+      - data
+
+  wallet-app:
+    build:
+      context: ./wallet-app
+      dockerfile: Dockerfile
+    volumes:
+      - ./wallet-app/src:/app/src
+    ports:
+      - "3003:3003"
+    networks:
+      - app
+      - data
+
+  coin-launcher:
+    build:
+      context: ./coin-launcher
+      dockerfile: Dockerfile
+    volumes:
+      - ./coin-launcher/src:/app/src
+    ports:
+      - "3002:3002"
+    networks:
+      - app
+
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - /home/scrippa/server-data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${postgres_USER}
+      POSTGRES_PASSWORD: ${postgres_PASS}
+      POSTGRES_DB: ${postgres_DB}
+    networks:
+      - data
+
+  redis:
+    image: redis
+    volumes:
+      - /home/scrippa/server-data/redis:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - data
+
+networks:
+  public: {}
+  app: {}
+  data: {}
