@@ -1,260 +1,232 @@
-import Link from 'next/link'
-import Footer from '@/components/Footer'
+'use client'
 
-export default function Transit() {
+import { useState } from 'react'
+import Launchpad from './components/Launchpad'
+import Bundler from './components/Bundler'
+import Liquidity from './components/Liquidity'
+import Settings from './components/Settings'
+
+const NAV_ITEMS = [
+  {
+    id: 'launchpad',
+    label: 'COIN LAUNCHPAD',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <polygon points="8,2 14,5 14,11 8,14 2,11 2,5" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <circle cx="8" cy="8" r="2" fill="currentColor"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'bundler',
+    label: 'BUNDLER',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <rect x="2" y="2" width="5" height="5" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <rect x="9" y="2" width="5" height="5" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <rect x="2" y="9" width="5" height="5" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <rect x="9" y="9" width="5" height="5" stroke="currentColor" strokeWidth="0.5" fill="none" opacity="0.5"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'liquidity',
+    label: 'LIQUIDITY MANAGER',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M3 13 L8 3 L13 13" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <path d="M5 9.5 L11 9.5" stroke="currentColor" strokeWidth="0.5"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'settings',
+    label: 'SETTINGS',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <path d="M8 1.5 L8 3M8 13 L8 14.5M1.5 8 L3 8M13 8 L14.5 8M3.5 3.5 L4.5 4.5M11.5 11.5 L12.5 12.5M12.5 3.5 L11.5 4.5M4.5 11.5 L3.5 12.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+]
+
+const PANELS: Record<string, React.ReactNode> = {
+  launchpad: <Launchpad />,
+  bundler:   <Bundler />,
+  liquidity: <Liquidity />,
+  settings:  <Settings />,
+}
+
+export default function TransitPage() {
+  const [activeId, setActiveId] = useState('launchpad')
+
   return (
-    <>
-      {/* Hero */}
-      <div
-        className="relative flex flex-col justify-center px-20 overflow-hidden"
-        style={{ minHeight: 'calc(100vh - 72px)' }}
-      >
-        {/* Orbital rings */}
-        <div className="absolute" style={{
-          right: '-200px',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          width: '800px',
-          height: '800px',
+    <div className="transit-shell" style={{
+      display: 'flex',
+      height: 'calc(100vh - 72px)',
+      overflow: 'hidden',
+      borderTop: '1px solid var(--glass-border)',
+    }}>
+      <style>{`
+        .transit-shell {
+          --black:        #010101;
+          --deep:         #ffffff;
+          --glass:        rgba(0,0,0,0.05);
+          --glass-border: rgba(0,0,0,0.18);
+          --white:        #010101;
+          --dim:          rgba(1,1,1,0.72);
+          --faint:        rgba(1,1,1,0.45);
+          background: #e8e8e8;
+        }
+        body::before { display: none !important; }
+      `}</style>
+
+      {/* Sidebar */}
+      <aside style={{
+        width: '220px',
+        flexShrink: 0,
+        borderRight: '1px solid var(--glass-border)',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+
+        {/* Branding */}
+        <div style={{
+          padding: '20px',
+          borderBottom: '1px solid var(--glass-border)',
+          background: 'var(--glass)',
         }}>
-          {[
-            { size: 200, duration: '8s', border: 'rgba(255,255,255,0.08)' },
-            { size: 350, duration: '15s', reverse: true, border: 'rgba(255,255,255,0.04)' },
-            { size: 500, duration: '25s', border: 'rgba(255,255,255,0.04)' },
-            { size: 700, duration: '40s', reverse: true, border: 'rgba(255,255,255,0.02)' },
-          ].map((ring, i) => (
-            <div
-              key={i}
-              className="absolute rounded-full"
-              style={{
-                width: ring.size,
-                height: ring.size,
-                border: `1px solid ${ring.border}`,
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                animation: `ringRotate ${ring.duration} linear infinite ${ring.reverse ? 'reverse' : ''}`,
-              }}
-            >
-              {i < 3 && (
-                <div style={{
-                  position: 'absolute',
-                  width: '4px',
-                  height: '4px',
-                  background: 'var(--white)',
-                  borderRadius: '50%',
-                  top: 0,
-                  left: '50%',
-                  transform: 'translateX(-50%) translateY(-50%)',
-                  boxShadow: '0 0 8px var(--white)',
-                }} />
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="relative z-10 max-w-xl">
-          <div className="inline-flex items-center gap-2 mb-10 px-4 py-2" style={{
+          <div style={{
             fontFamily: "'Share Tech Mono', monospace",
-            fontSize: '10px',
+            fontSize: '9px',
             letterSpacing: '0.2em',
-            color: 'var(--dim)',
+            color: 'var(--faint)',
             textTransform: 'uppercase',
-            border: '1px solid var(--glass-border)',
-            background: 'var(--glass)',
+            marginBottom: '6px',
           }}>
-            <span className="status-dot" />
-            SPECTRELINK PLATFORM
+            Platform
           </div>
-
-          <h1 style={{
+          <div style={{
             fontFamily: "'Bebas Neue', sans-serif",
-            fontSize: 'clamp(64px, 9vw, 120px)',
-            lineHeight: '0.9',
-            letterSpacing: '0.04em',
+            fontSize: '22px',
+            letterSpacing: '0.08em',
             color: 'var(--white)',
-            marginBottom: '32px',
+            lineHeight: 1,
           }}>
-            SPECTRE
-            <span className="block" style={{
-              WebkitTextStroke: '1px rgba(255,255,255,0.2)',
-              color: 'transparent',
-            }}>
+            SPECTRE<br />
+            <span style={{ WebkitTextStroke: '1px rgba(1,1,1,0.3)', color: 'transparent' }}>
               TRANSIT
             </span>
-          </h1>
-
-          <p style={{
-            fontSize: '15px',
-            fontWeight: 300,
-            color: 'var(--dim)',
-            lineHeight: 1.8,
-            marginBottom: '48px',
-          }}>
-            The unified control interface for all SpectreLink operations. Wallet management, token deployment, and liquidity positions — accessed through a single authenticated session.
-          </p>
-
-          <div className="flex gap-4 flex-wrap">
-            <Link href="#" className="btn btn-primary">
-              Enter Platform
-              <span className="btn-arrow">→</span>
-            </Link>
-            <Link href="#" className="btn btn-ghost">
-              System Status
-            </Link>
           </div>
         </div>
-      </div>
 
-      {/* Modules */}
-      <div
-        className="grid grid-cols-3"
-        style={{ borderTop: '1px solid var(--glass-border)', background: 'var(--glass-border)', gap: '1px' }}
-      >
-        {[
-          {
-            status: 'active',
-            title: 'WALLET',
-            body: 'Generate HD wallets from BIP-39 mnemonics. Derive child keys across any path. Import and export encrypted JSON. Reconstructed from Postgres on demand — zero persistent memory state.',
-            link: 'Access Module',
-            active: true,
-          },
-          {
-            status: 'active',
-            title: 'LAUNCHER',
-            body: 'Deploy SPL tokens via Helius RPC. Configure mint authority, decimals, supply, and metadata. Monitor deployment status and transaction confirmation in real time via WebSocket.',
-            link: 'Access Module',
-            active: true,
-          },
-          {
-            status: 'offline',
-            title: 'LIQUIDITY',
-            body: 'Meteora pool creation and position management. Track concentrated liquidity ranges, accumulated fees, and pool performance metrics. Full position lifecycle from open to close.',
-            link: 'Pending Build',
-            active: false,
-          },
-        ].map((mod, i) => (
-          <div
-            key={mod.title}
-            className="card-hover p-12"
-            style={{ background: 'var(--deep)' }}
-          >
-            <div className="flex items-center gap-2 mb-5" style={{
+        {/* Nav items */}
+        <nav style={{ flex: 1, padding: '12px 0' }}>
+          {NAV_ITEMS.map(item => {
+            const isActive = item.id === activeId
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveId(item.id)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '11px 20px',
+                  background: isActive ? 'rgba(0,0,0,0.07)' : 'transparent',
+                  border: 'none',
+                  borderLeft: isActive ? '2px solid var(--white)' : '2px solid transparent',
+                  color: isActive ? 'var(--white)' : 'var(--dim)',
+                  fontFamily: "'Share Tech Mono', monospace",
+                  fontSize: '12px',
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span style={{ opacity: isActive ? 1 : 0.5 }}>{item.icon}</span>
+                {item.label}
+              </button>
+            )
+          })}
+        </nav>
+
+        {/* Sidebar footer */}
+        <div style={{
+          padding: '16px 20px',
+          borderTop: '1px solid var(--glass-border)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{
+              width: '5px',
+              height: '5px',
+              borderRadius: '50%',
+              background: 'var(--white)',
+              animation: 'pulse 2s infinite',
+            }} />
+            <span style={{
               fontFamily: "'Share Tech Mono', monospace",
-              fontSize: '10px',
+              fontSize: '9px',
               letterSpacing: '0.15em',
               color: 'var(--faint)',
               textTransform: 'uppercase',
             }}>
-              <div style={{
-                width: '5px',
-                height: '5px',
-                borderRadius: '50%',
-                background: mod.active ? 'var(--white)' : 'rgba(255,255,255,0.2)',
-                animation: mod.active ? 'pulse 2s infinite' : 'none',
-                boxShadow: mod.active ? '0 0 6px var(--white)' : 'none',
-              }} />
-              {mod.active ? 'Module Active' : 'Coming Soon'}
-            </div>
-
-            <div style={{
-              fontFamily: "'Bebas Neue', sans-serif",
-              fontSize: '32px',
-              letterSpacing: '0.08em',
-              color: 'var(--white)',
-              marginBottom: '16px',
-            }}>
-              {mod.title}
-            </div>
-
-            <p style={{
-              fontSize: '13px',
-              fontWeight: 300,
-              color: 'var(--dim)',
-              lineHeight: 1.7,
-              marginBottom: '32px',
-            }}>
-              {mod.body}
-            </p>
-
-            <span style={{
-              fontFamily: "'Share Tech Mono', monospace",
-              fontSize: '10px',
-              letterSpacing: '0.15em',
-              textTransform: 'uppercase',
-              color: 'var(--white)',
-              opacity: mod.active ? 0.4 : 0.15,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '8px',
-              pointerEvents: mod.active ? 'auto' : 'none',
-            }}>
-              {mod.link} {mod.active ? '→' : ''}
+              Systems Online
             </span>
           </div>
-        ))}
-      </div>
-
-      {/* Build phases */}
-      <section className="px-20 py-24" style={{ borderTop: '1px solid var(--glass-border)' }}>
-        <div className="section-label">Build Status</div>
-        <h2 style={{
-          fontFamily: "'Bebas Neue', sans-serif",
-          fontSize: '48px',
-          letterSpacing: '0.08em',
-          color: 'var(--white)',
-          marginBottom: '48px',
-        }}>PHASE PROGRESS</h2>
-
-        <div style={{ border: '1px solid var(--glass-border)' }}>
-          {[
-            { phase: 'Phase 1', label: 'Infrastructure · Docker · Cloudflare · Nginx', status: 'COMPLETE', opacity: 1 },
-            { phase: 'Phase 2', label: 'Data Layer · Postgres · Redis · Network Isolation', status: 'COMPLETE', opacity: 1 },
-            { phase: 'Phase 3', label: 'Application Layer · API Gateway · Wallet · Launcher · Liquidity', status: 'IN PROGRESS', opacity: 1 },
-            { phase: 'Phase 4', label: 'Frontend · Next.js · Wallet UI · Launcher UI · Liquidity UI', status: 'IN PROGRESS', opacity: 0.7 },
-          ].map((p, i) => (
-            <div
-              key={p.phase}
-              className="flex items-center gap-6 px-8 py-5"
-              style={{
-                background: 'var(--glass)',
-                borderBottom: i < 3 ? '1px solid var(--glass-border)' : 'none',
-                opacity: p.opacity,
-              }}
-            >
-              <span style={{
-                fontFamily: "'Share Tech Mono', monospace",
-                fontSize: '10px',
-                letterSpacing: '0.2em',
-                color: 'var(--white)',
-                textTransform: 'uppercase',
-                minWidth: '100px',
-              }}>
-                {p.phase}
-              </span>
-              <span style={{
-                fontFamily: "'Share Tech Mono', monospace",
-                fontSize: '11px',
-                color: 'var(--dim)',
-              }}>
-                {p.label}
-              </span>
-              <span style={{
-                marginLeft: 'auto',
-                fontFamily: "'Share Tech Mono', monospace",
-                fontSize: '10px',
-                color: p.status === 'COMPLETE' ? 'var(--white)' : 'var(--faint)',
-                letterSpacing: '0.1em',
-              }}>
-                {p.status}
-              </span>
-            </div>
-          ))}
         </div>
-      </section>
+      </aside>
 
-      <Footer />
-    </>
+      {/* Main area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* Top bar */}
+        <div style={{
+          height: '56px',
+          borderBottom: '1px solid var(--glass-border)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          padding: '0 28px',
+          gap: '16px',
+          background: 'var(--glass)',
+          flexShrink: 0,
+        }}>
+          <span style={{
+            fontFamily: "'Share Tech Mono', monospace",
+            fontSize: '11px',
+            letterSpacing: '0.1em',
+            color: 'var(--dim)',
+            textTransform: 'uppercase',
+          }}>
+            exampleUser
+          </span>
+          <button style={{
+            background: 'transparent',
+            border: '1px solid var(--glass-border)',
+            color: 'var(--dim)',
+            padding: '6px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1" fill="none"/>
+              <path d="M8 1.5 L8 3M8 13 L8 14.5M1.5 8 L3 8M13 8 L14.5 8M3.5 3.5 L4.5 4.5M11.5 11.5 L12.5 12.5M12.5 3.5 L11.5 4.5M4.5 11.5 L3.5 12.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Active panel */}
+        <div style={{ flex: 1, overflow: 'auto', background: '#e8e8e8' }}>
+          {PANELS[activeId]}
+        </div>
+      </div>
+    </div>
   )
 }

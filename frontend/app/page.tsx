@@ -200,7 +200,7 @@ export default function Home() {
           </p>
 
           <div className="flex gap-4 flex-wrap justify-center fade-up fade-up-4">
-            <Link href="/transit" className="btn btn-primary">
+            <Link href="/login" className="btn btn-primary">
               Launch App
               <span className="btn-arrow">→</span>
             </Link>
