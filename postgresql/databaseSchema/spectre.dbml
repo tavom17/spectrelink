@@ -1,0 +1,52 @@
+// Spectrelink — Postgres Schema
+// v1 · 2026-03-26
+// Paste into dbdiagram.io to render ERD
+
+Table users {
+  id               uuid        [pk, default: `gen_random_uuid()`]
+  email            varchar     [unique, not null]
+  password_hash    varchar     [not null]
+  role             varchar     [not null, default: 'member', note: 'member | admin']
+  hd_account_index int         [unique, not null, note: 'HD path segment: m/44\'/501\'/{hd_account_index}\'/{wallet_index}\'']
+  created_at       timestamp   [not null, default: `now()`]
+  updated_at       timestamp   [not null, default: `now()`]
+}
+
+Table wallets {
+  id                  uuid      [pk, default: `gen_random_uuid()`]
+  user_id             uuid      [not null, ref: > users.id]
+  wallet_index        int       [not null, note: 'Incrementing index per user — the last segment of the derivation path']
+  derivation_path     varchar   [not null, note: 'Full path stored explicitly e.g. m/44\'/501\'/3\'/7\'']
+  public_key          varchar   [unique, not null]
+  encrypted_mnemonic  text      [not null, note: 'Ciphertext only — plaintext never stored']
+  label               varchar   [note: 'Optional user-defined name for the wallet']
+  created_at          timestamp [not null, default: `now()`]
+}
+
+Table tokens {
+  id            uuid      [pk, default: `gen_random_uuid()`]
+  user_id       uuid      [not null, ref: > users.id]
+  mint_address  varchar   [unique, not null, note: 'On-chain SPL mint address']
+  name          varchar   [not null]
+  symbol        varchar   [not null]
+  decimals      int       [not null]
+  supply        bigint    [not null]
+  launch_tx_sig varchar   [note: 'Transaction signature of the mint creation tx']
+  launched_at   timestamp
+  created_at    timestamp [not null, default: `now()`]
+}
+
+Table liquidity_positions {
+  id                    uuid      [pk, default: `gen_random_uuid()`]
+  wallet_id             uuid      [not null, ref: > wallets.id]
+  token_id              uuid      [not null, ref: > tokens.id]
+  pool_address          varchar   [not null, note: 'Meteora DLMM pool address']
+  position_nft_address  varchar   [unique, not null, note: 'Meteora position NFT — required to modify or close the position']
+  token_a_mint          varchar   [not null]
+  token_b_mint          varchar   [not null]
+  amount_a_deposited    numeric   [not null]
+  amount_b_deposited    numeric   [not null]
+  status                varchar   [not null, default: 'open', note: 'open | closed | partial']
+  opened_at             timestamp [not null, default: `now()`]
+  closed_at             timestamp
+}

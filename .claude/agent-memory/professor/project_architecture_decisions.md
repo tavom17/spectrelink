@@ -60,9 +60,21 @@ wallet-app, launcher-app, liquidity-app are independent containers, NOT modules 
 - **api-gateway build** — Active. Confirmed next major build target. Will establish the internal HTTP API that wallet-app and other services use to reach the data layer. Architecture gap (wallet-app → api-gateway → postgres/redis) is known and will be closed as part of this phase.
 - **wallet-app stateless refactor** — Active. Restructuring wallet-app to be fully stateless (no in-memory wallet state between requests) is confirmed active work, running in parallel with or just ahead of api-gateway wiring.
 
+### 8. Custodial wallet model (confirmed 2026-03-26)
+
+Spectrelink is a **fully custodial platform**. The platform generates and holds all wallet seeds (encrypted). Users deposit SOL into platform-managed wallets. The platform executes all on-chain operations on behalf of the user. Users can withdraw to their personal wallet at any time — this is a platform-signed transaction moving funds from the custodial wallet to a user-supplied destination address. Users never hold or see the seed.
+
+**Why this matters:**
+- Encryption at rest is non-negotiable. Seeds must be encrypted before touching Postgres.
+- The api-gateway is the only service that holds the encryption key (via env var / secrets manager). It is also the only service that decrypts seeds and constructs + signs transactions in memory.
+- Auth and authorization become critical — a compromised account means drained wallets.
+- Balance tracking becomes a product concern: on-chain is truth, but a cached view in Postgres/Redis is required for UX.
+
 ## Decisions Still Open
 
 - Seedphrase encryption approach (library + key storage)
 - App-specific Postgres user with limited permissions (currently using superuser)
 - Internal port assignments
 - WebSocket implementation approach for real-time frontend updates
+- Balance cache strategy: polling vs Helius webhooks, TTL, invalidation on withdrawal
+- Withdrawal auth model: what does the user need to prove before the platform will sign a withdrawal tx on their behalf?
