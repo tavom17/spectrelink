@@ -11,7 +11,7 @@ bcrypt.hash("examplePassword", 12).then((hash) => {
 })
 
 export async function loginRoute(fastify: FastifyInstance) {
-  fastify.post("/auth/login", async (request, reply) => {
+  fastify.post("/login", async (request, reply) => {
     const { username, password } = request.body as { username: string, password: string }
 
     if (username !== MOCK_USER.username) {

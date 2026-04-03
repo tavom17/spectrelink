@@ -1,10 +1,10 @@
 -- tb_users
+--removed hd_account_index - no master seed phrase ,unique per user now, so no need to save account index, just needs to be unique
 CREATE TABLE tb_users (
     user_id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_email         VARCHAR UNIQUE NOT NULL,
     user_password_hash VARCHAR NOT NULL,
-    user_role          VARCHAR NOT NULL DEFAULT 'member',
-    hd_account_index   INT UNIQUE NOT NULL,
+    user_role          VARCHAR NOT NULL DEFAULT 'member' CHECK (user_role IN ('member', 'admin'),
     created_at         TIMESTAMP NOT NULL DEFAULT now(),
     updated_at         TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -17,7 +17,7 @@ CREATE TABLE tb_wallets (
     derivation_path    VARCHAR NOT NULL,
     public_key         VARCHAR UNIQUE NOT NULL,
     encrypted_mnemonic TEXT NOT NULL,
-    type               VARCHAR NOT NULL DEFAULT 'slave',
+    wallet_type        VARCHAR NOT NULL DEFAULT 'slave' CHECK (wallet_type IN ('slave', 'funding','fee'),
     label              VARCHAR,
     created_at         TIMESTAMP NOT NULL DEFAULT now(),
     CONSTRAINT uq_user_wallet_index UNIQUE (user_id, wallet_index)

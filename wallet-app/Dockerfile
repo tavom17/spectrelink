@@ -10,4 +10,4 @@ COPY src ./src
 
 EXPOSE 3003
 
-CMD ["npx", "ts-node", "src/index.ts"]
+CMD ["npx", "tsx", "src/index.ts"]

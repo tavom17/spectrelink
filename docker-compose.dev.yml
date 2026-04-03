@@ -38,6 +38,7 @@ services:
     environment:
       DATABASE_URL: postgres://dev:dev@postgres-dev:5432/spectre_dev
       REDIS_URL: redis://redis-dev:6379
+      ENCRYPTION_KEY: your-dev-secret-key-here
     networks:
       - app
       - data
