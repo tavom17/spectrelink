@@ -36,14 +36,3 @@ const decrypted= Buffer.concat([decipher.update(encryptedData),decipher.final()]
 const finalString = decrypted.toString('utf-8');
 return finalString;
 }
-
-
-const master = "supersecretkey"
-const salt = "user-123"
-const mnemonic = "test mnemonic phrase here"
-
-const enc = encrypt(master, salt, mnemonic)
-console.log("encrypted:", enc)
-
-const dec = decrypt(enc, master, salt)
-console.log("decrypted:", dec)

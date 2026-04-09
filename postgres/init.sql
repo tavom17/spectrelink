@@ -16,11 +16,10 @@ CREATE TABLE tb_wallets (
     derivation_path    VARCHAR NOT NULL,
     public_key         VARCHAR UNIQUE NOT NULL,
     encrypted_mnemonic TEXT NOT NULL,
-    wallet_type        VARCHAR NOT NULL DEFAULT 'slave' CHECK (wallet_type IN ('slave', 'funding','fee')),
+    wallet_type        VARCHAR NOT NULL DEFAULT 'slave' CHECK (wallet_type IN ('slave', 'funding','fee','master')),
     label              VARCHAR,
     created_at         TIMESTAMP NOT NULL DEFAULT now(),
-    CONSTRAINT uq_user_wallet_index UNIQUE (user_id, wallet_index)
-);
+CONSTRAINT uq_user_wallet_type_index UNIQUE (user_id, wallet_type, wallet_index));
 
 -- tb_tokens
 CREATE TABLE tb_tokens (

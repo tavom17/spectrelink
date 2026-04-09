@@ -23,6 +23,12 @@ services:
     environment:
       DATABASE_URL: postgres://dev:dev@postgres-dev:5432/spectre_dev
       REDIS_URL: redis://redis-dev:6379
+      REGISTRATION_SECRET: ${registration_secret}
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+      redis-dev:
+        condition: service_started
     networks:
       - app
       - data
@@ -38,7 +44,12 @@ services:
     environment:
       DATABASE_URL: postgres://dev:dev@postgres-dev:5432/spectre_dev
       REDIS_URL: redis://redis-dev:6379
-      ENCRYPTION_KEY: your-dev-secret-key-here
+      ENCRYPTION_KEY: ${encryption_key}
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+      redis-dev:
+        condition: service_started
     networks:
       - app
       - data
@@ -59,6 +70,11 @@ services:
   postgres-dev:
     image: postgres:16-alpine
     container_name: spectre-postgres-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev -d spectre_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     environment:
       POSTGRES_USER: dev
       POSTGRES_PASSWORD: dev
