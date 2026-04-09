@@ -1,7 +1,6 @@
 import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
 import  nacl from 'tweetnacl';
-import bs58 from "bs58";
 
 interface DerivedWallet{
     publicKey: string
@@ -23,6 +22,7 @@ export async function deriveKeyPair(seedPhrase: string, path: string): Promise<D
     const derived = derivePath(path, seed.toString('hex'));
     const keypair = nacl.sign.keyPair.fromSeed(derived.key);
     //public key return is string encoded = address, not the buffer array
+    const { default: bs58 } = await import('bs58');
     const address = bs58.encode(keypair.publicKey);
     //secret key is full 64 byte (0-32 = secret key only , 33-64 = public key  decoded) 
     const secret = keypair.secretKey;
