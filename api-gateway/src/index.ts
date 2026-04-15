@@ -3,6 +3,7 @@ import pool from "./db"
 import redis from "./redis"
 import { loginRoute } from "./routes/auth/login"
 import { register } from "./routes/auth/registration"
+import authenticate from "./middleware/auth"
 
 
 const fastify = Fastify({ logger: true })
@@ -18,6 +19,14 @@ fastify.get("/health", async () => {
 
 fastify.register(loginRoute, { prefix: "/auth" })
 fastify.register(register, { prefix: "/auth" })
+
+// protected routes — auth required
+fastify.register(async (protectedApp) => {
+    protectedApp.addHook('preHandler', authenticate)
+    protectedApp.get("/me", async (request) => {
+        return { user: request.user }
+    })
+}, { prefix: "/api" })
 
 const start = async () => {
 

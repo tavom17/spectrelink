@@ -22,7 +22,7 @@ export async function register(fastify: FastifyInstance) {
     const masterWalletPath = "m/44'/501'/0'/0'"
     const publicKey = (await deriveKeyPair(seedPhrase,masterWalletPath)).publicKey;
     
-    const insertData = await pool.query(
+   await pool.query(
             
           `INSERT INTO tb_wallets (user_id, wallet_index,derivation_path,public_key, encrypted_mnemonic, wallet_type, label) 
            VALUES ($1, $2,$3, $4,$5, $6, $7)`,
