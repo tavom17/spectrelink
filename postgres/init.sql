@@ -15,12 +15,15 @@ CREATE TABLE tb_wallets (
     wallet_index       INT NOT NULL,
     derivation_path    VARCHAR NOT NULL,
     public_key         VARCHAR UNIQUE NOT NULL,
-    encrypted_mnemonic TEXT NOT NULL,
+    encrypted_mnemonic TEXT,
     wallet_type        VARCHAR NOT NULL DEFAULT 'slave' CHECK (wallet_type IN ('slave', 'funding','fee','master')),
     label              VARCHAR,
     created_at         TIMESTAMP NOT NULL DEFAULT now(),
-CONSTRAINT uq_user_wallet_type_index UNIQUE (user_id, wallet_type, wallet_index));
-
+CONSTRAINT uq_user_wallet_type_index UNIQUE (user_id, wallet_type, wallet_index),
+CONSTRAINT chk_master_mnemonic CHECK (
+    (wallet_type = 'master' AND encrypted_mnemonic IS NOT NULL) OR
+    (wallet_type != 'master')
+));
 -- tb_tokens
 CREATE TABLE tb_tokens (
     token_id        UUID PRIMARY KEY DEFAULT gen_random_uuid(),

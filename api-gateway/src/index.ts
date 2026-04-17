@@ -4,7 +4,9 @@ import redis from "./redis"
 import { loginRoute } from "./routes/auth/login"
 import { register } from "./routes/auth/registration"
 import authenticate from "./middleware/auth"
-
+import { walletForward } from "./routes/api/walletRouter"
+import cookie from "@fastify/cookie"
+import { refreshToken } from "./routes/auth/refresh"
 
 const fastify = Fastify({ logger: true })
 
@@ -16,16 +18,14 @@ fastify.get("/health", async () => {
 })
 
 
-
+fastify.register(cookie)
 fastify.register(loginRoute, { prefix: "/auth" })
 fastify.register(register, { prefix: "/auth" })
-
+fastify.register(refreshToken, { prefix: "/auth" })
 // protected routes — auth required
 fastify.register(async (protectedApp) => {
     protectedApp.addHook('preHandler', authenticate)
-    protectedApp.get("/me", async (request) => {
-        return { user: request.user }
-    })
+    protectedApp.register(walletForward, {prefix: "/wallets"})
 }, { prefix: "/api" })
 
 const start = async () => {

@@ -45,7 +45,15 @@ const refreshToken = jwt.sign(
     process.env.JWT_REFRESH_SECRET!,
     { expiresIn: '7d' }
 )
-      return reply.send({ accessToken, refreshToken })
+reply.setCookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: false,  // set to true in production with HTTPS
+    sameSite: "strict",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7  // 7 days in seconds
+})
+
+      return reply.send({ accessToken })
     } catch (err) {
       fastify.log.error(err)
       return reply.status(500).send({ error: "Internal server error" })
