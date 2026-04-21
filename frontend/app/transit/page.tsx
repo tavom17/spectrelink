@@ -1,8 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/lib/auth'
 import Launchpad from './components/Launchpad'
-import Bundler from './components/Bundler'
+import WalletManager from './components/WalletManager'
 import Liquidity from './components/Liquidity'
 import Settings from './components/Settings'
 
@@ -19,7 +21,7 @@ const NAV_ITEMS = [
   },
   {
     id: 'bundler',
-    label: 'BUNDLER',
+    label: 'WALLET MANAGER',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <rect x="2" y="2" width="5" height="5" stroke="currentColor" strokeWidth="1" fill="none"/>
@@ -53,13 +55,23 @@ const NAV_ITEMS = [
 
 const PANELS: Record<string, React.ReactNode> = {
   launchpad: <Launchpad />,
-  bundler:   <Bundler />,
+  bundler:   <WalletManager />,
   liquidity: <Liquidity />,
   settings:  <Settings />,
 }
 
 export default function TransitPage() {
+  const router = useRouter()
+  const { user, loading, accessToken } = useAuth()
   const [activeId, setActiveId] = useState('launchpad')
+
+  useEffect(() => {
+    if (!loading && !accessToken) {
+      router.replace('/login')
+    }
+  }, [loading, accessToken, router])
+
+  if (loading || !user) return null
 
   return (
     <div className="transit-shell" style={{
@@ -203,7 +215,7 @@ export default function TransitPage() {
             color: 'var(--dim)',
             textTransform: 'uppercase',
           }}>
-            exampleUser
+            {user.user_email}
           </span>
           <button style={{
             background: 'transparent',

@@ -6,9 +6,11 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
-      - /app/.next
     ports:
       - "3000:3000"
+    environment:
+      API_URL: http://api-gateway:3001
+    command: npm run dev
     networks:
       - app
 

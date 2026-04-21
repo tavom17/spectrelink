@@ -2,29 +2,47 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { useAuth } from '@/lib/auth'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [username, setUsername] = useState('')
+  const { login } = useAuth()
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setError('')
-
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    })
-
-    if (res.ok) {
+    setLoading(true)
+    try {
+      await login(email, password)
       router.push('/transit')
-    } else {
-      const data = await res.json()
-      setError(data.error ?? 'Login failed')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoading(false)
     }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    background: 'transparent',
+    border: '1px solid var(--glass-border)',
+    color: 'var(--white)',
+    padding: '10px 14px',
+    fontFamily: "'Share Tech Mono', monospace",
+    fontSize: '14px',
+    outline: 'none',
+    width: '100%',
+  }
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: "'Share Tech Mono', monospace",
+    fontSize: '11px',
+    color: 'var(--dim)',
+    letterSpacing: '0.08em',
   }
 
   return (
@@ -49,46 +67,26 @@ export default function LoginPage() {
         <div className="section-label">SpectreLink Access</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: '11px', color: 'var(--dim)', letterSpacing: '0.08em' }}>
-            USERNAME
-          </label>
+          <label style={labelStyle}>EMAIL</label>
           <input
-            type="text"
-            value={username}
-            onChange={e => setUsername(e.target.value)}
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
             required
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--glass-border)',
-              color: 'var(--white)',
-              padding: '10px 14px',
-              fontFamily: "'Share Tech Mono', monospace",
-              fontSize: '14px',
-              outline: 'none',
-              width: '100%',
-            }}
+            disabled={loading}
+            style={inputStyle}
           />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: '11px', color: 'var(--dim)', letterSpacing: '0.08em' }}>
-            PASSWORD
-          </label>
+          <label style={labelStyle}>PASSWORD</label>
           <input
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
             required
-            style={{
-              background: 'transparent',
-              border: '1px solid var(--glass-border)',
-              color: 'var(--white)',
-              padding: '10px 14px',
-              fontFamily: "'Share Tech Mono', monospace",
-              fontSize: '14px',
-              outline: 'none',
-              width: '100%',
-            }}
+            disabled={loading}
+            style={inputStyle}
           />
         </div>
 
@@ -98,10 +96,22 @@ export default function LoginPage() {
           </p>
         )}
 
-        <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-          Enter
-          <span className="btn-arrow">→</span>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={loading}
+          style={{ width: '100%', justifyContent: 'center' }}
+        >
+          {loading ? 'Authenticating...' : 'Enter'}
+          {!loading && <span className="btn-arrow">→</span>}
         </button>
+
+        <p style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: '11px', color: 'var(--dim)', margin: 0, textAlign: 'center' }}>
+          No account?{' '}
+          <Link href="/register" style={{ color: 'var(--white)', textDecoration: 'none' }}>
+            Register
+          </Link>
+        </p>
       </form>
     </div>
   )

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import Nav from '@/components/Nav'
 import Cursor from '@/components/Cursor'
+import Providers from '@/components/Providers'
 
 export const metadata: Metadata = {
   title: 'SpectreLink',
@@ -16,11 +17,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Cursor />
-        <Nav />
-        <main className="pt-[72px]">
-          {children}
-        </main>
+        <Providers>
+          <Cursor />
+          <Nav />
+          <main className="pt-[72px]">
+            {children}
+          </main>
+        </Providers>
       </body>
     </html>
   )
