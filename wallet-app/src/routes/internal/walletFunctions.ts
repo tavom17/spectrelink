@@ -16,7 +16,7 @@ export async function walletFunctions(fastify: FastifyInstance){
       const { user_id } = request.query as { user_id: string }        
         try {
             const results = await pool.query<walletList>(
-            `select public_key,wallet_type from tb_wallets
+            `select public_key,wallet_type,wallet_id from tb_wallets
             where user_id = $1`,[user_id]) 
             
             if(!results || results.rowCount === 0)
@@ -28,7 +28,7 @@ export async function walletFunctions(fastify: FastifyInstance){
         }
       })
 
-
+//creating, validating, and saving slave wallets
 fastify.post("/slaveWallets", async (request, reply) => {
     const { user_id, amountOfSlaves } = request.body as { user_id: string, amountOfSlaves: number }
     
@@ -130,6 +130,39 @@ fastify.post("/slaveWallets", async (request, reply) => {
         client.release()
     }
       })
+
+
+
+
+//http wrapper for deriving keypair in wallet.ts - mostly for coin launcher as an http launcher
+//secondly, security, anyone authenticated can pass a wallet_type and public key and get a derived keypair back
+//this means we need to authenticate three things. User_id, wallet_type, and wallet_id
+fastify.post("/derive", async (request, reply) => {
+    const { wallet_id, user_id, wallet_type} = request.body as { wallet_id: string, user_id: string, wallet_type: string}
+    
+    
+    try {
+        const response = await pool.query(
+            `select wallet_id, user_id, wallet_type, derivation_path from tb_wallets
+             where wallet_id = $1 and user_id = $2 and wallet_type = $3`,[wallet_id,user_id,wallet_type])
+
+        if(!response || response.rowCount ==0)
+                     return reply.status(403).send({ error: "Information doesn't match db" })
+    
+        const derivationPath = response.rows[0].derivation_path
+
+    const encryptedMnemonic = await getSeedPhrase(user_id)
+    const decryptedMnemonic = decrypt(encryptedMnemonic, process.env.ENCRYPTION_KEY!, user_id)
+    const derivedWallet = await wallet.deriveKeyPair(decryptedMnemonic, derivationPath)
+
+    return reply.status(200).send({publicKey: derivedWallet.publicKey,secretKey: Array.from(derivedWallet.secretKey), wallets: wallet_type })
+
+    } catch (error) {
+        fastify.log.error(error)
+        return reply.status(500).send({ error: "Internal server error" })
+    }
+      })
+
 
 }
 
