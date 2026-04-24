@@ -12,6 +12,13 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@fastify/multipart": "^10.0.0",
+    "@irys/sdk": "^0.2.11",
+    "@metaplex-foundation/mpl-token-metadata": "^3.4.0",
+    "@metaplex-foundation/umi": "^1.5.1",
+    "@meteora-ag/cp-amm-sdk": "^1.4.3",
+    "@solana/kit": "^6.8.0",
+    "@solana/web3.js": "^1.98.4",
     "fastify": "^5.8.4"
   },
   "devDependencies": {
