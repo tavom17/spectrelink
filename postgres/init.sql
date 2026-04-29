@@ -38,6 +38,8 @@ CREATE TABLE tb_tokens (
     image_uri       VARCHAR,
     metadata_tx_sig VARCHAR,
     pool_address    VARCHAR,
+    position_address    VARCHAR,
+    position_tx_sig     VARCHAR,
     launch_tx_sig   VARCHAR,
     launched_at     TIMESTAMP,
     created_at      TIMESTAMP NOT NULL DEFAULT now()

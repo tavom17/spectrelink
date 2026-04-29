@@ -13,6 +13,9 @@ const rpcSubscriptions = createSolanaRpcSubscriptions(process.env.HELIUS_WS_URL!
 const tokenProgramAddress : Address = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
 const rentProgramAddress : Address = address("SysvarRent111111111111111111111111111111111")
 
+
+
+
 export async function createTokenMint(
   decimals: number,
   fundingKeypair: { publicKey: string, secretKey: number[] }
@@ -115,6 +118,13 @@ return {metadataTxSig:  result.signature}
 }
 
 
+
+
+
+
+
+
+
 export async function mintSupply(
   mintAddress: string,
   supply: bigint,
@@ -122,10 +132,72 @@ export async function mintSupply(
   fundingKeypair: { publicKey: string, secretKey: number[] }
 ): Promise<{ mintSupplyTxSig: string }>{
 
-token.getMintToInstruction()
+
+
+  
+//associated token account time
+//token isnt held by the wallet address or the mint address
+//its held in another account that is created from the wallet and mint address
+const fundingSigner = await createKeyPairSignerFromBytes(new Uint8Array(fundingKeypair.secretKey))
+
+const fundingAddress: Address = address(fundingKeypair.publicKey);
+const mintTypeAddress: Address = address(mintAddress);
+
+
+
+//need seed object for finding associated token pda : 
+const ataSeeds : token.AssociatedTokenSeeds = {
+    /** The wallet address of the associated token account. */
+    owner: fundingAddress,
+    /** The address of the token program to use. */
+    tokenProgram: tokenProgramAddress,
+    /** The mint address of the associated token account. */
+    mint: mintTypeAddress
+};
+
+const ataToken = await token.findAssociatedTokenPda(ataSeeds)
+
+const ataInstruction = await token.getCreateAssociatedTokenInstructionAsync({
+    payer: fundingSigner,
+    owner: fundingAddress,
+    mint: mintTypeAddress,
+    ata: ataToken[0]
+})
+
+
+const mintInput : token.MintToInput = {
+  /** The mint account. */
+    mint: mintTypeAddress,
+    /** The account to mint tokens to. */
+    token: ataToken[0],
+    /** The mint's minting authority or its multisignature account. */
+    mintAuthority: fundingAddress,
+    amount: (supply * 10n ** BigInt(decimals))
+}
+  
+
+const mintIntruction = token.getMintToInstruction(mintInput)
+
+const blockhash = await rpc.getLatestBlockhash().send();
+
+//create the transaction itself with both the instructions created above for account and mint
+const transactionMessage = pipe(
+  createTransactionMessage({ version: 0 }),
+  tx => setTransactionMessageFeePayerSigner(fundingSigner, tx),
+  tx => setTransactionMessageLifetimeUsingBlockhash(blockhash.value, tx),
+  tx => appendTransactionMessageInstructions([ataInstruction, mintIntruction], tx)
+);
+
+
+const signedTransaction =
+await signTransactionMessageWithSigners(transactionMessage);
+const transactionSignature = getSignatureFromTransaction(signedTransaction);
+
+const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions })
+await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], { commitment: "confirmed" })
 
 
 
 
- return {mintSupplyTxSig: "allah"} 
+ return {mintSupplyTxSig: transactionSignature} 
 }
