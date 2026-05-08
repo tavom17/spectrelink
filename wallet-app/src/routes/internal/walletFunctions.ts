@@ -28,6 +28,24 @@ export async function walletFunctions(fastify: FastifyInstance){
         }
       })
 
+
+//quick get to send public key in exchange for wallet_id
+      fastify.get("/listPublicKey", async (request, reply) => {
+      const { wallet_id } = request.query as { wallet_id: string }        
+        try {
+            const results = await pool.query<walletList>(
+            `select public_key from tb_wallets
+            where wallet_id = $1`,[wallet_id]) 
+            
+            if(!results || results.rowCount === 0)
+                return reply.status(200).send(`No wallet results for wallet_id : ${wallet_id}`)
+
+            return reply.status(200).send(results.rows)
+        } catch (error) {
+            reply.status(500).send(["Internal service error"])
+        }
+      })
+
 //creating, validating, and saving slave wallets
 fastify.post("/slaveWallets", async (request, reply) => {
     const { user_id, amountOfSlaves } = request.body as { user_id: string, amountOfSlaves: number }

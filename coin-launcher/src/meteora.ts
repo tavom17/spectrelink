@@ -16,7 +16,7 @@ export async function createCustomPool(
   tokenAAmount: bigint,       // tokens to seed pool with
   tokenBAmount: bigint,       // SOL amount in lamports
   decimals: number,           // tokenA decimals
-  feeWalletPublicKey: string, // receives LP position NFT
+  //feeWalletPublicKey: string, // receives LP position NFT
   fundingKeypair: { publicKey: string, secretKey: number[] }
 ): Promise<{ poolAddress: string, launchTxSig: string, poolPosition: string }> {
 

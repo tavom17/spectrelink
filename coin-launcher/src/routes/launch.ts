@@ -1,6 +1,6 @@
 import {uploadImage,uploadMetadata} from "../irys"
 import {createCustomPool} from "../meteora"
-import {createTokenMint,mintSupply} from "../solana"
+import {createTokenMint,mintSupply,attachMetadata} from "../solana"
 import fastifyMultipart from "@fastify/multipart"
 import { FastifyInstance } from "fastify";
 import pool from "../db"
@@ -13,7 +13,7 @@ import pool from "../db"
 export async function launchRoutes(fastify: FastifyInstance){
     fastify.register(fastifyMultipart);
     fastify.post('/newToken', async (request,reply) =>{
-        
+    const userId = request.headers['x-user-id'] as string
 //variable decs 
 let imageBuffer: Buffer | null = null
 let mimeType: string = ''
@@ -47,5 +47,77 @@ for await (const part of formData) {
     }
   }
 }
-    });
+
+//derive secret key first and foremost from wallet derive for funding wallet
+const fundingKeypairResponse = await fetch(`http://wallet-app:3003/internal/derive`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ 
+        wallet_id: fundingWalletId, 
+        user_id: userId, 
+        wallet_type: "funding" 
+    })
+})
+
+const fundingKeypair = await fundingKeypairResponse.json()
+
+
+//get public key for fee wallet from wallet id
+
+const feeWalletResponse = await fetch(`http://wallet-app:3003/internal/listPublicKey?wallet_id=${feeWalletId}`)
+const feeWalletData = await feeWalletResponse.json()
+const feeWalletPublicKey = feeWalletData[0].public_key
+
+
+
+
+//pass info to irys to save images and host on chain
+const imageURL = await uploadImage(imageBuffer!, mimeType, fundingKeypair.secretKey)
+const metaData = {
+  name: name,
+  symbol: symbol,
+  description: description,
+  image: imageURL
+}
+
+const metaDataURI = await uploadMetadata(metaData, fundingKeypair.secretKey)
+
+//pass info to solana token program to create mint address
+
+// create mint account
+const { mintAddress, mintTxSig } = await createTokenMint(decimals, fundingKeypair)
+
+// attach metadata
+const { metadataTxSig } = await attachMetadata(mintAddress, name, symbol, metaDataURI, fundingKeypair)
+
+// mint supply to funding wallet ATA
+await mintSupply(mintAddress, BigInt(supply), decimals, fundingKeypair)
+
+
+//finally the createpool and extract info
+const poolInfo = await createCustomPool(mintAddress,BigInt(supply),BigInt(initialLiquiditySol),decimals,fundingKeypair)
+const poolAddress = poolInfo.poolAddress
+const poolPosition = poolInfo.poolPosition
+const launchTxSig = poolInfo.launchTxSig
+//db insert 
+
+try {
+
+  //position_tx_sig is for later when the funding to fee ownership is transfered
+ await pool.query(
+            
+          `INSERT INTO tb_tokens (user_id, fee_wallet_id,mint_address,name, symbol, decimals, supply,metadata_uri,image_uri,metadata_tx_sig,pool_address,position_address,position_tx_sig,launch_tx_sig,launched_at) 
+           VALUES ($1, $2,$3, $4,$5, $6, $7,$8,$9,$10,$11,$12,$13,$14,now())`,
+          [userId, feeWalletId, mintAddress, name, symbol, decimals, supply,metaDataURI,imageURL,metadataTxSig,poolAddress,poolPosition,null, launchTxSig]
+            
+  )
+  return reply.status(201).send({ mintAddress, poolAddress, metaDataURI, launchTxSig })
+} catch (error) {
+    fastify.log.error(error)
+    return reply.status(500).send({ error: "Token launch failed at DB insert" })
+}
+
+})
+
+
 }
