@@ -67,12 +67,17 @@ services:
     ports:
       - "3002:3002"
     environment:
+      DATABASE_URL: postgres://dev:dev@postgres-dev:5432/spectre_dev
       HELIUS_RPC_URL: ${HELIUS_RPC_URL}
       HELIUS_WS_URL: ${HELIUS_WS_URL}
       HELIUS_API_KEY: ${HELIUS_API_KEY}
       WALLET_APP_URL: http://wallet-app:3003
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
     networks:
       - app
+      - data
 
   postgres-dev:
     image: postgres:16-alpine

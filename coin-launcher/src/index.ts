@@ -1,6 +1,8 @@
 import Fastify from "fastify"
 import { launchRoutes } from "./routes/launch"
 import pool from "./db"
+import fastifyMultipart from "@fastify/multipart"
+
 
 const fastify = Fastify({ logger: true })
 
@@ -8,7 +10,7 @@ fastify.get("/health", async () => {
   return { status: "ok", service: "coin-launcher" }
 })
 
-
+fastify.register(fastifyMultipart)
 fastify.register(launchRoutes,{prefix: "/launch"})
 
 const start = async () => {

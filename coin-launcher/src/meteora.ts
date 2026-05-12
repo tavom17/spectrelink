@@ -48,6 +48,12 @@ const baseFee = getBaseFeeParams(
   ActivationType.Timestamp  // activationType
 )
 
+console.log("tokenAAmount:", tokenAAmount.toString())
+console.log("tokenBAmount:", tokenBAmount.toString())
+console.log("initSqrtPrice:", initSqrtPrice.toString())
+console.log("liquidityDelta:", liquidityDelta.toString())
+
+
 const { tx, pool, position } = await cpAmm.createCustomPool({
   payer: fundingWallet.publicKey,       // The wallet paying for the transaction
   creator: fundingWallet.publicKey,     // The creator of the pool

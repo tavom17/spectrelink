@@ -1,7 +1,6 @@
 import {uploadImage,uploadMetadata} from "../irys"
 import {createCustomPool} from "../meteora"
 import {createTokenMint,mintSupply,attachMetadata} from "../solana"
-import fastifyMultipart from "@fastify/multipart"
 import { FastifyInstance } from "fastify";
 import pool from "../db"
 
@@ -11,7 +10,6 @@ import pool from "../db"
 
 
 export async function launchRoutes(fastify: FastifyInstance){
-    fastify.register(fastifyMultipart);
     fastify.post('/newToken', async (request,reply) =>{
     const userId = request.headers['x-user-id'] as string
 //variable decs 
@@ -39,9 +37,9 @@ for await (const part of formData) {
       case 'name':  name = part.value as string; break
       case 'symbol':  symbol = part.value as string; break
       case 'description':  description = part.value as string; break
-      case 'decimals':  decimals = part.value as number; break
-      case 'supply':  supply = part.value as number; break
-      case 'initialLiquiditySol':  initialLiquiditySol = part.value as number; break
+      case 'decimals': decimals = Number(part.value); break
+      case 'supply': supply = Number(part.value); break
+      case 'initialLiquiditySol': initialLiquiditySol = Number(part.value); break
       case 'fundingWalletId' :  fundingWalletId = part.value as string; break
       case 'feeWalletId':  feeWalletId = part.value as string; break
     }
@@ -87,15 +85,23 @@ const metaDataURI = await uploadMetadata(metaData, fundingKeypair.secretKey)
 // create mint account
 const { mintAddress, mintTxSig } = await createTokenMint(decimals, fundingKeypair)
 
+console.log("mintAddress:", mintAddress)
+console.log("mintTxSig:", mintTxSig)
 // attach metadata
 const { metadataTxSig } = await attachMetadata(mintAddress, name, symbol, metaDataURI, fundingKeypair)
+const metadataTxSigString = Buffer.from(metadataTxSig).toString('base64')
+
 
 // mint supply to funding wallet ATA
 await mintSupply(mintAddress, BigInt(supply), decimals, fundingKeypair)
 
+console.log("supply minted successfully")
+
+const tokenBAmountLamports = BigInt(Math.floor(Number(initialLiquiditySol) * 1_000_000_000))
+const tokenAAmountBaseUnits = BigInt(supply) * BigInt(10 ** decimals)
 
 //finally the createpool and extract info
-const poolInfo = await createCustomPool(mintAddress,BigInt(supply),BigInt(initialLiquiditySol),decimals,fundingKeypair)
+const poolInfo = await createCustomPool(mintAddress,tokenAAmountBaseUnits,tokenBAmountLamports,decimals,fundingKeypair)
 const poolAddress = poolInfo.poolAddress
 const poolPosition = poolInfo.poolPosition
 const launchTxSig = poolInfo.launchTxSig
@@ -108,7 +114,7 @@ try {
             
           `INSERT INTO tb_tokens (user_id, fee_wallet_id,mint_address,name, symbol, decimals, supply,metadata_uri,image_uri,metadata_tx_sig,pool_address,position_address,position_tx_sig,launch_tx_sig,launched_at) 
            VALUES ($1, $2,$3, $4,$5, $6, $7,$8,$9,$10,$11,$12,$13,$14,now())`,
-          [userId, feeWalletId, mintAddress, name, symbol, decimals, supply,metaDataURI,imageURL,metadataTxSig,poolAddress,poolPosition,null, launchTxSig]
+          [userId, feeWalletId, mintAddress, name, symbol, decimals, supply,metaDataURI,imageURL,metadataTxSigString,poolAddress,poolPosition,null, launchTxSig]
             
   )
   return reply.status(201).send({ mintAddress, poolAddress, metaDataURI, launchTxSig })

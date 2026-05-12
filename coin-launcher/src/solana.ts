@@ -71,7 +71,7 @@ await signTransactionMessageWithSigners(transactionMessage);
 const transactionSignature = getSignatureFromTransaction(signedTransaction);
 
 const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions })
-await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], { commitment: "confirmed" })
+await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], { commitment: "finalized" })
 
 return {mintAddress: mintKeypair.address, mintTxSig: transactionSignature}
 }
@@ -194,7 +194,7 @@ await signTransactionMessageWithSigners(transactionMessage);
 const transactionSignature = getSignatureFromTransaction(signedTransaction);
 
 const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions })
-await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], { commitment: "confirmed" })
+await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], { commitment: "finalized" })
 
 
 

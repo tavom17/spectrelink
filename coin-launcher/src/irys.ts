@@ -3,9 +3,10 @@ import { Solana } from "@irys/upload-solana";
 
 
 async function getIrys(secretKey: number[]) {
-  return await Uploader(Solana).withWallet(secretKey).withRpc(process.env.HELIUS_RPC_URL!)
+  const irys =  await Uploader(Solana).withWallet(secretKey).withRpc(process.env.HELIUS_RPC_URL!).devnet()
+  await irys.fund(irys.utils.toAtomic(0.05))
+  return irys
 }
-
 
 export async function uploadImage(imageBuffer: Buffer, mimeType: string, secretKey: number[]): Promise<string> {
 

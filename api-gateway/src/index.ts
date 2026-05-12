@@ -18,6 +18,9 @@ fastify.get("/health", async () => {
   return { status: "ok" }
 })
 
+fastify.addContentTypeParser('multipart/form-data', function (request, payload, done) {
+  done(null)
+})
 
 fastify.register(cookie)
 fastify.register(loginRoute, { prefix: "/auth" })
