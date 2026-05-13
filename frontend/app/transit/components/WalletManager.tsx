@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/lib/auth'
-import { apiFetch } from '@/lib/api'
+import { useApiFetch } from '@/lib/api'
 
 interface Wallet {
   public_key: string
@@ -16,6 +16,7 @@ const TYPE_ORDER = ['master', 'funding', 'fee', 'slave'] as const
 
 export default function WalletManager() {
   const { accessToken } = useAuth()
+  const { apiFetch } = useApiFetch()
   const [wallets, setWallets] = useState<Wallet[]>([])
   const [loadingWallets, setLoadingWallets] = useState(true)
   const [error, setError] = useState('')
@@ -25,7 +26,7 @@ export default function WalletManager() {
   const fetchWallets = useCallback(async () => {
     if (!accessToken) return
     try {
-      const data = await apiFetch<Wallet[]>('/api/api/wallets/listWallets', accessToken)
+      const data = await apiFetch<Wallet[]>('/api/api/wallets/listWallets')
       setWallets(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load wallets')
@@ -42,14 +43,14 @@ export default function WalletManager() {
     setError('')
     try {
       if (type === 'slave') {
-        await apiFetch('/api/api/wallets/slaveWallets', accessToken, {
+        await apiFetch('/api/api/wallets/slaveWallets', {
           method: 'POST',
           body: JSON.stringify({ amountOfSlaves: slaveCount }),
         })
       } else if (type === 'funding') {
-        await apiFetch('/api/api/wallets/fundingWallets', accessToken, { method: 'POST', body: JSON.stringify({}) })
+        await apiFetch('/api/api/wallets/fundingWallets', { method: 'POST', body: JSON.stringify({}) })
       } else {
-        await apiFetch('/api/api/wallets/feeWallets', accessToken, { method: 'POST', body: JSON.stringify({}) })
+        await apiFetch('/api/api/wallets/feeWallets', { method: 'POST', body: JSON.stringify({}) })
       }
       await fetchWallets()
     } catch (err) {

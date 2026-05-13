@@ -41,6 +41,9 @@ CREATE TABLE tb_tokens (
     position_address    VARCHAR,
     position_tx_sig     VARCHAR,
     launch_tx_sig   VARCHAR,
+    website         VARCHAR,
+    twitter         VARCHAR,
+    telegram        VARCHAR,
     launched_at     TIMESTAMP,
     created_at      TIMESTAMP NOT NULL DEFAULT now()
 );

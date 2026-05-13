@@ -22,7 +22,10 @@ let decimals: number = 0
 let supply: number = 0
 let initialLiquiditySol: number = 0
 let fundingWalletId: string = ''
-let feeWalletId: string = ''        
+let feeWalletId: string = '' 
+let website: string = ''
+let twitter: string = ''
+let telegram: string = ''       
 //extract multipart form from request
 const formData = request.parts();
 
@@ -75,7 +78,13 @@ const metaData = {
   name: name,
   symbol: symbol,
   description: description,
-  image: imageURL
+  image: imageURL,
+  external_url: website,
+  extensions: {
+    twitter,
+    telegram,
+    website
+  }
 }
 
 const metaDataURI = await uploadMetadata(metaData, fundingKeypair.secretKey)
@@ -110,13 +119,11 @@ const launchTxSig = poolInfo.launchTxSig
 try {
 
   //position_tx_sig is for later when the funding to fee ownership is transfered
- await pool.query(
-            
-          `INSERT INTO tb_tokens (user_id, fee_wallet_id,mint_address,name, symbol, decimals, supply,metadata_uri,image_uri,metadata_tx_sig,pool_address,position_address,position_tx_sig,launch_tx_sig,launched_at) 
-           VALUES ($1, $2,$3, $4,$5, $6, $7,$8,$9,$10,$11,$12,$13,$14,now())`,
-          [userId, feeWalletId, mintAddress, name, symbol, decimals, supply,metaDataURI,imageURL,metadataTxSigString,poolAddress,poolPosition,null, launchTxSig]
-            
-  )
+await pool.query(
+  `INSERT INTO tb_tokens (user_id, fee_wallet_id, mint_address, name, symbol, decimals, supply, metadata_uri, image_uri, metadata_tx_sig, pool_address, position_address, position_tx_sig, launch_tx_sig, website, twitter, telegram, launched_at) 
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now())`,
+  [userId, feeWalletId, mintAddress, name, symbol, decimals, supply, metaDataURI, imageURL, metadataTxSigString, poolAddress, poolPosition, null, launchTxSig, website, twitter, telegram]
+)
   return reply.status(201).send({ mintAddress, poolAddress, metaDataURI, launchTxSig })
 } catch (error) {
     fastify.log.error(error)

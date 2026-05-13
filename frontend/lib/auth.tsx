@@ -17,6 +17,7 @@ interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, secret: string) => Promise<{ seedPhrase: string }>
   logout: () => void
+  refresh: () => Promise<string>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -77,8 +78,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setState({ accessToken: null, user: null, loading: false })
   }
 
+  async function refresh(): Promise<string> {
+    const res = await fetch('/api/auth/refreshToken', { method: 'POST', credentials: 'include' })
+    if (!res.ok) throw new Error('Session expired')
+    const data = await res.json()
+    const newToken = data.accessToken as string
+    setState(prev => ({ ...prev, accessToken: newToken, user: parseJwt(newToken) }))
+    return newToken
+  }
+
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   )
