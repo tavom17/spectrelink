@@ -1,5 +1,7 @@
 import Fastify from "fastify"
-import { launchRoutes } from "./routes/launch"
+import { launchRoutes } from "./routes/launchSetup"
+import { launchWorker } from "./launchInitializer"
+import { getStatus } from "./routes/launchStatus"
 import pool from "./db"
 import fastifyMultipart from "@fastify/multipart"
 
@@ -10,8 +12,11 @@ fastify.get("/health", async () => {
   return { status: "ok", service: "coin-launcher" }
 })
 
+fastify.log.info(`Worker status: ${launchWorker.isRunning()}`)
+
 fastify.register(fastifyMultipart)
 fastify.register(launchRoutes,{prefix: "/launch"})
+fastify.register(getStatus, {prefix: "/launch"})
 
 const start = async () => {
   try {

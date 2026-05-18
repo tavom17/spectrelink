@@ -22,4 +22,13 @@ export async function launcherForwarder(fastify: FastifyInstance){
     const data = await response.json()
     return reply.status(response.status).send(data)
 })
+
+
+fastify.get("/status/:jobId", async (request, reply) => {
+    const { jobId } = request.params as { jobId: string }
+    
+    const response = await fetch(`http://coin-launcher:3002/launch/status/${jobId}`)
+    const data = await response.json()
+    return reply.status(response.status).send(data)
+})
 }
