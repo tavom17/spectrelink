@@ -4,7 +4,9 @@ import { encrypt } from "../../crypto";
 import pool from "../../db";
 
 
-
+//walletRoute doesnt really explain the reason for this, basically wallet-app handles all wallet functions, including generating the first master seed phrase
+//when the user registers I wanted this to act like ledger or phantom, new account, show seed phrase to write down etc, instead of having the user create a wallet then create master
+//so this is specifically only when the user registers their account, this sets the master seed phrase and derivation path beginning
 export async function register(fastify: FastifyInstance) {
   fastify.post("/register", async (request, reply) => {
 
