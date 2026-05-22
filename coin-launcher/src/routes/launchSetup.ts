@@ -12,6 +12,8 @@ export async function launchRoutes(fastify: FastifyInstance){
     const userId = request.headers['x-user-id'] as string
 //variable decs 
 let imageBuffer: Buffer | null = null
+let revoke: boolean = true
+let lockMetaData: boolean = true
 let mimeType: string = ''
 let name: string = ''
 let symbol: string = ''
@@ -42,6 +44,8 @@ for await (const part of formData) {
       case 'symbol':  symbol = part.value as string; break
       case 'description':  description = part.value as string; break
       case 'decimals': decimals = Number(part.value); break
+      case 'revoke': revoke = part.value === 'true'; break
+      case 'lockMetaData': lockMetaData = part.value === 'true'; break
       case 'supply': supply = Number(part.value); break
       case 'initialLiquiditySol': initialLiquiditySol = Number(part.value); break
       case 'fundingWalletId' :  fundingWalletId = part.value as string; break
@@ -63,6 +67,8 @@ for await (const part of formData) {
 const jobData: LaunchJobData = {
   userId: userId,
   imageBuffer: Array.from(imageBuffer), 
+  revoke: revoke, 
+  lockMetaData: lockMetaData,
   mimeType: mimeType,
   name: name,
   symbol: symbol,

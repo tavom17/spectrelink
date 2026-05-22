@@ -15,6 +15,8 @@ const connection = {
   export interface LaunchJobData {
   userId: string
   imageBuffer: number[]  // Buffer serialized as array for Redis
+  revoke: boolean //true or false for revoking mint authority, default = true
+  lockMetaData: boolean
   mimeType: string
   name: string
   symbol: string
@@ -94,13 +96,13 @@ console.log("mintTxSig:", mintTxSig)
 
 await job.updateProgress({ step: 'Attaching metadata...', percent: 50 })
 // attach metadata
-const { metadataTxSig } = await attachMetadata(mintAddress, job.data.name, job.data.symbol, metaDataURI, fundingKeypair)
+const { metadataTxSig } = await attachMetadata(mintAddress, job.data.name, job.data.symbol, metaDataURI,job.data.lockMetaData, fundingKeypair)
 const metadataTxSigString = Buffer.from(metadataTxSig).toString('base64')  
 
 
 await job.updateProgress({ step: 'Minting supply...', percent: 65 })
 // mint supply to funding wallet ATA
-await mintSupply(mintAddress, BigInt(job.data.supply), job.data.decimals, fundingKeypair)
+await mintSupply(mintAddress, BigInt(job.data.supply), job.data.decimals,job.data.revoke, fundingKeypair)
   
 
 const tokenBAmountLamports = BigInt(Math.floor(Number(job.data.initialLiquiditySol) * 1_000_000_000))

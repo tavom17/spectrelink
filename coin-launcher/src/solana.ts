@@ -1,8 +1,8 @@
-import { createKeyPairSignerFromBytes, createSolanaRpc, generateKeyPairSigner, type Address,address, setTransactionMessageFeePayerSigner, setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, createTransactionMessage, pipe, signTransactionMessageWithSigners, getSignatureFromTransaction, createSolanaRpcSubscriptions, sendAndConfirmTransactionFactory} from "@solana/kit"
+import { createKeyPairSignerFromBytes, createSolanaRpc, generateKeyPairSigner, type Address,address, setTransactionMessageFeePayerSigner, setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, createTransactionMessage, pipe, signTransactionMessageWithSigners, getSignatureFromTransaction, createSolanaRpcSubscriptions, sendAndConfirmTransactionFactory,Instruction } from "@solana/kit"
 import { CreateAccountInput, getCreateAccountInstruction } from "@solana-program/system"
 import * as token from "@solana-program/token"
 import { createUmi } from '@metaplex-foundation/umi-bundle-defaults'
-import { createMetadataAccountV3, mplTokenMetadata } from '@metaplex-foundation/mpl-token-metadata'
+import { createMetadataAccountV3, mplTokenMetadata, updateV1 } from '@metaplex-foundation/mpl-token-metadata'
 import { createSignerFromKeypair, publicKey, signerIdentity } from "@metaplex-foundation/umi"
 
 
@@ -82,10 +82,10 @@ export async function attachMetadata(
   name: string,
   symbol: string,
   metadataUri: string,
+  lockMetaData: boolean,
   fundingKeypair: { publicKey: string, secretKey: number[] }) {
 
-const umi = createUmi(process.env.HELIUS_RPC_URL!)
-  .use(mplTokenMetadata())
+const umi = createUmi(process.env.HELIUS_RPC_URL!).use(mplTokenMetadata())
 
 let keypair = umi.eddsa.createKeypairFromSecretKey(new Uint8Array(fundingKeypair.secretKey))
 
@@ -112,7 +112,16 @@ const metaDataInstruction = {
     isMutable: true
 }
 
+
+
 const result = await createMetadataAccountV3(umi,metaDataInstruction).sendAndConfirm(umi)
+
+ if (lockMetaData) {
+    await updateV1(umi, {
+      mint: publicKey(mintAddress),
+      isMutable: false
+    }).sendAndConfirm(umi)
+  }
 
 return {metadataTxSig:  result.signature}
 }
@@ -129,6 +138,7 @@ export async function mintSupply(
   mintAddress: string,
   supply: bigint,
   decimals: number,
+  revokeMint: boolean,
   fundingKeypair: { publicKey: string, secretKey: number[] }
 ): Promise<{ mintSupplyTxSig: string }>{
 
@@ -176,7 +186,29 @@ const mintInput : token.MintToInput = {
 }
   
 
-const mintIntruction = token.getMintToInstruction(mintInput)
+const mintInstruction = token.getMintToInstruction(mintInput)
+const instructions: Instruction[] = [ataInstruction, mintInstruction]
+
+
+//optional revoke mint auth : adding to this function to save on transaction fees and bundling with mint instructions
+//build trust, have the option to revoke mint authority from the new token, 
+//checkable now in form fill out, prohibits the minting of tokens post launch (first minting)
+if(revokeMint){
+const authInput : token.SetAuthorityInput= {
+    /** The mint or account to change the authority of. */
+    owned: address(mintAddress),
+    /** The current authority or the multisignature account of the mint or account to update. */
+    owner: address(fundingKeypair.publicKey),
+    authorityType: token.AuthorityType.MintTokens,
+    newAuthority: null
+    
+};
+
+  const authInstruction =token.getSetAuthorityInstruction(authInput)
+
+   instructions.push(authInstruction)
+
+}
 
 const blockhash = await rpc.getLatestBlockhash().send();
 
@@ -185,7 +217,7 @@ const transactionMessage = pipe(
   createTransactionMessage({ version: 0 }),
   tx => setTransactionMessageFeePayerSigner(fundingSigner, tx),
   tx => setTransactionMessageLifetimeUsingBlockhash(blockhash.value, tx),
-  tx => appendTransactionMessageInstructions([ataInstruction, mintIntruction], tx)
+  tx => appendTransactionMessageInstructions(instructions, tx)
 );
 
 
@@ -199,5 +231,16 @@ await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], 
 
 
 
+
+
+
+
  return {mintSupplyTxSig: transactionSignature} 
 }
+
+
+
+
+
+
+
