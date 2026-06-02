@@ -3,7 +3,7 @@ import { Solana } from "@irys/upload-solana";
 
 
 async function getIrys(secretKey: number[]) {
-  const irys =  await Uploader(Solana).withWallet(secretKey).withRpc(process.env.HELIUS_RPC_URL!).devnet()
+  const irys =  await Uploader(Solana).withWallet(secretKey).withRpc(process.env.HELIUS_RPC_URL!)
   await irys.fund(irys.utils.toAtomic(0.05))
   return irys
 }

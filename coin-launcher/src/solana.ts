@@ -114,13 +114,13 @@ const metaDataInstruction = {
 
 
 
-const result = await createMetadataAccountV3(umi,metaDataInstruction).sendAndConfirm(umi)
+const result = await createMetadataAccountV3(umi,metaDataInstruction).sendAndConfirm(umi, { confirm: { commitment: 'finalized' } })
 
  if (lockMetaData) {
     await updateV1(umi, {
       mint: publicKey(mintAddress),
       isMutable: false
-    }).sendAndConfirm(umi)
+    }).sendAndConfirm(umi, { confirm: { commitment: 'finalized' } })
   }
 
 return {metadataTxSig:  result.signature}

@@ -2,6 +2,7 @@ import Fastify from "fastify"
 import { launchRoutes } from "./routes/launchSetup"
 import { launchWorker } from "./launchInitializer"
 import { getStatus } from "./routes/launchStatus"
+import { exitRoutes } from "./routes/exitPosition"
 import pool from "./db"
 import fastifyMultipart from "@fastify/multipart"
 
@@ -17,6 +18,7 @@ fastify.log.info(`Worker status: ${launchWorker.isRunning()}`)
 fastify.register(fastifyMultipart)
 fastify.register(launchRoutes,{prefix: "/launch"})
 fastify.register(getStatus, {prefix: "/launch"})
+fastify.register(exitRoutes, { prefix: "/launch" })
 
 const start = async () => {
   try {

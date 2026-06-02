@@ -40,6 +40,7 @@ CREATE TABLE tb_tokens (
     pool_address    VARCHAR,
     position_address    VARCHAR,
     position_tx_sig     VARCHAR,
+    position_nft_mint VARCHAR,
     launch_tx_sig   VARCHAR,
     website         VARCHAR,
     twitter         VARCHAR,
