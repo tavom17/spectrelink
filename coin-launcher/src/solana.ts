@@ -105,7 +105,7 @@ const metaDataInstruction = {
       symbol: symbol,
       uri: metadataUri,
       sellerFeeBasisPoints: 0,
-      creators: null,
+      creators: [{ address: signer.publicKey, verified: true, share: 100 }],
       collection: null,
       uses: null
     },

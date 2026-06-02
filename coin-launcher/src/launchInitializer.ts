@@ -18,6 +18,7 @@ const connection = {
   revoke: boolean //true or false for revoking mint authority, default = true
   lockMetaData: boolean
   mimeType: string
+  poolPercentage: number
   name: string
   symbol: string
   description: string
@@ -106,8 +107,7 @@ await mintSupply(mintAddress, BigInt(job.data.supply), job.data.decimals,job.dat
   
 
 const tokenBAmountLamports = BigInt(Math.floor(Number(job.data.initialLiquiditySol) * 1_000_000_000))
-const tokenAAmountBaseUnits = BigInt(job.data.supply) * BigInt(10 ** job.data.decimals)
-
+const tokenAAmountBaseUnits = BigInt(Math.floor(job.data.supply * (job.data.poolPercentage / 100))) * BigInt(10 ** job.data.decimals)
 
 await job.updateProgress({ step: 'Creating liquidity pool...', percent: 80 })
 //finally the createpool and extract info
@@ -115,6 +115,7 @@ const poolInfo = await createCustomPool(mintAddress,tokenAAmountBaseUnits,tokenB
 const poolAddress = poolInfo.poolAddress
 const poolPosition = poolInfo.poolPosition
 const launchTxSig = poolInfo.launchTxSig
+const positionNftMint = poolInfo.positionNftMint
 
 await job.updateProgress({ step: 'Finalizing...', percent: 95 })
 //db insert 
@@ -123,9 +124,9 @@ try {
 
   //position_tx_sig is for later when the funding to fee ownership is transfered
 await pool.query(
-  `INSERT INTO tb_tokens (user_id, fee_wallet_id, mint_address, name, symbol, decimals, supply, metadata_uri, image_uri, metadata_tx_sig, pool_address, position_address, position_tx_sig, launch_tx_sig, website, twitter, telegram, launched_at) 
-   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, now())`,
-  [job.data.userId, job.data.feeWalletId, mintAddress, job.data.name, job.data.symbol, job.data.decimals, job.data.supply, metaDataURI, imageURL, metadataTxSigString, poolAddress, poolPosition, null, launchTxSig, job.data.website, job.data.twitter, job.data.telegram]
+  `INSERT INTO tb_tokens (user_id, fee_wallet_id, mint_address, name, symbol, decimals, supply, metadata_uri, image_uri, metadata_tx_sig, pool_address, position_address, position_nft_mint, position_tx_sig, launch_tx_sig, website, twitter, telegram, launched_at) 
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, now())`,
+  [job.data.userId, job.data.feeWalletId, mintAddress, job.data.name, job.data.symbol, job.data.decimals, job.data.supply, metaDataURI, imageURL, metadataTxSigString, poolAddress, poolPosition, positionNftMint, null, launchTxSig, job.data.website, job.data.twitter, job.data.telegram]
 )
 } catch (error) {
     return { error: "Token launch failed at DB insert" }
