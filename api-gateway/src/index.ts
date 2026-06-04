@@ -8,6 +8,8 @@ import { walletForward } from "./routes/api/walletRouter"
 import { launcherForwarder } from "./routes/api/coinLaunchRouter"
 import cookie from "@fastify/cookie"
 import { refreshToken } from "./routes/auth/refresh"
+import { liquidityForwarder } from "./routes/api/liquidityRouter"
+
 
 const fastify = Fastify({ logger: true })
 
@@ -31,6 +33,8 @@ fastify.register(async (protectedApp) => {
     protectedApp.addHook('preHandler', authenticate)
     protectedApp.register(walletForward, {prefix: "/wallets"})
     protectedApp.register(launcherForwarder, {prefix:"/coins" })
+    protectedApp.register(liquidityForwarder, { prefix: "/liquidity" })
+
 }, { prefix: "/api" })
 
 const start = async () => {

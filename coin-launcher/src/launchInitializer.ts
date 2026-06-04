@@ -124,9 +124,9 @@ try {
 
   //position_tx_sig is for later when the funding to fee ownership is transfered
 await pool.query(
-  `INSERT INTO tb_tokens (user_id, fee_wallet_id, mint_address, name, symbol, decimals, supply, metadata_uri, image_uri, metadata_tx_sig, pool_address, position_address, position_nft_mint, position_tx_sig, launch_tx_sig, website, twitter, telegram, launched_at) 
-   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, now())`,
-  [job.data.userId, job.data.feeWalletId, mintAddress, job.data.name, job.data.symbol, job.data.decimals, job.data.supply, metaDataURI, imageURL, metadataTxSigString, poolAddress, poolPosition, positionNftMint, null, launchTxSig, job.data.website, job.data.twitter, job.data.telegram]
+  `INSERT INTO tb_tokens (user_id, fee_wallet_id, funding_wallet_id, mint_address, name, symbol, decimals, supply, metadata_uri, image_uri, metadata_tx_sig, pool_address, position_address, position_nft_mint, position_tx_sig, launch_tx_sig, website, twitter, telegram, launched_at) 
+   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, now())`,
+  [job.data.userId, job.data.feeWalletId, job.data.fundingWalletId, mintAddress, job.data.name, job.data.symbol, job.data.decimals, job.data.supply, metaDataURI, imageURL, metadataTxSigString, poolAddress, poolPosition, positionNftMint, null, launchTxSig, job.data.website, job.data.twitter, job.data.telegram]
 )
 } catch (error) {
     return { error: "Token launch failed at DB insert" }

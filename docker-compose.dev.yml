@@ -37,6 +37,26 @@ services:
       - app
       - data
 
+  liquidity-manager:
+    build:
+      context: ./liquidity-manager
+      dockerfile: Dockerfile
+    volumes:
+      - ./liquidity-manager/src:/app/src
+    ports:
+      - "3004:3004"
+    environment:
+      DATABASE_URL: postgres://dev:dev@postgres-dev:5432/spectre_dev
+      HELIUS_RPC_URL: ${HELIUS_RPC_URL}
+      WALLET_APP_URL: http://wallet-app:3003
+    depends_on:
+      postgres-dev:
+        condition: service_healthy
+    networks:
+      - app
+      - data
+
+
   wallet-app:
     build:
       context: ./wallet-app
