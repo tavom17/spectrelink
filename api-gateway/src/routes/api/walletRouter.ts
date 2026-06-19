@@ -55,4 +55,24 @@ fastify.post("/feeWallets", async (request, reply) => {
     return reply.status(response.status).send(data)
 })
 
+
+fastify.get("/balance", async (request, reply) => {
+    const { public_key } = request.query as { public_key: string }
+    const response = await fetch(`http://wallet-app:3003/internal/balance?public_key=${public_key}`)
+    const data = await response.json()
+    return reply.status(response.status).send(data)
+})
+
+fastify.post("/withdraw", async (request, reply) => {
+    const user_id = request.user.user_id
+    const response = await fetch("http://wallet-app:3003/internal/withdraw", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...request.body as object, user_id })
+    })
+    const data = await response.json()
+    return reply.status(response.status).send(data)
+})
+
+
 }

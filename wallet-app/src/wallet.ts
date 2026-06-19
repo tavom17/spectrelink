@@ -2,7 +2,7 @@ import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
 import  nacl from 'tweetnacl';
 
-interface DerivedWallet{
+export interface DerivedWallet{
     publicKey: string
     secretKey: Uint8Array //64 BYTES - 0-32 = secret key, 33-64 = public key
 }

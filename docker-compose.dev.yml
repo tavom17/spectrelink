@@ -69,6 +69,8 @@ services:
       DATABASE_URL: postgres://dev:dev@postgres-dev:5432/spectre_dev
       REDIS_URL: redis://redis-dev:6379
       ENCRYPTION_KEY: ${encryption_key}
+      HELIUS_RPC_URL: ${HELIUS_RPC_URL}
+      HELIUS_WS_URL: ${HELIUS_WS_URL}
     depends_on:
       postgres-dev:
         condition: service_healthy
