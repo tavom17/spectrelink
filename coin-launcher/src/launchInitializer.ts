@@ -3,6 +3,9 @@ import {uploadImage,uploadMetadata} from "./irys"
 import {createCustomPool} from "./meteora"
 import {createTokenMint,mintSupply,attachMetadata} from "./solana"
 import pool from './db'
+import { autoBuy, getQuote, validateSupplyPercent } from './jupiterSwap'
+import { connection as connectionRPC } from './connection'
+import { PublicKey } from '@solana/web3.js'
 
 //connection to redis
 const connection = {
@@ -30,6 +33,10 @@ const connection = {
   website: string
   twitter: string
   telegram: string
+  autoBuyEnabled: boolean
+  slaveWalletId: string | null
+  numberOfBuys: number
+  solPerBuy: number
 }
 
 
@@ -64,6 +71,21 @@ const feeWalletResponse = await fetch(`http://wallet-app:3003/internal/listPubli
 const feeWalletData = await feeWalletResponse.json()
 const feeWalletPublicKey = feeWalletData[0].public_key
 
+
+//preflight checks for autobuy
+
+if (job.data.autoBuyEnabled && job.data.slaveWalletId) {
+  // Balance check, first get public key for slaveWalletId
+  const slaveWalletResponse = await fetch(`http://wallet-app:3003/internal/listPublicKey?wallet_id=${job.data.slaveWalletId}`)
+  const slaveWalletData = await slaveWalletResponse.json()
+  const slavePublicKey = slaveWalletData[0].public_key
+
+  const slaveBalance = await connectionRPC.getBalance(new PublicKey(slavePublicKey))
+  const totalRequired = Math.floor(job.data.solPerBuy * job.data.numberOfBuys * 1_000_000_000)
+  if (slaveBalance < totalRequired) {
+    throw new Error(`Slave wallet insufficient balance. Has ${slaveBalance} lamports, needs ${totalRequired}`)
+  }
+}
 
 
   await job.updateProgress({ step: 'Uploading image to Arweave...', percent: 10 })
@@ -117,7 +139,37 @@ const poolPosition = poolInfo.poolPosition
 const launchTxSig = poolInfo.launchTxSig
 const positionNftMint = poolInfo.positionNftMint
 
-await job.updateProgress({ step: 'Finalizing...', percent: 95 })
+await job.updateProgress({ step: 'Finalizing coin launch...', percent: 90 })
+
+//autobuy quote : 
+
+if (job.data.autoBuyEnabled && job.data.slaveWalletId) {
+// Supply % check — quote one buy to validate
+  const solPerBuyLamports = BigInt(Math.floor(job.data.solPerBuy * 1_000_000_000))
+  const testQuote = await getQuote(mintAddress ?? '', solPerBuyLamports)
+  validateSupplyPercent(testQuote.outAmount, BigInt(job.data.supply), job.data.decimals)
+
+   // derive slave keypair
+  const slaveKeypairResponse = await fetch('http://wallet-app:3003/internal/derive', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      wallet_id: job.data.slaveWalletId,
+      user_id: job.data.userId,
+      wallet_type: 'slave'
+    })
+  })
+  const slaveKeypair = await slaveKeypairResponse.json()
+
+  for (let i = 0; i < job.data.numberOfBuys; i++) {
+    await job.updateProgress({ step: `Auto-buy ${i + 1} of ${job.data.numberOfBuys}...`, percent: 88 + i })
+    await autoBuy(mintAddress, solPerBuyLamports, slaveKeypair)
+  }
+  await job.updateProgress({ step: 'AutoBuy complete...', percent: 95 })
+
+}
+
+
 //db insert 
 
 try {

@@ -1,4 +1,4 @@
-import crypto, { createDecipheriv } from "node:crypto"
+import crypto from "node:crypto"
 
 
 export function encrypt (masterSecret: string, userSalt: string, toEncrypt: string ): string{

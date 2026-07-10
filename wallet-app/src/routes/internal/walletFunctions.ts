@@ -9,9 +9,11 @@ interface walletList{
       wallet_type: string
 }
 
-//function to list wallets, request should contain user_id
-//will have been validated through middleware as well
+//fuction that basically acts as a do all for wallet functions hence the name, caters for all wallet functions leading to only one import in index file
+//this is a "protected" api call through fastify, will need valid jwt and authentication required
 export async function walletFunctions(fastify: FastifyInstance){
+
+    //grabs all user wallets for wallet manager, request only requires the user_id which will be the foreign key within the database for tb_wallets
       fastify.get("/listWallets", async (request, reply) => {
       const { user_id } = request.query as { user_id: string }        
         try {
@@ -83,7 +85,7 @@ fastify.post("/slaveWallets", async (request, reply) => {
 })
 
 
-
+    //creating, validating, and saving funding wallets 
       fastify.post("/fundingWallets", async (request, reply) => {
     const { user_id} = request.body as { user_id: string}
     
@@ -116,7 +118,8 @@ fastify.post("/slaveWallets", async (request, reply) => {
     }
       })
 
-
+      //creating, validating, and saving fee wallets - however at this time, fee wallets are basically unused since funding wallets create and seed the pool
+      //at the moment fee wallets dont have ownership transfered as of yet, which means the funding wallet is where exiting pool funds go back to / who collects the fees as well
       fastify.post("/feeWallets", async (request, reply) => {
     const { user_id} = request.body as { user_id: string}
     
@@ -172,7 +175,10 @@ fastify.post("/derive", async (request, reply) => {
 
 }
 
-// in walletFunctions.ts — export this helper
+//helper function for all other routes that require a secret key from a public key selected
+//derive uses this function as well. This was a last minute change as a new route required and it was silly for derive to handle
+//abstracted the validation from derive and the retrieval into this function, derive and other routes can now use this one
+// the problem was derive is a post endpoint and not an actual exportable function
 export async function getKeypairForWallet(wallet_id: string, user_id: string, wallet_type: string) {
     const response = await pool.query(
         `SELECT derivation_path FROM tb_wallets 
@@ -188,7 +194,7 @@ export async function getKeypairForWallet(wallet_id: string, user_id: string, wa
     return await wallet.deriveKeyPair(decryptedMnemonic, response.rows[0].derivation_path)
 }
 
-
+//this function is only ever used when retrieving a keypair, as we take derivation path and seed phrase which needs to be decrypted
 async function getSeedPhrase(user_id: string): Promise<string>{
             try {
             const encryptedSeedPhrase = await pool.query(
@@ -205,6 +211,8 @@ async function getSeedPhrase(user_id: string): Promise<string>{
             }
 }
 
+//function required in order to maintain integrity for derivation path
+//can't reuse derivation paths, so this pulls lates wallet_index and increments by one when creating new wallets
 async function getLatestIndex(user_id: string, wallet_type: string):Promise<number>{
                   try {
             const index = await pool.query(

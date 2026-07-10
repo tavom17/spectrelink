@@ -1,9 +1,9 @@
-import { Connection, Keypair, PublicKey } from "@solana/web3.js"
+import { Keypair, PublicKey } from "@solana/web3.js"
 import BN from "bn.js"
 import { CpAmm, MAX_SQRT_PRICE, MIN_SQRT_PRICE } from "@meteora-ag/cp-amm-sdk"
 import { getBaseFeeParams, BaseFeeMode, ActivationType } from "@meteora-ag/cp-amm-sdk"
-// Initialize a connection to the Solana network
-const connection = new Connection(process.env.HELIUS_RPC_URL!);
+import { connection } from './connection' //from connection.ts one rpc connection
+
 
 // Create a new instance of the CpAmm SDK
 const cpAmm = new CpAmm(connection);

@@ -189,8 +189,14 @@ export default function Launchpad() {
   // sol price
   const [solPrice, setSolPrice] = useState<number | null>(null)
 
+  // auto-buy fields
+  const [autoBuyEnabled, setAutoBuyEnabled] = useState(false)
+  const [slaveWalletId, setSlaveWalletId] = useState('')
+  const [numberOfBuys, setNumberOfBuys] = useState(1)
+  const [solPerBuy, setSolPerBuy] = useState('')
+
   // wallet picker
-  const [pickerOpen, setPickerOpen] = useState<'funding' | 'fee' | null>(null)
+  const [pickerOpen, setPickerOpen] = useState<'funding' | 'fee' | 'slave' | null>(null)
 
   // submission + job
   const [submitting, setSubmitting] = useState(false)
@@ -301,6 +307,12 @@ export default function Launchpad() {
     fd.append('website', advanced ? website : '')
     fd.append('twitter', advanced ? twitter : '')
     fd.append('telegram', advanced ? telegram : '')
+    fd.append('autoBuyEnabled', String(autoBuyEnabled))
+    if (autoBuyEnabled) {
+      fd.append('slaveWalletId', slaveWalletId)
+      fd.append('numberOfBuys', String(numberOfBuys))
+      fd.append('solPerBuy', solPerBuy)
+    }
 
     try {
       const res = await fetch('/api/api/coins/newLaunch', {
@@ -321,17 +333,33 @@ export default function Launchpad() {
   }
 
   const fundingWallets = wallets.filter(w => w.wallet_type === 'funding')
-  const feeWallets = wallets.filter(w => w.wallet_type === 'fee')
+  const feeWallets    = wallets.filter(w => w.wallet_type === 'fee')
+  const slaveWallets  = wallets.filter(w => w.wallet_type === 'slave')
   const selectedFunding = fundingWallets.find(w => w.wallet_id === fundingWalletId)
-  const selectedFee = feeWallets.find(w => w.wallet_id === feeWalletId)
+  const selectedFee     = feeWallets.find(w => w.wallet_id === feeWalletId)
+  const selectedSlave   = slaveWallets.find(w => w.wallet_id === slaveWalletId)
 
-  const pickerWallets = pickerOpen === 'funding' ? fundingWallets : feeWallets
-  const pickerSelected = pickerOpen === 'funding' ? fundingWalletId : feeWalletId
+  const pickerWallets  = pickerOpen === 'funding' ? fundingWallets : pickerOpen === 'slave' ? slaveWallets : feeWallets
+  const pickerSelected = pickerOpen === 'funding' ? fundingWalletId : pickerOpen === 'slave' ? slaveWalletId : feeWalletId
   function handlePickerSelect(id: string) {
     if (pickerOpen === 'funding') setFundingWalletId(id)
+    else if (pickerOpen === 'slave') setSlaveWalletId(id)
     else setFeeWalletId(id)
     setPickerOpen(null)
   }
+
+  const estimatedPctPerBuy = useMemo(() => {
+    const spb = parseFloat(solPerBuy)
+    const liq = parseFloat(initialLiquiditySol)
+    if (!spb || !liq || !effectivePoolPct) return null
+    return (spb / liq) * effectivePoolPct
+  }, [solPerBuy, initialLiquiditySol, effectivePoolPct])
+
+  const totalSolRequired = useMemo(() => {
+    const spb = parseFloat(solPerBuy)
+    if (!spb || !numberOfBuys) return null
+    return numberOfBuys * spb
+  }, [numberOfBuys, solPerBuy])
 
   const percent = getPercent(jobStatus)
   const isDone = jobStatus?.state === 'completed'
@@ -591,16 +619,91 @@ export default function Launchpad() {
           </div>
         </div>
 
+        {/* ── Auto-Buy ──────────────────────────────────────── */}
+        <div style={{ border: '1px solid var(--glass-border)', borderTop: 'none', background: 'var(--deep)', padding: '28px', marginBottom: '32px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: autoBuyEnabled ? '24px' : '0' }}>
+            <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase' }}>Auto-Buy</div>
+            <Toggle value={autoBuyEnabled} onChange={setAutoBuyEnabled} label="Enable auto-buy on launch" />
+          </div>
+
+          {autoBuyEnabled && (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px', gap: '20px', marginBottom: '20px' }}>
+
+                {/* Slave wallet selector — same pattern as funding/fee */}
+                <div>
+                  <label style={labelStyle}>Slave Wallet</label>
+                  <button
+                    type="button"
+                    onClick={() => setPickerOpen('slave')}
+                    disabled={loadingWallets}
+                    style={{ ...inputStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: loadingWallets ? 'not-allowed' : 'pointer', textAlign: 'left', gap: '8px' }}
+                  >
+                    <span style={{ color: selectedSlave ? 'var(--white)' : 'var(--faint)' }}>
+                      {loadingWallets ? 'Loading...' : selectedSlave ? truncate(selectedSlave.public_key) : 'Select slave wallet'}
+                    </span>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0, opacity: 0.45 }}>
+                      <path d="M2 4L5 7L8 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <div>
+                  <label style={labelStyle}>Number of Buys</label>
+                  <input
+                    type="number"
+                    value={numberOfBuys}
+                    onChange={e => setNumberOfBuys(Math.max(1, Math.min(10, Number(e.target.value))))}
+                    min={1} max={10} step={1}
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={labelStyle}>SOL per Buy</label>
+                  <input
+                    type="number"
+                    value={solPerBuy}
+                    onChange={e => setSolPerBuy(e.target.value)}
+                    placeholder="0.00"
+                    min={0} step="0.01"
+                    style={inputStyle}
+                  />
+                </div>
+              </div>
+
+              {/* Estimator row */}
+              <div style={{ display: 'flex', gap: '40px', padding: '14px 18px', background: 'rgba(0,0,0,0.03)', border: '1px solid var(--glass-border)', flexWrap: 'wrap' }}>
+                <div>
+                  <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.18em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '4px' }}>Est. % Supply / Buy</div>
+                  <div style={{ ...mono, fontSize: '15px', letterSpacing: '0.04em', color: estimatedPctPerBuy != null && estimatedPctPerBuy >= 0.5 ? 'rgba(200,120,50,0.9)' : 'var(--white)' }}>
+                    {estimatedPctPerBuy != null ? `${estimatedPctPerBuy.toFixed(3)}%` : '—'}
+                    {estimatedPctPerBuy != null && estimatedPctPerBuy >= 0.5 && (
+                      <span style={{ ...mono, fontSize: '9px', letterSpacing: '0.1em', marginLeft: '8px', color: 'rgba(200,120,50,0.9)' }}>HIGH</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.18em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '4px' }}>Total SOL Required</div>
+                  <div style={{ ...mono, fontSize: '15px', letterSpacing: '0.04em', color: 'var(--white)' }}>
+                    {totalSolRequired != null ? `${totalSolRequired.toFixed(4)} SOL` : '—'}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
         <button
           type="submit"
-          disabled={submitting || loadingWallets || !fundingWalletId || !feeWalletId}
+          disabled={submitting || loadingWallets || !fundingWalletId || !feeWalletId || (autoBuyEnabled && !slaveWalletId)}
           style={{
             ...mono, fontSize: '12px', letterSpacing: '0.15em', textTransform: 'uppercase',
             border: '1px solid var(--white)',
             background: submitting ? 'transparent' : 'var(--white)',
             color: submitting ? 'var(--white)' : 'var(--deep)',
             padding: '14px 40px', cursor: submitting ? 'not-allowed' : 'pointer',
-            opacity: submitting || loadingWallets || !fundingWalletId || !feeWalletId ? 0.5 : 1,
+            opacity: submitting || loadingWallets || !fundingWalletId || !feeWalletId || (autoBuyEnabled && !slaveWalletId) ? 0.5 : 1,
             display: 'flex', alignItems: 'center', gap: '10px',
           }}
         >

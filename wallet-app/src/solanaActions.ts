@@ -6,7 +6,7 @@ import { getTransferSolInstruction } from "@solana-program/system"
 const rpc = createSolanaRpc(process.env.HELIUS_RPC_URL!)
 const rpcSubscriptions = createSolanaRpcSubscriptions(process.env.HELIUS_WS_URL!)
 
-
+//simple rpc call for wallet manager to showcase solana balances
 export async function getWalletBalance(publicKey: string){
 try {
      const balance = await rpc.getBalance(address(publicKey)).send()
@@ -18,7 +18,7 @@ try {
 }
 
 
-
+//allows withdraws from any wallet to any valid solana wallet, required to get your money out !!
 export async function withdrawSol(sourceKeypair:Uint8Array, destinationKeypair: string, amount: number){
 const lamportsTran = BigInt(Math.floor(amount * 1_000_000_000))
 
@@ -52,7 +52,10 @@ await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], 
 
 return { withdrawTxSig: transactionSignature}
 } catch (error) {
-    return error
+    if (error instanceof Error && error.message.includes('insufficient lamports')) {
+        return { error: "Insufficient SOL balance for this withdrawal" }
+    }
+    return { error: "Withdrawal failed" }
 }
 
 }
