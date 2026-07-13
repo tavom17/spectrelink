@@ -26,7 +26,11 @@ let fundingWalletId: string = ''
 let feeWalletId: string = '' 
 let website: string = ''
 let twitter: string = ''
-let telegram: string = ''  
+let telegram: string = '' 
+let autoBuyEnabled: boolean = false
+let slaveWalletId: string | null = null
+let numberOfBuys: number = 0
+let solPerBuy: number = 0 
 
 
 //extract multipart form from request
@@ -55,9 +59,10 @@ for await (const part of formData) {
       case 'website':  website = part.value as string; break
       case 'twitter':  twitter = part.value as string; break
       case 'telegram':  telegram = part.value as string; break
-
-
-
+      case 'autoBuyEnabled': autoBuyEnabled = part.value === 'true'; break
+      case 'slaveWalletId': slaveWalletId = part.value as string; break
+      case 'numberOfBuys': numberOfBuys = Number(part.value); break
+      case 'solPerBuy': solPerBuy = Number(part.value); break
     }
   }
 }
@@ -83,7 +88,11 @@ const jobData: LaunchJobData = {
   feeWalletId: feeWalletId,
   website: website,
   twitter: twitter,
-  telegram: telegram
+  telegram: telegram,
+  autoBuyEnabled: autoBuyEnabled,
+  slaveWalletId: slaveWalletId,
+  numberOfBuys: numberOfBuys,
+  solPerBuy: solPerBuy
 }
 
 const job = await launchQueue.add("token-launch-queue", jobData)

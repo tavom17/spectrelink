@@ -93,6 +93,7 @@ services:
       HELIUS_RPC_URL: ${HELIUS_RPC_URL}
       HELIUS_WS_URL: ${HELIUS_WS_URL}
       HELIUS_API_KEY: ${HELIUS_API_KEY}
+      JUPITER_API_KEY: ${JUPITER_API_KEY}
       WALLET_APP_URL: http://wallet-app:3003
     depends_on:
       postgres-dev:
