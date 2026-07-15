@@ -69,7 +69,7 @@ const fundingKeypair = await fundingKeypairResponse.json()
 
 const feeWalletResponse = await fetch(`http://wallet-app:3003/internal/listPublicKey?wallet_id=${job.data.feeWalletId}`)
 const feeWalletData = await feeWalletResponse.json()
-const feeWalletPublicKey = feeWalletData[0].public_key
+//const feeWalletPublicKey = feeWalletData[0].public_key
 
 
 //preflight checks for autobuy
@@ -116,6 +116,18 @@ const metaDataURI = await uploadMetadata(metaData, fundingKeypair.secretKey)
 const { mintAddress, mintTxSig } = await createTokenMint(job.data.decimals, fundingKeypair)
 console.log("mintAddress:", mintAddress)
 console.log("mintTxSig:", mintTxSig)
+
+
+// verify mint is readable before attaching metadata
+let retries = 0
+while (retries < 5) {
+  const mintAccount = await connectionRPC.getAccountInfo(new PublicKey(mintAddress))
+  if (mintAccount && mintAccount.data.length > 0) break
+  retries++
+  await new Promise(r => setTimeout(r, 2000))
+}
+if (retries === 5) throw new Error('Mint account not readable after creation — RPC sync issue')
+
 
 await job.updateProgress({ step: 'Attaching metadata...', percent: 50 })
 // attach metadata
