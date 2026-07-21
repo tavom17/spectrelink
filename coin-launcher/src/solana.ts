@@ -112,10 +112,28 @@ const metaDataInstruction = {
     isMutable: !lockMetaData
 }
 
+// console.log("attachMetadata inputs:", {
+//   mintAddress,
+//   name,
+//   symbol,
+//   metadataUri,
+//   lockMetaData,
+//   isMutable: !lockMetaData,
+//   fundingPublicKey: fundingKeypair.publicKey
+// })
 
+const mintAccount = await umi.rpc.getAccount(publicKey(mintAddress))
+console.log("UMI sees mint account:", mintAccount.exists, "data length:", mintAccount.exists ? mintAccount.data.length : 0)
 
-const result = await createMetadataAccountV3(umi,metaDataInstruction).sendAndConfirm(umi, { confirm: { commitment: 'finalized' } })
+if (!mintAccount.exists || mintAccount.data.length === 0) {
+  throw new Error('UMI cannot read mint account — aborting metadata attachment')
+}
 
+const result = await createMetadataAccountV3(umi, metaDataInstruction)
+  .sendAndConfirm(umi, { 
+    send: { skipPreflight: true },
+    confirm: { commitment: 'finalized' } 
+  })
 
 return {metadataTxSig:  result.signature}
 }
@@ -220,8 +238,10 @@ await signTransactionMessageWithSigners(transactionMessage);
 const transactionSignature = getSignatureFromTransaction(signedTransaction);
 
 const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions })
-await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], { commitment: "finalized" })
-
+await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], { 
+  commitment: "finalized",
+  skipPreflight: true 
+})
 
 
 

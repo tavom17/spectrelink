@@ -6,13 +6,14 @@ const JUPITER_SWAP_URL = 'https://api.jup.ag/swap/v1/swap'
 const SOL_MINT = 'So11111111111111111111111111111111111111112'
 const MAX_SUPPLY_PERCENT = 0.5
 
+const headers = { 'x-api-key': process.env.JUPITER_API_KEY! }
+
 export async function getQuote(
   mintAddress: string,
   amountInLamports: bigint,
-  
 ): Promise<any> {
-  const url = `${JUPITER_QUOTE_URL}?inputMint=${SOL_MINT}&outputMint=${mintAddress}&amount=${amountInLamports}&slippageBps=300`
-  const response = await fetch(url)
+  const url = `${JUPITER_QUOTE_URL}?inputMint=${SOL_MINT}&outputMint=${mintAddress}&amount=${amountInLamports.toString()}&slippageBps=300`
+  const response = await fetch(url, { headers })
   if (!response.ok) throw new Error(`Jupiter quote failed: ${response.statusText}`)
   return response.json()
 }
@@ -46,16 +47,16 @@ export async function autoBuy(
   if (quoteResponse.error) throw new Error(`Jupiter quote error: ${quoteResponse.error}`)
 
   // 2. Swap transaction
-  const swapResponse = await fetch(JUPITER_SWAP_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      quoteResponse,
-      userPublicKey: wallet.publicKey.toString(),
-      dynamicComputeUnitLimit: true,
-      prioritizationFeeLamports: 'auto'
-    })
+ const swapResponse = await fetch(JUPITER_SWAP_URL, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json', ...headers },
+  body: JSON.stringify({
+    quoteResponse,
+    userPublicKey: wallet.publicKey.toString(),
+    dynamicComputeUnitLimit: true,
+    prioritizationFeeLamports: 'auto'
   })
+})
 
   if (!swapResponse.ok) throw new Error(`Jupiter swap request failed: ${swapResponse.statusText}`)
   const swapData = await swapResponse.json()

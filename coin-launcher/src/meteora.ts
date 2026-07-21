@@ -10,6 +10,28 @@ const cpAmm = new CpAmm(connection);
 
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
 
+
+export async function getConfigs() {
+ console.log("Fetching configs...")
+  const allConfigs = await cpAmm.getAllConfigs()
+  console.log("Raw config count:", allConfigs.length)
+  return allConfigs
+    .filter(c => 
+      c.account.poolCreatorAuthority.toString() === '11111111111111111111111111111111' &&
+      c.account.configType === 0
+    )
+    .map(c => ({
+      configAddress: c.publicKey.toString(),
+      collectFeeMode: c.account.collectFeeMode,
+      compoundingFeeBps: c.account.poolFees.compoundingFeeBps,
+      dynamicFeeEnabled: c.account.poolFees.dynamicFee.initialized === 1,
+      protocolFeePercent: c.account.poolFees.protocolFeePercent,
+      activationType: c.account.activationType
+    }))
+}
+
+
+
 export async function createCustomPool(
   mintAddress: string,        // tokenA mint
   tokenAAmount: bigint,       // tokens to seed pool with
@@ -86,3 +108,6 @@ await connection.confirmTransaction(txSig, "confirmed")
 return { poolAddress: pool.toString(), launchTxSig: txSig, poolPosition: position.toString(),positionNftMint: positionNftKeypair.publicKey.toString() }
 }
 
+getConfigs()
+  .then(c => console.log("CONFIGS:", JSON.stringify(c, null, 2)))
+  .catch(e => console.log("CONFIG ERROR:", e))

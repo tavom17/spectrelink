@@ -23,16 +23,31 @@ interface JobStatus {
   failed: string | null
 }
 
-const LAUNCH_STEPS = [
-  { label: 'Preparing wallet keys',       activeAt: 0,  doneAt: 10  },
-  { label: 'Uploading image to Arweave',  activeAt: 10, doneAt: 20  },
-  { label: 'Uploading metadata',          activeAt: 20, doneAt: 35  },
-  { label: 'Creating mint account',       activeAt: 35, doneAt: 50  },
-  { label: 'Attaching on-chain metadata', activeAt: 50, doneAt: 65  },
-  { label: 'Minting token supply',        activeAt: 65, doneAt: 80  },
-  { label: 'Creating liquidity pool',     activeAt: 80, doneAt: 95  },
-  { label: 'Finalizing',                  activeAt: 95, doneAt: 100 },
-]
+interface LaunchStep {
+  label: string
+  activeAt: number
+  doneAt: number
+}
+
+// Mirrors the job.updateProgress percent milestones in launchInitializer.ts. When auto-buy
+// is enabled, the backend runs the auto-buy loop (85-94%) between pool creation (75%) and
+// finalizing (95%), so that step is inserted only for auto-buy launches.
+function buildLaunchSteps(autoBuyEnabled: boolean): LaunchStep[] {
+  const steps: LaunchStep[] = [
+    { label: 'Preparing wallet keys',       activeAt: 0,  doneAt: 10  },
+    { label: 'Uploading image to Arweave',  activeAt: 10, doneAt: 20  },
+    { label: 'Uploading metadata',          activeAt: 20, doneAt: 35  },
+    { label: 'Creating mint account',       activeAt: 35, doneAt: 50  },
+    { label: 'Attaching on-chain metadata', activeAt: 50, doneAt: 65  },
+    { label: 'Minting token supply',        activeAt: 65, doneAt: 75  },
+    { label: 'Creating liquidity pool',     activeAt: 75, doneAt: autoBuyEnabled ? 85 : 95 },
+  ]
+  if (autoBuyEnabled) {
+    steps.push({ label: 'Auto-buying tokens', activeAt: 85, doneAt: 95 })
+  }
+  steps.push({ label: 'Finalizing', activeAt: 95, doneAt: 100 })
+  return steps
+}
 
 function getPercent(status: JobStatus | null): number {
   if (!status) return 0
@@ -43,7 +58,7 @@ function getPercent(status: JobStatus | null): number {
 }
 
 function getStepStatus(
-  step: typeof LAUNCH_STEPS[number],
+  step: LaunchStep,
   percent: number,
   state: string
 ): 'done' | 'active' | 'failed' | 'pending' {
@@ -204,6 +219,7 @@ export default function Launchpad() {
   const [jobId, setJobId] = useState<string | null>(null)
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
+  const [jobHasAutoBuy, setJobHasAutoBuy] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const fetchWallets = useCallback(async () => {
@@ -323,6 +339,7 @@ export default function Launchpad() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? `Server error (${res.status})`)
+      setJobHasAutoBuy(autoBuyEnabled)
       setJobId(data.jobId)
       setModalOpen(true)
     } catch (err) {
@@ -364,6 +381,7 @@ export default function Launchpad() {
   const percent = getPercent(jobStatus)
   const isDone = jobStatus?.state === 'completed'
   const isFailed = jobStatus?.state === 'failed'
+  const launchSteps = useMemo(() => buildLaunchSteps(jobHasAutoBuy), [jobHasAutoBuy])
 
   return (
     <div style={{ padding: '40px 48px', overflowY: 'auto', height: '100%' }}>
@@ -665,8 +683,8 @@ export default function Launchpad() {
                     type="number"
                     value={solPerBuy}
                     onChange={e => setSolPerBuy(e.target.value)}
-                    placeholder="0.00"
-                    min={0} step="0.01"
+                    placeholder="0.0000"
+                    min={0} step="0.0001"
                     style={inputStyle}
                   />
                 </div>
@@ -799,7 +817,7 @@ export default function Launchpad() {
             </div>
 
             <div style={{ padding: '20px 24px' }}>
-              {LAUNCH_STEPS.map(step => {
+              {launchSteps.map(step => {
                 const status = getStepStatus(step, percent, jobStatus?.state ?? 'waiting')
                 return (
                   <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>

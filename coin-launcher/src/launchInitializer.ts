@@ -128,6 +128,7 @@ while (retries < 5) {
 }
 if (retries === 5) throw new Error('Mint account not readable after creation — RPC sync issue')
 
+console.log(`Mint account verified readable after ${retries} retries`)
 
 await job.updateProgress({ step: 'Attaching metadata...', percent: 50 })
 // attach metadata
@@ -143,25 +144,18 @@ await mintSupply(mintAddress, BigInt(job.data.supply), job.data.decimals,job.dat
 const tokenBAmountLamports = BigInt(Math.floor(Number(job.data.initialLiquiditySol) * 1_000_000_000))
 const tokenAAmountBaseUnits = BigInt(Math.floor(job.data.supply * (job.data.poolPercentage / 100))) * BigInt(10 ** job.data.decimals)
 
-await job.updateProgress({ step: 'Creating liquidity pool...', percent: 80 })
-//finally the createpool and extract info
-const poolInfo = await createCustomPool(mintAddress,tokenAAmountBaseUnits,tokenBAmountLamports,job.data.decimals,fundingKeypair)
+await job.updateProgress({ step: 'Creating liquidity pool...', percent: 75 })
+const poolInfo = await createCustomPool(mintAddress, tokenAAmountBaseUnits, tokenBAmountLamports, job.data.decimals, fundingKeypair)
 const poolAddress = poolInfo.poolAddress
 const poolPosition = poolInfo.poolPosition
 const launchTxSig = poolInfo.launchTxSig
 const positionNftMint = poolInfo.positionNftMint
 
-await job.updateProgress({ step: 'Finalizing coin launch...', percent: 90 })
-
-//autobuy quote : 
-
 if (job.data.autoBuyEnabled && job.data.slaveWalletId) {
-// Supply % check — quote one buy to validate
   const solPerBuyLamports = BigInt(Math.floor(job.data.solPerBuy * 1_000_000_000))
-  const testQuote = await getQuote(mintAddress ?? '', solPerBuyLamports)
+  const testQuote = await getQuote(mintAddress, solPerBuyLamports)
   validateSupplyPercent(testQuote.outAmount, BigInt(job.data.supply), job.data.decimals)
 
-   // derive slave keypair
   const slaveKeypairResponse = await fetch('http://wallet-app:3003/internal/derive', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -174,12 +168,12 @@ if (job.data.autoBuyEnabled && job.data.slaveWalletId) {
   const slaveKeypair = await slaveKeypairResponse.json()
 
   for (let i = 0; i < job.data.numberOfBuys; i++) {
-    await job.updateProgress({ step: `Auto-buy ${i + 1} of ${job.data.numberOfBuys}...`, percent: 88 + i })
+    await job.updateProgress({ step: `Auto-buy ${i + 1} of ${job.data.numberOfBuys}...`, percent: 85 + Math.floor((i / job.data.numberOfBuys) * 10) })
     await autoBuy(mintAddress, solPerBuyLamports, slaveKeypair)
   }
-  await job.updateProgress({ step: 'AutoBuy complete...', percent: 95 })
-
 }
+
+await job.updateProgress({ step: 'Finalizing...', percent: 95 })
 
 
 //db insert 
