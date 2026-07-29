@@ -21,6 +21,7 @@ let poolPercentage: number = 100
 let description: string = ''
 let decimals: number = 0
 let supply: number = 0
+let configAddress: string = ''
 let initialLiquiditySol: number = 0
 let fundingWalletId: string = ''
 let feeWalletId: string = '' 
@@ -52,6 +53,7 @@ for await (const part of formData) {
       case 'revoke': revoke = part.value === 'true'; break
       case 'lockMetaData': lockMetaData = part.value === 'true'; break
       case 'supply': supply = Number(part.value); break
+      case 'configAddress':  configAddress = part.value as string; break
       case 'poolPercentage': poolPercentage = Number(part.value); break
       case 'initialLiquiditySol': initialLiquiditySol = Number(part.value); break
       case 'fundingWalletId' :  fundingWalletId = part.value as string; break
@@ -83,6 +85,7 @@ const jobData: LaunchJobData = {
   poolPercentage: poolPercentage,
   decimals: decimals,
   supply: supply,
+  configAddress: configAddress,
   initialLiquiditySol: initialLiquiditySol,
   fundingWalletId: fundingWalletId,
   feeWalletId: feeWalletId,

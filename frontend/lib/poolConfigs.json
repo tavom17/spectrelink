@@ -1,0 +1,193 @@
+{
+  "definitions": {
+    "collectFeeMode": {
+      "solOnly": "All swap fees are collected as SOL. Simpler to manage — one asset to claim.",
+      "compounding": "A percentage of swap fees are automatically reinvested back into the pool, growing your liquidity position over time. The remaining fees are claimable as SOL."
+    },
+    "compoundingPercent": "The percentage of swap fees that get reinvested into the pool. Only applies to compounding fee mode. At 50%, half the fees grow your position and half are claimable. At 100%, all fees compound — nothing to claim until you exit.",
+    "dynamicFee": "When enabled, swap fees increase during high volatility and decrease during calm periods. Protects liquidity providers from arbitrage during price spikes. Acts as an anti-sniper mechanism — bots pay more during volatile moments. When disabled, fees remain flat regardless of market conditions.",
+    "protocolFee": "Meteora takes a fixed 20% cut of all swap fees across every config. This is not configurable. You keep the remaining 80%."
+  },
+  "configs": {
+    "solOnly": [
+      {
+        "configAddress": "G4Y8SphEjVCESkodbFU7sjgaPZRykD55dabccDa8Lv7M",
+        "label": "SOL Only — Flat Fee",
+        "collectFeeMode": 1,
+        "dynamicFee": false,
+        "compoundingPercent": null,
+        "description": "Fees collected as SOL at a flat rate. No dynamic adjustment. Simplest option."
+      },
+      {
+        "configAddress": "FxWh7P9b5sU6LBu4b5SYZbYinTLnEUxWjiBDKVpj7ooF",
+        "label": "SOL Only — Dynamic Fee",
+        "collectFeeMode": 1,
+        "dynamicFee": true,
+        "compoundingPercent": null,
+        "description": "Fees collected as SOL with dynamic adjustment. Higher fees during volatility, lower during calm. Recommended for most launches."
+      }
+    ],
+    "compounding": [
+      {
+        "configAddress": "GjhKa6hwcRqo3BE8NiAZzX4rbdpN6pRKRZhU7LuDft3E",
+        "label": "Compound 10% — Flat Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": false,
+        "compoundingPercent": 10,
+        "description": "10% of fees reinvested into the pool. 90% claimable as SOL. Flat fee rate."
+      },
+      {
+        "configAddress": "FVB8R5cUUvm6Bf1BoinyHhWPKpDFAR4m8wshJJSZz4zk",
+        "label": "Compound 10% — Dynamic Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": true,
+        "compoundingPercent": 10,
+        "description": "10% of fees reinvested. 90% claimable. Dynamic fee adjusts with volatility."
+      },
+      {
+        "configAddress": "Fme9nwRCWqgdHWwvqP4UUSNMcS8ddEh2y4EnvYCqTZa3",
+        "label": "Compound 20% — Flat Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": false,
+        "compoundingPercent": 20,
+        "description": "20% of fees reinvested into the pool. 80% claimable as SOL. Flat fee rate."
+      },
+      {
+        "configAddress": "J7ZSRwcM5Aff3n9JC9851Zg4o6zn7QPFYAckzXwFCfjx",
+        "label": "Compound 20% — Dynamic Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": true,
+        "compoundingPercent": 20,
+        "description": "20% of fees reinvested. 80% claimable. Dynamic fee adjusts with volatility."
+      },
+      {
+        "configAddress": "FRy3c4VbwJEzrK9KK6Vwg1Few7uWPxcLGpEEh6mNAzNJ",
+        "label": "Compound 30% — Flat Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": false,
+        "compoundingPercent": 30,
+        "description": "30% of fees reinvested into the pool. 70% claimable as SOL. Flat fee rate."
+      },
+      {
+        "configAddress": "FrANTLypsmG69wFhN3Yu6wRYw3v2FMtCt5a1v4HBkSRm",
+        "label": "Compound 30% — Dynamic Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": true,
+        "compoundingPercent": 30,
+        "description": "30% of fees reinvested. 70% claimable. Dynamic fee adjusts with volatility."
+      },
+      {
+        "configAddress": "FYp9CMpztMShn2xJaVGuCXQqdzkE9ZocJdQ4oMdCxuDS",
+        "label": "Compound 40% — Flat Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": false,
+        "compoundingPercent": 40,
+        "description": "40% of fees reinvested into the pool. 60% claimable as SOL. Flat fee rate."
+      },
+      {
+        "configAddress": "GZEie16BypuGaXpjPgP3kJbeWA7yGzuEPjaFY5hL9Lky",
+        "label": "Compound 40% — Dynamic Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": true,
+        "compoundingPercent": 40,
+        "description": "40% of fees reinvested. 60% claimable. Dynamic fee adjusts with volatility."
+      },
+      {
+        "configAddress": "GNPTPXQGbYDZviUR2tTmbkeeyvnBcVn6X2PxMEChWght",
+        "label": "Compound 50% — Flat Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": false,
+        "compoundingPercent": 50,
+        "description": "50% of fees reinvested into the pool. 50% claimable as SOL. Flat fee rate."
+      },
+      {
+        "configAddress": "FRB5rMp8pZTyqX6HXMV5uj5btV85A7VYJefy1VdLmpca",
+        "label": "Compound 50% — Dynamic Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": true,
+        "compoundingPercent": 50,
+        "description": "50% of fees reinvested. 50% claimable. Dynamic fee adjusts with volatility."
+      },
+      {
+        "configAddress": "GkuPMXuPb5iDurEefjAT3QZMXTneM5TfwdqBQ3QCirqK",
+        "label": "Compound 60% — Flat Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": false,
+        "compoundingPercent": 60,
+        "description": "60% of fees reinvested into the pool. 40% claimable as SOL. Flat fee rate."
+      },
+      {
+        "configAddress": "G4u5biZLzTgsTQykFN5sDkG9KMA2yW3NmgZtdP6VPuna",
+        "label": "Compound 60% — Dynamic Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": true,
+        "compoundingPercent": 60,
+        "description": "60% of fees reinvested. 40% claimable. Dynamic fee adjusts with volatility."
+      },
+      {
+        "configAddress": "Gag5zntSRgEWDADoWx9SLndAdQbTRhgtqpEABr85GoeQ",
+        "label": "Compound 70% — Flat Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": false,
+        "compoundingPercent": 70,
+        "description": "70% of fees reinvested into the pool. 30% claimable as SOL. Flat fee rate."
+      },
+      {
+        "configAddress": "FjM2ehWJ2Bw8KrsSGCCqDwXQAGkW3W1MPQyjvPiM1HTr",
+        "label": "Compound 70% — Dynamic Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": true,
+        "compoundingPercent": 70,
+        "description": "70% of fees reinvested. 30% claimable. Dynamic fee adjusts with volatility."
+      },
+      {
+        "configAddress": "G9igV9nnkb3v7m9A8G5wojMRAsJECewYCtQxrAAMdBP6",
+        "label": "Compound 80% — Flat Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": false,
+        "compoundingPercent": 80,
+        "description": "80% of fees reinvested into the pool. 20% claimable as SOL. Flat fee rate."
+      },
+      {
+        "configAddress": "Fcm1vRbrv3oiVmjncAh8CYhvtYV96jcd4vggtrjV3jTq",
+        "label": "Compound 80% — Dynamic Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": true,
+        "compoundingPercent": 80,
+        "description": "80% of fees reinvested. 20% claimable. Dynamic fee adjusts with volatility."
+      },
+      {
+        "configAddress": "FzSaCkKMYJDeHjCgz3Wyhp7RAqSvWVxAtqYVxLdR5rFc",
+        "label": "Compound 90% — Flat Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": false,
+        "compoundingPercent": 90,
+        "description": "90% of fees reinvested into the pool. 10% claimable as SOL. Flat fee rate."
+      },
+      {
+        "configAddress": "FYdJxz4QKjxQaABbixbbsF7WE9GsN7y8w7w81DNSxSX5",
+        "label": "Compound 90% — Dynamic Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": true,
+        "compoundingPercent": 90,
+        "description": "90% of fees reinvested. 10% claimable. Dynamic fee adjusts with volatility."
+      },
+      {
+        "configAddress": "Ff9MhLkmQBbMa9r6rDQCu4U1nyxrbV7FS7whu4UYX45X",
+        "label": "Compound 100% — Flat Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": false,
+        "compoundingPercent": 100,
+        "description": "All fees reinvested into the pool. Nothing claimable until you exit. Maximum growth. Flat fee rate."
+      },
+      {
+        "configAddress": "GLKQBWVJWxwK5G2mBYYh9rqRAfT8aBPcjVde87sK6eNk",
+        "label": "Compound 100% — Dynamic Fee",
+        "collectFeeMode": 2,
+        "dynamicFee": true,
+        "compoundingPercent": 100,
+        "description": "All fees reinvested with dynamic adjustment. Maximum growth with sniper protection. Nothing claimable until exit."
+      }
+    ]
+  }
+}

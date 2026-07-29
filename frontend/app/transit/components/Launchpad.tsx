@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useApiFetch } from '@/lib/api'
+import poolConfigs from '@/lib/poolConfigs.json'
 
 interface Wallet {
   wallet_id: string
@@ -10,6 +11,28 @@ interface Wallet {
   wallet_type: 'master' | 'slave' | 'funding' | 'fee'
   label: string | null
 }
+
+interface PoolConfigEntry {
+  configAddress: string
+  label: string
+  collectFeeMode: number
+  dynamicFee: boolean
+  compoundingPercent: number | null
+  description: string
+}
+
+const DEFAULT_CONFIG_ADDRESS = 'FxWh7P9b5sU6LBu4b5SYZbYinTLnEUxWjiBDKVpj7ooF'
+
+const CONFIG_DEFINITIONS: { term: string; desc: string }[] = [
+  { term: 'Collect Fee Mode — SOL Only', desc: poolConfigs.definitions.collectFeeMode.solOnly },
+  { term: 'Collect Fee Mode — Compounding', desc: poolConfigs.definitions.collectFeeMode.compounding },
+  { term: 'Compounding Percent', desc: poolConfigs.definitions.compoundingPercent },
+  { term: 'Dynamic Fee', desc: poolConfigs.definitions.dynamicFee },
+  { term: 'Protocol Fee', desc: poolConfigs.definitions.protocolFee },
+]
+
+const SOL_ONLY_CONFIGS = poolConfigs.configs.solOnly as PoolConfigEntry[]
+const COMPOUNDING_CONFIGS = poolConfigs.configs.compounding as PoolConfigEntry[]
 
 interface JobProgress {
   step: string
@@ -193,6 +216,10 @@ export default function Launchpad() {
   const [fundingWalletId, setFundingWalletId] = useState('')
   const [feeWalletId, setFeeWalletId] = useState('')
 
+  // pool config
+  const [configAddress, setConfigAddress] = useState(DEFAULT_CONFIG_ADDRESS)
+  const [configPickerOpen, setConfigPickerOpen] = useState(false)
+
   // advanced fields
   const [poolPercentage, setPoolPercentage] = useState(100)
   const [revoke, setRevoke] = useState(true)
@@ -318,6 +345,7 @@ export default function Launchpad() {
     fd.append('poolPercentage', String(advanced ? poolPercentage : 100))
     fd.append('revoke', String(advanced ? revoke : true))
     fd.append('lockMetaData', String(advanced ? lockMetaData : true))
+    fd.append('configAddress', configAddress)
     fd.append('fundingWalletId', fundingWalletId)
     fd.append('feeWalletId', feeWalletId)
     fd.append('website', advanced ? website : '')
@@ -363,6 +391,11 @@ export default function Launchpad() {
     else if (pickerOpen === 'slave') setSlaveWalletId(id)
     else setFeeWalletId(id)
     setPickerOpen(null)
+  }
+
+  function handleUseConfig(address: string) {
+    setConfigAddress(address)
+    setConfigPickerOpen(false)
   }
 
   const estimatedPctPerBuy = useMemo(() => {
@@ -529,6 +562,32 @@ export default function Launchpad() {
               <Toggle value={lockMetaData} onChange={setLockMetaData} label="Lock Metadata" />
             </div>
           )}
+        </div>
+
+        {/* ── Pool Configuration ─────────────────────────────── */}
+        <div style={{ border: '1px solid var(--glass-border)', borderTop: 'none', background: 'var(--deep)', padding: '28px', marginBottom: '1px' }}>
+          <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '24px' }}>Pool Configuration</div>
+
+          <div>
+            <label style={labelStyle}>Config Address</label>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <input
+                type="text"
+                value={configAddress}
+                onChange={e => setConfigAddress(e.target.value)}
+                placeholder="e.g. FxWh7P9b5sU6LBu4b5SYZbYinTLnEUxWjiBDKVpj7ooF"
+                required
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={() => setConfigPickerOpen(true)}
+                style={{ ...mono, fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--white)', padding: '9px 20px', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Browse Configs
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* ── Market Cap Estimator ──────────────────────────── */}
@@ -787,6 +846,96 @@ export default function Launchpad() {
                   </div>
                 )
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pool Config Picker Modal ───────────────────────────────── */}
+      {configPickerOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001 }}
+          onClick={e => { if (e.target === e.currentTarget) setConfigPickerOpen(false) }}
+        >
+          <div style={{ background: '#f0f0f0', border: '1px solid var(--glass-border)', width: '640px', maxWidth: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.15s ease', boxShadow: '0 24px 64px rgba(0,0,0,0.15)' }}>
+
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <div style={{ ...bebas, fontSize: '18px', letterSpacing: '0.08em', color: 'var(--white)' }}>
+                BROWSE POOL CONFIGS
+              </div>
+              <button type="button" onClick={() => setConfigPickerOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--faint)', padding: '4px', display: 'flex' }}>
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </button>
+            </div>
+
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+
+              {/* Definitions */}
+              <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--glass-border)' }}>
+                <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '14px' }}>Definitions</div>
+                {CONFIG_DEFINITIONS.map(({ term, desc }) => (
+                  <div key={term} style={{ marginBottom: '10px' }}>
+                    <div style={{ ...mono, fontSize: '11px', color: 'var(--white)', letterSpacing: '0.05em', marginBottom: '2px' }}>{term}</div>
+                    <div style={{ ...mono, fontSize: '11px', color: 'var(--faint)', lineHeight: 1.5 }}>{desc}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* SOL Only */}
+              <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', padding: '10px 22px', background: 'rgba(0,0,0,0.04)', borderBottom: '1px solid var(--glass-border)' }}>
+                SOL Only
+              </div>
+              {SOL_ONLY_CONFIGS.map((cfg, i) => (
+                <div
+                  key={cfg.configAddress}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px',
+                    padding: '13px 22px',
+                    borderBottom: i < SOL_ONLY_CONFIGS.length - 1 ? '1px solid var(--glass-border)' : 'none',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ ...mono, fontSize: '12px', color: 'var(--dim)', letterSpacing: '0.04em', marginBottom: '3px' }}>{cfg.label}</div>
+                    <div style={{ ...mono, fontSize: '11px', color: 'var(--faint)', lineHeight: 1.5 }}>{cfg.description}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleUseConfig(cfg.configAddress)}
+                    style={{ ...mono, fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--white)', padding: '7px 16px', cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    Use
+                  </button>
+                </div>
+              ))}
+
+              {/* Compounding */}
+              <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', padding: '10px 22px', background: 'rgba(0,0,0,0.04)', borderBottom: '1px solid var(--glass-border)', borderTop: '1px solid var(--glass-border)' }}>
+                Compounding
+              </div>
+              {COMPOUNDING_CONFIGS.map((cfg, i) => (
+                <div
+                  key={cfg.configAddress}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px',
+                    padding: '13px 22px',
+                    borderBottom: i < COMPOUNDING_CONFIGS.length - 1 ? '1px solid var(--glass-border)' : 'none',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ ...mono, fontSize: '12px', color: 'var(--dim)', letterSpacing: '0.04em', marginBottom: '3px' }}>{cfg.label}</div>
+                    <div style={{ ...mono, fontSize: '11px', color: 'var(--faint)', lineHeight: 1.5 }}>{cfg.description}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleUseConfig(cfg.configAddress)}
+                    style={{ ...mono, fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--white)', padding: '7px 16px', cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    Use
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         </div>

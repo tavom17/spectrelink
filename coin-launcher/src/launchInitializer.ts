@@ -1,6 +1,6 @@
 import { Queue,Worker,Job  } from 'bullmq'
 import {uploadImage,uploadMetadata} from "./irys"
-import {createCustomPool} from "./meteora"
+import {createPool} from "./meteora"
 import {createTokenMint,mintSupply,attachMetadata} from "./solana"
 import pool from './db'
 import { autoBuy, getQuote, validateSupplyPercent } from './jupiterSwap'
@@ -27,6 +27,7 @@ const connection = {
   description: string
   decimals: number
   supply: number
+  configAddress: string
   initialLiquiditySol: number
   fundingWalletId: string
   feeWalletId: string
@@ -145,7 +146,7 @@ const tokenBAmountLamports = BigInt(Math.floor(Number(job.data.initialLiquidityS
 const tokenAAmountBaseUnits = BigInt(Math.floor(job.data.supply * (job.data.poolPercentage / 100))) * BigInt(10 ** job.data.decimals)
 
 await job.updateProgress({ step: 'Creating liquidity pool...', percent: 75 })
-const poolInfo = await createCustomPool(mintAddress, tokenAAmountBaseUnits, tokenBAmountLamports, job.data.decimals, fundingKeypair)
+const poolInfo = await createPool(mintAddress, tokenAAmountBaseUnits, tokenBAmountLamports, job.data.decimals, job.data.configAddress, fundingKeypair)
 const poolAddress = poolInfo.poolAddress
 const poolPosition = poolInfo.poolPosition
 const launchTxSig = poolInfo.launchTxSig

@@ -1,113 +1,70 @@
 import { Keypair, PublicKey } from "@solana/web3.js"
 import BN from "bn.js"
-import { CpAmm, MAX_SQRT_PRICE, MIN_SQRT_PRICE } from "@meteora-ag/cp-amm-sdk"
-import { getBaseFeeParams, BaseFeeMode, ActivationType } from "@meteora-ag/cp-amm-sdk"
-import { connection } from './connection' //from connection.ts one rpc connection
+import { CpAmm, MAX_SQRT_PRICE, MIN_SQRT_PRICE, derivePoolAddress,derivePositionAddress } from "@meteora-ag/cp-amm-sdk"
+import { connection } from './connection'
 
-
-// Create a new instance of the CpAmm SDK
-const cpAmm = new CpAmm(connection);
-
+const cpAmm = new CpAmm(connection)
 const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
 
 
-export async function getConfigs() {
- console.log("Fetching configs...")
-  const allConfigs = await cpAmm.getAllConfigs()
-  console.log("Raw config count:", allConfigs.length)
-  return allConfigs
-    .filter(c => 
-      c.account.poolCreatorAuthority.toString() === '11111111111111111111111111111111' &&
-      c.account.configType === 0
-    )
-    .map(c => ({
-      configAddress: c.publicKey.toString(),
-      collectFeeMode: c.account.collectFeeMode,
-      compoundingFeeBps: c.account.poolFees.compoundingFeeBps,
-      dynamicFeeEnabled: c.account.poolFees.dynamicFee.initialized === 1,
-      protocolFeePercent: c.account.poolFees.protocolFeePercent,
-      activationType: c.account.activationType
-    }))
-}
 
-
-
-export async function createCustomPool(
-  mintAddress: string,        // tokenA mint
-  tokenAAmount: bigint,       // tokens to seed pool with
-  tokenBAmount: bigint,       // SOL amount in lamports
-  decimals: number,           // tokenA decimals
-  //feeWalletPublicKey: string, // receives LP position NFT
+export async function createPool(
+  mintAddress: string,
+  tokenAAmount: bigint,
+  tokenBAmount: bigint,
+  decimals: number,
+  configAddress: string,
   fundingKeypair: { publicKey: string, secretKey: number[] }
-): Promise<{ poolAddress: string, launchTxSig: string, poolPosition: string, positionNftMint: string}> {
+): Promise<{ poolAddress: string, launchTxSig: string, poolPosition: string, positionNftMint: string }> {
 
+  
+  const fundingWallet = Keypair.fromSecretKey(new Uint8Array(fundingKeypair.secretKey))
+  const positionNftKeypair = Keypair.generate()
 
-const fundingWallet = Keypair.fromSecretKey(new Uint8Array(fundingKeypair.secretKey))
-const positionNftKeypair = Keypair.generate()
+  const { initSqrtPrice, liquidityDelta } = cpAmm.preparePoolCreationParams({
+    tokenAAmount: new BN(tokenAAmount.toString()),
+    tokenBAmount: new BN(tokenBAmount.toString()),
+    minSqrtPrice: MIN_SQRT_PRICE,
+    maxSqrtPrice: MAX_SQRT_PRICE,
+    collectFeeMode: 1
+  })
 
-// preparePoolCreationParams calculates initSqrtPrice and liquidityDelta for us
-const { initSqrtPrice, liquidityDelta } = cpAmm.preparePoolCreationParams({
-  tokenAAmount: new BN(tokenAAmount.toString()),
-  tokenBAmount: new BN(tokenBAmount.toString()),
-  minSqrtPrice: MIN_SQRT_PRICE,
-  maxSqrtPrice: MAX_SQRT_PRICE,
-  collectFeeMode: 0
-})
-
-
-const baseFee = getBaseFeeParams(
-  {
-    baseFeeMode: BaseFeeMode.FeeTimeSchedulerLinear,
-    feeTimeSchedulerParam: {
-      startingFeeBps: 25,
-      endingFeeBps: 25,
-      numberOfPeriod: 0,
-      totalDuration: 0,
-    }
-  },
-  9,                        // tokenBDecimal - SOL
-  ActivationType.Timestamp  // activationType
+// after preparing the pool params, before sending:
+const poolAddress = derivePoolAddress(
+  new PublicKey(configAddress),
+  new PublicKey(mintAddress),
+  new PublicKey("So11111111111111111111111111111111111111112")
 )
 
-console.log("tokenAAmount:", tokenAAmount.toString())
-console.log("tokenBAmount:", tokenBAmount.toString())
-console.log("initSqrtPrice:", initSqrtPrice.toString())
-console.log("liquidityDelta:", liquidityDelta.toString())
+const positionAddress = derivePositionAddress(
+  positionNftKeypair.publicKey
+)
 
 
-const { tx, pool, position } = await cpAmm.createCustomPool({
-  payer: fundingWallet.publicKey,       // The wallet paying for the transaction
-  creator: fundingWallet.publicKey,     // The creator of the pool
-  positionNft: positionNftKeypair.publicKey, // The mint for the initial position NFT
-  tokenAMint: new PublicKey(mintAddress),    // The mint address for token A - created token
-  tokenBMint: new PublicKey("So11111111111111111111111111111111111111112"), // wSOL
-  tokenAAmount: new BN(tokenAAmount.toString()), // Initial amount of token A to deposit
-  tokenBAmount: new BN(tokenBAmount.toString()), // Initial amount of token B to deposit
-  sqrtMinPrice: MIN_SQRT_PRICE,         // Minimum sqrt price
-  sqrtMaxPrice: MAX_SQRT_PRICE,         // Maximum sqrt price
-  initSqrtPrice,                        // Initial sqrt price in Q64 format - calculated above
-  liquidityDelta,                       // Initial liquidity in Q64 format - calculated above
-  poolFees: {
-    baseFee: baseFee,
-    compoundingFeeBps: 0,
-    padding: 0,
-    dynamicFee: null // no dynamic fee for default launch
-  },
-  hasAlphaVault: false,                 // no alpha vault
-  collectFeeMode: 0,                    // 0: BothToken, 1: OnlyB, 2: Compounding
-  activationPoint: null,                // null = immediate activation
-  activationType: 1,                    // 0: slot, 1: timestamp
-  tokenAProgram: TOKEN_PROGRAM_ID,      // Token program for token A
-  tokenBProgram: TOKEN_PROGRAM_ID,      // Token program for token B
-})
+  const poolTx = await cpAmm.createPool({
+    payer: fundingWallet.publicKey,
+    creator: fundingWallet.publicKey,
+    config: new PublicKey(configAddress),
+    positionNft: positionNftKeypair.publicKey,
+    tokenAMint: new PublicKey(mintAddress),
+    tokenBMint: new PublicKey("So11111111111111111111111111111111111111112"),
+    tokenAAmount: new BN(tokenAAmount.toString()),
+    tokenBAmount: new BN(tokenBAmount.toString()),
+    initSqrtPrice,
+    liquidityDelta,
+    activationPoint: null,
+    tokenAProgram: TOKEN_PROGRAM_ID,
+    tokenBProgram: TOKEN_PROGRAM_ID
+  })
 
 
-const txSig = await connection.sendTransaction(tx, [fundingWallet, positionNftKeypair])
-await connection.confirmTransaction(txSig, "confirmed")
+  const txSig = await connection.sendTransaction(poolTx, [fundingWallet, positionNftKeypair])
+  await connection.confirmTransaction(txSig, "confirmed")
 
-return { poolAddress: pool.toString(), launchTxSig: txSig, poolPosition: position.toString(),positionNftMint: positionNftKeypair.publicKey.toString() }
+ return {
+  poolAddress: poolAddress.toString(),
+  launchTxSig: txSig,
+  poolPosition: positionAddress.toString(),
+  positionNftMint: positionNftKeypair.publicKey.toString()
 }
-
-getConfigs()
-  .then(c => console.log("CONFIGS:", JSON.stringify(c, null, 2)))
-  .catch(e => console.log("CONFIG ERROR:", e))
+}
