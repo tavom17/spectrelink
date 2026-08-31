@@ -3,7 +3,7 @@ import { FastifyInstance } from "fastify"
 export async function liquidityForwarder(fastify: FastifyInstance) {
   fastify.get("/tokens", async (request, reply) => {
     const user_id = request.user.user_id
-    const response = await fetch("http://liquidity-manager:3004/liquidity/tokens", {
+    const response = await fetch(`${process.env.LIQUIDITY_APP_URL}/liquidity/tokens`, {
       headers: { "x-user-id": user_id }
     })
     const data = await response.json()
@@ -12,7 +12,7 @@ export async function liquidityForwarder(fastify: FastifyInstance) {
 
   fastify.post("/exit", async (request, reply) => {
     const user_id = request.user.user_id
-    const response = await fetch("http://liquidity-manager:3004/liquidity/exit", {
+    const response = await fetch(`${process.env.LIQUIDITY_APP_URL}/liquidity/exit`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

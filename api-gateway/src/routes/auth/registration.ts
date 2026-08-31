@@ -11,7 +11,7 @@ export async function register(fastify: FastifyInstance) {
     if (registration_secret !== process.env.REGISTRATION_SECRET) {
     return reply.status(403).send({ error: "Invalid registration secret" })
       }    
-
+    
 try {
       const dbResponse = await pool.query(
         `SELECT user_email FROM tb_users WHERE user_email = $1`, 
@@ -29,7 +29,7 @@ try {
 
         const userID = insertData.rows[0].user_id
 
-        const response = await fetch("http://wallet-app:3003/internal/register", {
+        const response = await fetch(`${process.env.WALLET_APP_URL}/internal/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userID })

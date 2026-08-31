@@ -10,7 +10,6 @@ import cookie from "@fastify/cookie"
 import { refreshToken } from "./routes/auth/refresh"
 import { liquidityForwarder } from "./routes/api/liquidityRouter"
 
-
 const fastify = Fastify({ logger: true })
 
 

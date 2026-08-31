@@ -1,0 +1,34 @@
+# Hardcoded Endpoints (plain text, need env equivalents)
+
+## Internal service-to-service calls (should use env vars, e.g. WALLET_APP_URL, LIQUIDITY_MANAGER_URL, COIN_LAUNCHER_URL)
+
+- api-gateway/src/routes/auth/registration.ts:32 — "http://wallet-app:3003/internal/register" - done
+- api-gateway/src/routes/api/walletRouter.ts:8 — `http://wallet-app:3003/internal/listWallets?user_id=${user_id}` - done
+- api-gateway/src/routes/api/walletRouter.ts:20 — "http://wallet-app:3003/internal/slaveWallets" - done
+- api-gateway/src/routes/api/walletRouter.ts:34 — "http://wallet-app:3003/internal/fundingWallets" - done
+- api-gateway/src/routes/api/walletRouter.ts:48 — "http://wallet-app:3003/internal/feeWallets" - done
+- api-gateway/src/routes/api/walletRouter.ts:61 — `http://wallet-app:3003/internal/balance?public_key=${public_key}` - done
+- api-gateway/src/routes/api/walletRouter.ts:68 — "http://wallet-app:3003/internal/withdraw" - done
+- api-gateway/src/routes/api/liquidityRouter.ts:6 — "http://liquidity-manager:3004/liquidity/tokens" - done
+- api-gateway/src/routes/api/liquidityRouter.ts:15 — "http://liquidity-manager:3004/liquidity/exit" - done
+- api-gateway/src/routes/api/coinLaunchRouter.ts:11 — "http://coin-launcher:3002/launch/newToken" - done
+- api-gateway/src/routes/api/coinLaunchRouter.ts:30 — `http://coin-launcher:3002/launch/status/${jobId}` - done
+- liquidity-manager/src/routes/exitPosition.ts:10 — "http://wallet-app:3003/internal/derive"  - done
+- coin-launcher/src/launchInitializer.ts:55 — `http://wallet-app:3003/internal/derive` - done
+- coin-launcher/src/launchInitializer.ts:71 — `http://wallet-app:3003/internal/listPublicKey?wallet_id=${job.data.feeWalletId}` - done
+- coin-launcher/src/launchInitializer.ts:80 — `http://wallet-app:3003/internal/listPublicKey?wallet_id=${job.data.slaveWalletId}` - done
+- coin-launcher/src/launchInitializer.ts:160 — "http://wallet-app:3003/internal/derive" - done
+
+## Third-party API endpoints (should use env vars, e.g. JUPITER_QUOTE_URL, JUPITER_SWAP_URL, IRYS_GATEWAY_URL)
+
+- coin-launcher/src/jupiterSwap.ts:4 — const JUPITER_QUOTE_URL = 'https://api.jup.ag/swap/v1/quote'
+- coin-launcher/src/jupiterSwap.ts:5 — const JUPITER_SWAP_URL = 'https://api.jup.ag/swap/v1/swap'
+- coin-launcher/src/irys.ts:35 — `https://gateway.irys.xyz/${response.id}` (log line)
+- coin-launcher/src/irys.ts:36 — `https://gateway.irys.xyz/${response.id}` (return value)
+- coin-launcher/src/irys.ts:67 — `https://gateway.irys.xyz/${response.id}` (log line)
+- coin-launcher/src/irys.ts:68 — `https://gateway.irys.xyz/${response.id}` (return value)
+
+## Already using env vars (no action needed)
+
+- HELIUS_RPC_URL used in: liquidity-manager/src/meteora.ts:8, coin-launcher/src/connection.ts:8, coin-launcher/src/irys.ts:7, wallet-app/src/solanaActions.ts:6, coin-launcher/src/solana.ts:10, coin-launcher/src/solana.ts:88
+- HELIUS_WS_URL used in: wallet-app/src/solanaActions.ts:7, coin-launcher/src/solana.ts:11

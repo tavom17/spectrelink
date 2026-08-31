@@ -9,7 +9,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      API_URL: http://api-gateway:3001
+      API_URL: ${API_GATEWAY_URL}
     command: npm run dev
     networks:
       - app
@@ -20,17 +20,24 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./api-gateway/src:/app/src
+      - ./certs/ca-wallet-certificate.crt:/app/certs/db-ca.crt:ro
     ports:
       - "3001:3001"
     environment:
-      DATABASE_URL: postgres://dev:dev@postgres-dev:5432/spectre_dev
-      REDIS_URL: redis://redis-dev:6379
+      DB_HOST: ${OMNIA_WALLET_DB_HOST}
+      DB_PORT: ${OMNIA_WALLET_DB_PORT}
+      DB_USER: ${OMNIA_WALLET_DB_USER}
+      DB_PASSWORD: ${OMNIA_WALLET_DB_PASSWORD}
+      DB_NAME: ${OMNIA_WALLET_DB_NAME}
+      DB_SSL_CA_PATH: /app/certs/db-ca.crt
+      REDIS_URL: ${REDIS_URL}
       REGISTRATION_SECRET: ${registration_secret}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      WALLET_APP_URL: ${WALLET_APP_URL}
+      LIQUIDITY_APP_URL: ${LIQUIDITY_APP_URL}
+      COIN_APP_URL: ${COIN_APP_URL}
     depends_on:
-      postgres-dev:
-        condition: service_healthy
       redis-dev:
         condition: service_started
     networks:
@@ -43,19 +50,21 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./liquidity-manager/src:/app/src
+      - ./certs/ca-core-certificate.crt:/app/certs/db-ca.crt:ro
     ports:
       - "3004:3004"
     environment:
-      DATABASE_URL: postgres://dev:dev@postgres-dev:5432/spectre_dev
+      DB_HOST: ${OMNIA_CORE_DB_HOST}
+      DB_PORT: ${OMNIA_CORE_DB_PORT}
+      DB_USER: ${OMNIA_CORE_DB_USER}
+      DB_PASSWORD: ${OMNIA_CORE_DB_PASSWORD}
+      DB_NAME: ${OMNIA_CORE_DB_NAME}
+      DB_SSL_CA_PATH: /app/certs/db-ca.crt
       HELIUS_RPC_URL: ${HELIUS_RPC_URL}
-      WALLET_APP_URL: http://wallet-app:3003
-    depends_on:
-      postgres-dev:
-        condition: service_healthy
+      WALLET_APP_URL: ${WALLET_APP_URL}
     networks:
       - app
       - data
-
 
   wallet-app:
     build:
@@ -63,17 +72,21 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./wallet-app/src:/app/src
+      - ./certs/ca-wallet-certificate.crt:/app/certs/db-ca.crt:ro
     ports:
       - "3003:3003"
     environment:
-      DATABASE_URL: postgres://dev:dev@postgres-dev:5432/spectre_dev
-      REDIS_URL: redis://redis-dev:6379
+      DB_HOST: ${OMNIA_WALLET_DB_HOST}
+      DB_PORT: ${OMNIA_WALLET_DB_PORT}
+      DB_USER: ${OMNIA_WALLET_DB_USER}
+      DB_PASSWORD: ${OMNIA_WALLET_DB_PASSWORD}
+      DB_NAME: ${OMNIA_WALLET_DB_NAME}
+      DB_SSL_CA_PATH: /app/certs/db-ca.crt
+      REDIS_URL: ${REDIS_URL}
       ENCRYPTION_KEY: ${encryption_key}
       HELIUS_RPC_URL: ${HELIUS_RPC_URL}
       HELIUS_WS_URL: ${HELIUS_WS_URL}
     depends_on:
-      postgres-dev:
-        condition: service_healthy
       redis-dev:
         condition: service_started
     networks:
@@ -86,40 +99,23 @@ services:
       dockerfile: Dockerfile
     volumes:
       - ./coin-launcher/src:/app/src
+      - ./certs/ca-wallet-certificate.crt:/app/certs/db-ca.crt:ro
     ports:
       - "3002:3002"
     environment:
-      DATABASE_URL: postgres://dev:dev@postgres-dev:5432/spectre_dev
+      DB_HOST: ${OMNIA_WALLET_DB_HOST}
+      DB_PORT: ${OMNIA_WALLET_DB_PORT}
+      DB_USER: ${OMNIA_WALLET_DB_USER}
+      DB_PASSWORD: ${OMNIA_WALLET_DB_PASSWORD}
+      DB_NAME: ${OMNIA_WALLET_DB_NAME}
+      DB_SSL_CA_PATH: /app/certs/db-ca.crt
       HELIUS_RPC_URL: ${HELIUS_RPC_URL}
       HELIUS_WS_URL: ${HELIUS_WS_URL}
       HELIUS_API_KEY: ${HELIUS_API_KEY}
       JUPITER_API_KEY: ${JUPITER_API_KEY}
-      WALLET_APP_URL: http://wallet-app:3003
-    depends_on:
-      postgres-dev:
-        condition: service_healthy
+      WALLET_APP_URL: ${WALLET_APP_URL}
     networks:
       - app
-      - data
-
-  postgres-dev:
-    image: postgres:16-alpine
-    container_name: spectre-postgres-dev
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dev -d spectre_dev"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    environment:
-      POSTGRES_USER: dev
-      POSTGRES_PASSWORD: dev
-      POSTGRES_DB: spectre_dev
-    ports:
-      - "5432:5432"
-    volumes:
-      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - postgres-dev-data:/var/lib/postgresql/data
-    networks:
       - data
 
   redis-dev:
@@ -129,9 +125,6 @@ services:
       - "6379:6379"
     networks:
       - data
-
-volumes:
-  postgres-dev-data:
 
 networks:
   app: {}

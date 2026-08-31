@@ -8,7 +8,7 @@ export async function launcherForwarder(fastify: FastifyInstance){
 //duplex: half required when streaming a request body through Node.js fetch
 //ts ignore on body cause typescript doesnt know request.raw is valid until runtime
 
-        const response = await fetch("http://coin-launcher:3002/launch/newToken", {
+        const response = await fetch(`${process.env.COIN_APP_URL}/launch/newToken`, {
             method: "POST",
             headers: { 
                 "x-user-id": user_id,
@@ -27,7 +27,7 @@ export async function launcherForwarder(fastify: FastifyInstance){
 fastify.get("/status/:jobId", async (request, reply) => {
     const { jobId } = request.params as { jobId: string }
     
-    const response = await fetch(`http://coin-launcher:3002/launch/status/${jobId}`)
+    const response = await fetch(`${process.env.COIN_APP_URL}/launch/status/${jobId}`)
     const data = await response.json()
     return reply.status(response.status).send(data)
 })

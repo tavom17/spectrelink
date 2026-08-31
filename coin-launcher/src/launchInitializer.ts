@@ -52,7 +52,7 @@ async (job: Job<LaunchJobData>) => {
 
 
 //derive secret key first and foremost from wallet derive for funding wallet
-const fundingKeypairResponse = await fetch(`http://wallet-app:3003/internal/derive`, {
+const fundingKeypairResponse = await fetch(`${process.env.WALLET_APP_URL}/internal/derive`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ 
@@ -68,7 +68,7 @@ const fundingKeypair = await fundingKeypairResponse.json()
 
 //get public key for fee wallet from wallet id
 
-const feeWalletResponse = await fetch(`http://wallet-app:3003/internal/listPublicKey?wallet_id=${job.data.feeWalletId}`)
+const feeWalletResponse = await fetch(`${process.env.WALLET_APP_URL}/internal/listPublicKey?wallet_id=${job.data.feeWalletId}`)
 const feeWalletData = await feeWalletResponse.json()
 //const feeWalletPublicKey = feeWalletData[0].public_key
 
@@ -77,7 +77,7 @@ const feeWalletData = await feeWalletResponse.json()
 
 if (job.data.autoBuyEnabled && job.data.slaveWalletId) {
   // Balance check, first get public key for slaveWalletId
-  const slaveWalletResponse = await fetch(`http://wallet-app:3003/internal/listPublicKey?wallet_id=${job.data.slaveWalletId}`)
+  const slaveWalletResponse = await fetch(`${process.env.WALLET_APP_URL}/internal/listPublicKey?wallet_id=${job.data.slaveWalletId}`)
   const slaveWalletData = await slaveWalletResponse.json()
   const slavePublicKey = slaveWalletData[0].public_key
 
@@ -157,7 +157,7 @@ if (job.data.autoBuyEnabled && job.data.slaveWalletId) {
   const testQuote = await getQuote(mintAddress, solPerBuyLamports)
   validateSupplyPercent(testQuote.outAmount, BigInt(job.data.supply), job.data.decimals)
 
-  const slaveKeypairResponse = await fetch('http://wallet-app:3003/internal/derive', {
+  const slaveKeypairResponse = await fetch(`${process.env.WALLET_APP_URL}/internal/derive`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({

@@ -7,7 +7,7 @@ export async function exitRoutes(fastify: FastifyInstance) {
     const { poolAddress, positionAddress, positionNftMint, fundingWalletId } =
       request.body as { poolAddress: string, positionAddress: string, positionNftMint: string, fundingWalletId: string }
 
-    const fundingKeypairResponse = await fetch('http://wallet-app:3003/internal/derive', {
+    const fundingKeypairResponse = await fetch(`${process.env.WALLET_APP_URL}/internal/derive`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ wallet_id: fundingWalletId, user_id: userId, wallet_type: 'funding' })

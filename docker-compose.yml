@@ -23,6 +23,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    environment:
+      API_URL: ${API_GATEWAY_URL}
     networks:
       - app
 
@@ -30,6 +32,40 @@ services:
     build:
       context: ./api-gateway
       dockerfile: Dockerfile
+    volumes:
+      - /home/scrippa/certs/ca-wallet-certificate.crt:/app/certs/db-ca.crt:ro
+    environment:
+      DB_HOST: ${OMNIA_WALLET_DB_HOST}
+      DB_PORT: ${OMNIA_WALLET_DB_PORT}
+      DB_USER: ${OMNIA_WALLET_DB_USER}
+      DB_PASSWORD: ${OMNIA_WALLET_DB_PASSWORD}
+      DB_NAME: ${OMNIA_WALLET_DB_NAME}
+      DB_SSL_CA_PATH: /app/certs/db-ca.crt
+      REDIS_URL: ${REDIS_URL}
+      REGISTRATION_SECRET: ${registration_secret}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+    depends_on:
+      - redis
+    networks:
+      - app
+      - data
+
+  liquidity-manager:
+    build:
+      context: ./liquidity-manager
+      dockerfile: Dockerfile
+    volumes:
+      - /home/scrippa/certs/ca-core-certificate.crt:/app/certs/db-ca.crt:ro
+    environment:
+      DB_HOST: ${OMNIA_CORE_DB_HOST}
+      DB_PORT: ${OMNIA_CORE_DB_PORT}
+      DB_USER: ${OMNIA_CORE_DB_USER}
+      DB_PASSWORD: ${OMNIA_CORE_DB_PASSWORD}
+      DB_NAME: ${OMNIA_CORE_DB_NAME}
+      DB_SSL_CA_PATH: /app/certs/db-ca.crt
+      HELIUS_RPC_URL: ${HELIUS_RPC_URL}
+      WALLET_APP_URL: ${WALLET_APP_URL}
     networks:
       - app
       - data
@@ -38,6 +74,21 @@ services:
     build:
       context: ./wallet-app
       dockerfile: Dockerfile
+    volumes:
+      - /home/scrippa/certs/ca-wallet-certificate.crt:/app/certs/db-ca.crt:ro
+    environment:
+      DB_HOST: ${OMNIA_WALLET_DB_HOST}
+      DB_PORT: ${OMNIA_WALLET_DB_PORT}
+      DB_USER: ${OMNIA_WALLET_DB_USER}
+      DB_PASSWORD: ${OMNIA_WALLET_DB_PASSWORD}
+      DB_NAME: ${OMNIA_WALLET_DB_NAME}
+      DB_SSL_CA_PATH: /app/certs/db-ca.crt
+      REDIS_URL: ${REDIS_URL}
+      ENCRYPTION_KEY: ${encryption_key}
+      HELIUS_RPC_URL: ${HELIUS_RPC_URL}
+      HELIUS_WS_URL: ${HELIUS_WS_URL}
+    depends_on:
+      - redis
     networks:
       - app
       - data
@@ -46,23 +97,22 @@ services:
     build:
       context: ./coin-launcher
       dockerfile: Dockerfile
+    volumes:
+      - /home/scrippa/certs/ca-wallet-certificate.crt:/app/certs/db-ca.crt:ro
     environment:
+      DB_HOST: ${OMNIA_WALLET_DB_HOST}
+      DB_PORT: ${OMNIA_WALLET_DB_PORT}
+      DB_USER: ${OMNIA_WALLET_DB_USER}
+      DB_PASSWORD: ${OMNIA_WALLET_DB_PASSWORD}
+      DB_NAME: ${OMNIA_WALLET_DB_NAME}
+      DB_SSL_CA_PATH: /app/certs/db-ca.crt
       HELIUS_RPC_URL: ${HELIUS_RPC_URL}
       HELIUS_WS_URL: ${HELIUS_WS_URL}
       HELIUS_API_KEY: ${HELIUS_API_KEY}
-      WALLET_APP_URL: http://wallet-app:3003
+      JUPITER_API_KEY: ${JUPITER_API_KEY}
+      WALLET_APP_URL: ${WALLET_APP_URL}
     networks:
       - app
-
-  postgres:
-    image: postgres:16-alpine
-    volumes:
-      - /home/scrippa/server-data/postgres:/var/lib/postgresql/data
-    environment:
-      POSTGRES_USER: ${postgres_USER}
-      POSTGRES_PASSWORD: ${postgres_PASS}
-      POSTGRES_DB: ${postgres_DB}
-    networks:
       - data
 
   redis:

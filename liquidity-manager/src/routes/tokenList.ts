@@ -1,5 +1,6 @@
 import { FastifyInstance } from "fastify"
 import pool from "../db"
+import { request } from "node:http"
 
 export async function tokenListRoutes(fastify: FastifyInstance) {
   fastify.get('/tokens', async (request, reply) => {
@@ -18,5 +19,10 @@ export async function tokenListRoutes(fastify: FastifyInstance) {
       fastify.log.error(error)
       return reply.status(500).send({ error: "Failed to fetch tokens" })
     }
+  })
+
+  fastify.get('/sortTokenDash', async (request, reply) =>{
+    const { user_id } = request.query as { user_id: string }        
+    
   })
 }

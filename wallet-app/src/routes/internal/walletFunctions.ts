@@ -31,6 +31,7 @@ export async function walletFunctions(fastify: FastifyInstance){
       })
 
 
+
 //quick get to send public key in exchange for wallet_id
       fastify.get("/listPublicKey", async (request, reply) => {
       const { wallet_id } = request.query as { wallet_id: string }        
