@@ -22,11 +22,12 @@ CREATE TABLE tb_wallets (
     wallet_index       INT NOT NULL,
     derivation_path    VARCHAR NOT NULL,
     public_key         VARCHAR UNIQUE NOT NULL,
-    encrypted_mnemonic TEXT NOT NULL,
+    encrypted_mnemonic TEXT,
     wallet_type        VARCHAR NOT NULL DEFAULT 'slave' CHECK (wallet_type IN ('slave', 'funding', 'fee', 'master')),
     label              VARCHAR,
     created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT uq_user_wallet_index UNIQUE (user_id, wallet_index)
+    CONSTRAINT uq_user_wallet_index UNIQUE (user_id, wallet_index, wallet_type),
+    CONSTRAINT chk_master_has_mnemonic CHECK (wallet_type != 'master' OR encrypted_mnemonic IS NOT NULL)
 );
 
 CREATE INDEX idx_wallets_user_id ON tb_wallets(user_id);

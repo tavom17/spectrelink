@@ -1,0 +1,16 @@
+# Database Inserts
+
+## api-gateway (tb_users)
+
+- api-gateway/src/routes/auth/registration.ts:24-27 — INSERT INTO tb_users (user_email, user_password_hash) VALUES ($1, $2) RETURNING user_id
+
+## wallet-app (tb_wallets)
+
+- wallet-app/src/routes/internal/walletFunctions.ts:69-73 — INSERT INTO tb_wallets (user_id, wallet_index, derivation_path, public_key, wallet_type) VALUES (...) — wallet_type='slave' (slaveWallets, inside BEGIN/COMMIT transaction, looped)
+- wallet-app/src/routes/internal/walletFunctions.ts:103-107 — INSERT INTO tb_wallets (...) — wallet_type='funding' (fundingWallets, inside BEGIN/COMMIT transaction)
+- wallet-app/src/routes/internal/walletFunctions.ts:137-141 — INSERT INTO tb_wallets (...) — wallet_type='fee' (feeWallets, inside BEGIN/COMMIT transaction)
+- wallet-app/src/routes/internal/walletRoute.ts:27-31 — INSERT INTO tb_wallets (user_id, wallet_index, derivation_path, public_key, encrypted_mnemonic, wallet_type, label) VALUES (...) — wallet_type='master' (registration, only insert that sets encrypted_mnemonic)
+
+## coin-launcher (tb_tokens)
+
+- coin-launcher/src/launchInitializer.ts:185-188 — INSERT INTO tb_tokens (user_id, fee_wallet_id, funding_wallet_id, mint_address, name, symbol, decimals, supply, metadata_uri, image_uri, metadata_tx_sig, pool_address, position_address, position_nft_mint, position_tx_sig, launch_tx_sig, website, twitter, telegram, launched_at) VALUES (...)

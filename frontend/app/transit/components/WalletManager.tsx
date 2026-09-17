@@ -65,7 +65,7 @@ export default function WalletManager() {
   const fetchWallets = useCallback(async () => {
     if (!accessToken) return
     try {
-      const data = await apiFetch<Wallet[]>('/api/api/wallets/listWallets')
+      const data = await apiFetch<Wallet[]>('/api/wallets/listWallets')
       setWallets(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load wallets')
@@ -92,7 +92,7 @@ export default function WalletManager() {
       if (balances[w.public_key] !== undefined) return
       if (fetchingRef.current.has(w.public_key)) return
       fetchingRef.current.add(w.public_key)
-      apiFetch<{ balance: number }>(`/api/api/wallets/balance?public_key=${encodeURIComponent(w.public_key)}`)
+      apiFetch<{ balance: number }>(`/api/wallets/balance?public_key=${encodeURIComponent(w.public_key)}`)
         .then(data => setBalances(prev => ({ ...prev, [w.public_key]: data.balance })))
         .catch(() => setBalances(prev => ({ ...prev, [w.public_key]: null })))
         .finally(() => fetchingRef.current.delete(w.public_key))
@@ -105,14 +105,14 @@ export default function WalletManager() {
     setError('')
     try {
       if (type === 'slave') {
-        await apiFetch('/api/api/wallets/slaveWallets', {
+        await apiFetch('/api/wallets/slaveWallets', {
           method: 'POST',
           body: JSON.stringify({ amountOfSlaves: slaveCount }),
         })
       } else if (type === 'funding') {
-        await apiFetch('/api/api/wallets/fundingWallets', { method: 'POST', body: JSON.stringify({}) })
+        await apiFetch('/api/wallets/fundingWallets', { method: 'POST', body: JSON.stringify({}) })
       } else {
-        await apiFetch('/api/api/wallets/feeWallets', { method: 'POST', body: JSON.stringify({}) })
+        await apiFetch('/api/wallets/feeWallets', { method: 'POST', body: JSON.stringify({}) })
       }
       await fetchWallets()
     } catch (err) {
@@ -146,7 +146,7 @@ export default function WalletManager() {
     setWithdrawing(true)
     setWithdrawError('')
     try {
-      await apiFetch('/api/api/wallets/withdraw', {
+      await apiFetch('/api/wallets/withdraw', {
         method: 'POST',
         body: JSON.stringify({
           wallet_id: withdrawWallet.wallet_id,
@@ -159,7 +159,7 @@ export default function WalletManager() {
       // Refresh balance for this wallet after success
       setBalances(prev => ({ ...prev, [withdrawWallet.public_key]: undefined }))
       fetchingRef.current.delete(withdrawWallet.public_key)
-      apiFetch<{ balance: number }>(`/api/api/wallets/balance?public_key=${encodeURIComponent(withdrawWallet.public_key)}`)
+      apiFetch<{ balance: number }>(`/api/wallets/balance?public_key=${encodeURIComponent(withdrawWallet.public_key)}`)
         .then(data => setBalances(prev => ({ ...prev, [withdrawWallet.public_key]: data.balance })))
         .catch(() => setBalances(prev => ({ ...prev, [withdrawWallet.public_key]: null })))
     } catch (err) {

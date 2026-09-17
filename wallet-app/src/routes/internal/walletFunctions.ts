@@ -196,7 +196,7 @@ export async function getKeypairForWallet(wallet_id: string, user_id: string, wa
 }
 
 //this function is only ever used when retrieving a keypair, as we take derivation path and seed phrase which needs to be decrypted
-async function getSeedPhrase(user_id: string): Promise<string>{
+export async function getSeedPhrase(user_id: string): Promise<string>{
             try {
             const encryptedSeedPhrase = await pool.query(
                   `select encrypted_mnemonic from tb_wallets

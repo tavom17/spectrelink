@@ -7,7 +7,9 @@ const nextConfig: NextConfig = {
   async rewrites() {
     const apiBase = process.env.API_URL ?? 'http://localhost:3001'
     return [
-      { source: '/api/:path*', destination: `${apiBase}/:path*` },
+      // auth lives at the gateway root, not under its /api prefix — must match first
+      { source: '/api/auth/:path*', destination: `${apiBase}/auth/:path*` },
+      { source: '/api/:path*', destination: `${apiBase}/api/:path*` },
     ]
   },
 };

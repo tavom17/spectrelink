@@ -1,0 +1,118 @@
+# Import / Library Map
+
+Scanned service-by-service. Each service lists external (npm) packages first, then internal/relative module imports found in its source files.
+
+## frontend (Next.js app)
+
+External packages:
+- `next` — framework (App Router, `next/link`, `next/navigation`, `next/image`)
+- `react` — `createContext`, `useContext`, `useEffect`, `useState`, `useCallback`, `useRef`, `useMemo`, `ReactNode`
+- `react-dom`
+- `qrcode.react` — `QRCodeSVG` (wallet address QR rendering in WalletManager)
+- `@tailwindcss/postcss`, `tailwindcss` — styling pipeline
+- `typescript`, `eslint`, `eslint-config-next`, `@types/node`, `@types/react`, `@types/react-dom` — tooling/types only
+
+Internal imports:
+- `@/components/Nav`, `@/components/Cursor`, `@/components/Providers`, `@/components/Footer`
+- `@/lib/auth` — `AuthProvider`, `useAuth`
+- `@/lib/api` — `useApiFetch`
+- `@/lib/poolConfigs.json` — static pool config data
+- `./components/Launchpad`, `./components/WalletManager`, `./components/Liquidity`, `./components/Settings` (transit page)
+- local asset import: `../images/spectreLinkOfficial.png`
+
+## wallet-app
+
+External packages:
+- `fastify` — HTTP server (`FastifyInstance`)
+- `ioredis` — Redis client
+- `pg` — `Pool` (Postgres)
+- `node:crypto` — encryption/decryption helpers
+- `node:fs`
+- `@solana/kit` — `address`, `appendTransactionMessageInstruction`, `createKeyPairSignerFromBytes`, `createSolanaRpc`, `createSolanaRpcSubscriptions`, `createTransactionMessage`, `getSignatureFromTransaction`, `pipe`, `sendAndConfirmTransactionFactory`, `setTransactionMessageFeePayerSigner`, `setTransactionMessageLifetimeUsingBlockhash`, `signTransactionMessageWithSigners`
+- `@solana-program/system` — `getTransferSolInstruction`
+- `@solana/web3.js` — `VersionedTransaction`, `PublicKey`
+- `bip39` — seed phrase generation
+- `ed25519-hd-key` — `derivePath`
+- `tweetnacl` — signing (`nacl`)
+- `bs58` (declared dependency; not directly imported in scanned files)
+
+Internal imports:
+- `./db` — Postgres pool
+- `./redis` — Redis client
+- `./crypto` — `encrypt`, `decrypt`
+- `./wallet` — `generateSeedPhrase`, `deriveKeyPair`, wallet module (`* as wallet`)
+- `./solanaActions` — `getWalletBalance`, `withdrawSol`
+- `./routes/internal/walletRoute` — `register`
+- `./routes/internal/walletFunctions` — `walletFunctions`, `getKeypairForWallet`
+- `./routes/internal/solanaRoute` — `solanaRoutes`
+
+## coin-launcher
+
+External packages:
+- `fastify` — HTTP server
+- `@fastify/multipart` — file upload handling
+- `pg` — `Pool`
+- `node:fs`
+- `bullmq` — `Queue`, `Worker`, `Job` (launch job processing)
+- `@solana/web3.js` — `Connection`, `Keypair`, `PublicKey`, `VersionedTransaction`
+- `@solana/kit` — `createKeyPairSignerFromBytes`, `createSolanaRpc`, `generateKeyPairSigner`, `address`, `Address` (type), `setTransactionMessageFeePayerSigner`, `setTransactionMessageLifetimeUsingBlockhash`, `appendTransactionMessageInstructions`, `createTransactionMessage`, `pipe`, `signTransactionMessageWithSigners`, `getSignatureFromTransaction`, `createSolanaRpcSubscriptions`, `sendAndConfirmTransactionFactory`, `Instruction` (type)
+- `@solana-program/system` — `CreateAccountInput`, `getCreateAccountInstruction`
+- `@solana-program/token` — token program (`* as token`)
+- `@solana/spl-token` (declared dependency; not directly imported in scanned files)
+- `@meteora-ag/cp-amm-sdk` — `CpAmm`, `MAX_SQRT_PRICE`, `MIN_SQRT_PRICE`, `derivePoolAddress`, `derivePositionAddress`
+- `@metaplex-foundation/umi-bundle-defaults` — `createUmi`
+- `@metaplex-foundation/mpl-token-metadata` — `createMetadataAccountV3`, `mplTokenMetadata`, `updateV1`
+- `@metaplex-foundation/umi` — `createSignerFromKeypair`, `publicKey`, `signerIdentity`
+- `@irys/upload` — `Uploader`
+- `@irys/upload-solana` — `Solana`
+- `bn.js` — `BN`
+
+Internal imports:
+- `./db` — Postgres pool
+- `./connection` — shared Solana RPC `connection`
+- `./meteora` — `createPool`
+- `./solana` — `createTokenMint`, `mintSupply`, `attachMetadata`
+- `./irys` — `uploadImage`, `uploadMetadata`
+- `./jupiterSwap` — `autoBuy`, `getQuote`, `validateSupplyPercent`
+- `./launchInitializer` — `launchWorker`, `launchQueue`, `LaunchJobData`
+- `./routes/launchSetup` — `launchRoutes`
+- `./routes/launchStatus` — `getStatus`
+
+## liquidity-manager
+
+External packages:
+- `fastify` — HTTP server
+- `pg` — `Pool`
+- `node:fs`
+- `node:http` — `request`
+- `@solana/web3.js` — `Transaction`, `Connection`, `Keypair`, `PublicKey`
+- `@meteora-ag/cp-amm-sdk` — `CpAmm`, `derivePositionNftAccount`, `getCurrentPoint`, `InitializeCustomizeablePoolParams`, `MAX_SQRT_PRICE`, `MIN_SQRT_PRICE`, `PreparePoolCreationParams`, `unwrapSOLInstruction`
+- `bn.js` — `BN`
+
+Internal imports:
+- `./db` — Postgres pool
+- `./meteora` — `exitPosition`
+- `./routes/tokenList` — `tokenListRoutes`
+- `./routes/exitPosition` — `exitRoutes`
+
+## api-gateway
+
+External packages:
+- `fastify` — HTTP server (`FastifyInstance`, `FastifyRequest`, `FastifyReply`)
+- `@fastify/cookie` — cookie handling
+- `ioredis` — Redis client
+- `pg` — `Pool`
+- `node:fs`
+- `bcrypt` — password hashing
+- `jsonwebtoken` — `* as jwt` (auth token signing/verification)
+
+Internal imports:
+- `./db` — Postgres pool
+- `./redis` — Redis client
+- `./middleware/auth` — `authenticate`
+- `./routes/auth/login` — `loginRoute`
+- `./routes/auth/registration` — `register`
+- `./routes/auth/refresh` — `refreshToken`
+- `./routes/api/walletRouter` — `walletForward`
+- `./routes/api/coinLaunchRouter` — `launcherForwarder`
+- `./routes/api/liquidityRouter` — `liquidityForwarder`

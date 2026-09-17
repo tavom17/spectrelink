@@ -252,7 +252,7 @@ export default function Launchpad() {
   const fetchWallets = useCallback(async () => {
     if (!accessToken) return
     try {
-      const data = await apiFetch<Wallet[]>('/api/api/wallets/listWallets')
+      const data = await apiFetch<Wallet[]>('/api/wallets/listWallets')
       setWallets(data)
     } catch {
       // wallets unavailable
@@ -304,7 +304,7 @@ export default function Launchpad() {
     if (!jobId || !accessToken) return
     const poll = async () => {
       try {
-        const data = await apiFetch<JobStatus>(`/api/api/coins/status/${jobId}`)
+        const data = await apiFetch<JobStatus>(`/api/coins/status/${jobId}`)
         setJobStatus(data)
         if (data.state === 'completed' || data.state === 'failed') stopPolling()
       } catch { /* swallow */ }
@@ -359,7 +359,7 @@ export default function Launchpad() {
     }
 
     try {
-      const res = await fetch('/api/api/coins/newLaunch', {
+      const res = await fetch('/api/coins/newLaunch', {
         method: 'POST',
         headers: { Authorization: `Bearer ${accessToken}` },
         credentials: 'include',

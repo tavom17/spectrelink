@@ -1,17 +1,31 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import Launchpad from './components/Launchpad'
 import WalletManager from './components/WalletManager'
 import Liquidity from './components/Liquidity'
 import Settings from './components/Settings'
+import CommandCenter from './components/CommandCenter'
+import Dashboard from './components/Dashboard'
 
 const NAV_ITEMS = [
   {
+    id: 'dashboard',
+    label: 'DASHBOARD',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <rect x="2" y="2" width="5.5" height="7" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <rect x="9.5" y="2" width="4.5" height="4" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <rect x="2" y="11" width="5.5" height="3" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <rect x="9.5" y="8" width="4.5" height="6" stroke="currentColor" strokeWidth="1" fill="none"/>
+      </svg>
+    ),
+  },
+  {
     id: 'launchpad',
-    label: 'COIN LAUNCHPAD',
+    label: 'LAUNCHPAD',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <polygon points="8,2 14,5 14,11 8,14 2,11 2,5" stroke="currentColor" strokeWidth="1" fill="none"/>
@@ -20,8 +34,18 @@ const NAV_ITEMS = [
     ),
   },
   {
+    id: 'liquidity',
+    label: 'TOKENS',
+    icon: (
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+        <path d="M3 13 L8 3 L13 13" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <path d="M5 9.5 L11 9.5" stroke="currentColor" strokeWidth="0.5"/>
+      </svg>
+    ),
+  },
+  {
     id: 'bundler',
-    label: 'WALLET MANAGER',
+    label: 'WALLETS',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
         <rect x="2" y="2" width="5" height="5" stroke="currentColor" strokeWidth="1" fill="none"/>
@@ -32,12 +56,13 @@ const NAV_ITEMS = [
     ),
   },
   {
-    id: 'liquidity',
-    label: 'LIQUIDITY MANAGER',
+    id: 'command-center',
+    label: 'COMMAND CENTER',
     icon: (
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-        <path d="M3 13 L8 3 L13 13" stroke="currentColor" strokeWidth="1" fill="none"/>
-        <path d="M5 9.5 L11 9.5" stroke="currentColor" strokeWidth="0.5"/>
+        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1" fill="none"/>
+        <path d="M8 2 L8 5M8 11 L8 14M2 8 L5 8M11 8 L14 8" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+        <circle cx="8" cy="8" r="1.5" fill="currentColor"/>
       </svg>
     ),
   },
@@ -53,23 +78,47 @@ const NAV_ITEMS = [
   },
 ]
 
-const PANELS: Record<string, React.ReactNode> = {
-  launchpad: <Launchpad />,
-  bundler:   <WalletManager />,
-  liquidity: <Liquidity />,
-  settings:  <Settings />,
+/** The command centre is the only panel that takes a param, from ?mint=. */
+function renderPanel(id: string, mint: string, openCommandCenter: (m: string) => void): React.ReactNode {
+  switch (id) {
+    case 'dashboard':      return <Dashboard />
+    case 'launchpad':      return <Launchpad />
+    case 'command-center': return <CommandCenter initialMint={mint} />
+    case 'bundler':        return <WalletManager />
+    case 'liquidity':      return <Liquidity onOpenCommandCenter={openCommandCenter} />
+    case 'settings':       return <Settings />
+    default:               return null
+  }
 }
 
-export default function TransitPage() {
+function TransitShell() {
   const router = useRouter()
+  const params = useSearchParams()
   const { user, loading, accessToken } = useAuth()
-  const [activeId, setActiveId] = useState('launchpad')
+  const tabParam = params.get('tab') ?? ''
+  const mintParam = params.get('mint') ?? ''
+
+  // Deep links (?tab=command-center&mint=…) pick the panel until a tab is clicked.
+  const [chosenId, setChosenId] = useState<string | null>(null)
+  const urlId = NAV_ITEMS.some(i => i.id === tabParam) ? tabParam : null
+  const activeId = chosenId ?? urlId ?? 'launchpad'
 
   useEffect(() => {
     if (!loading && !accessToken) {
       router.replace('/login')
     }
   }, [loading, accessToken, router])
+
+  function selectTab(id: string) {
+    setChosenId(id)
+    router.replace(`/transit?tab=${id}`)
+  }
+
+  /** "View in command center" on a token row. */
+  function openCommandCenter(mint: string) {
+    setChosenId('command-center')
+    router.replace(`/transit?tab=command-center&mint=${encodeURIComponent(mint)}`)
+  }
 
   if (loading || !user) return null
 
@@ -140,7 +189,7 @@ export default function TransitPage() {
             return (
               <button
                 key={item.id}
-                onClick={() => setActiveId(item.id)}
+                onClick={() => selectTab(item.id)}
                 style={{
                   width: '100%',
                   display: 'flex',
@@ -236,9 +285,17 @@ export default function TransitPage() {
 
         {/* Active panel */}
         <div style={{ flex: 1, overflow: 'auto', background: '#e8e8e8' }}>
-          {PANELS[activeId]}
+          {renderPanel(activeId, mintParam, openCommandCenter)}
         </div>
       </div>
     </div>
+  )
+}
+
+export default function TransitPage() {
+  return (
+    <Suspense fallback={null}>
+      <TransitShell />
+    </Suspense>
   )
 }

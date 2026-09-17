@@ -41,7 +41,7 @@ const fieldValue: React.CSSProperties = {
   ...mono, fontSize: '12px', color: 'rgba(1,1,1,0.75)', wordBreak: 'break-all', letterSpacing: '0.03em',
 }
 
-export default function Liquidity() {
+export default function Liquidity({ onOpenCommandCenter }: { onOpenCommandCenter?: (mint: string) => void }) {
   const { accessToken } = useAuth()
   const { apiFetch } = useApiFetch()
 
@@ -57,7 +57,7 @@ export default function Liquidity() {
   const fetchTokens = useCallback(async () => {
     if (!accessToken) return
     try {
-      const data = await apiFetch<Token[]>('/api/api/liquidity/tokens')
+      const data = await apiFetch<Token[]>('/api/liquidity/tokens')
       setTokens(data)
     } catch {
       setError('Failed to load tokens')
@@ -73,7 +73,7 @@ export default function Liquidity() {
     setExitingId(token.token_id)
     setExitErrors(prev => { const n = { ...prev }; delete n[token.token_id]; return n })
     try {
-      await apiFetch('/api/api/liquidity/exit', {
+      await apiFetch('/api/liquidity/exit', {
         method: 'POST',
         body: JSON.stringify({
           poolAddress: token.pool_address,
@@ -132,7 +132,7 @@ export default function Liquidity() {
           Meteora pool creation and position tracking
         </div>
         <h1 style={{ ...bebas, fontSize: '48px', letterSpacing: '0.06em', color: 'var(--white)', lineHeight: 1, margin: 0 }}>
-          LIQUIDITY MANAGER
+          TOKENS
         </h1>
       </div>
 
@@ -196,6 +196,14 @@ export default function Liquidity() {
                   <div style={{ ...bebas, fontSize: '18px', letterSpacing: '0.05em', color: 'var(--white)', lineHeight: 1 }}>{token.name}</div>
                   <div style={{ ...mono, fontSize: '10px', color: 'var(--faint)', letterSpacing: '0.1em', marginTop: '2px' }}>{token.symbol}</div>
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <button
+                  onClick={e => { e.stopPropagation(); onOpenCommandCenter?.(token.mint_address) }}
+                  title="View in command center"
+                  style={{ ...mono, fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--dim)', padding: '5px 12px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                >
+                  View in command center
+                </button>
                 {token.position_nft_mint && (
                   <button
                     onClick={e => { e.stopPropagation(); handleExit(token) }}
@@ -205,6 +213,7 @@ export default function Liquidity() {
                     {exitingId === token.token_id ? 'Exiting...' : 'Exit →'}
                   </button>
                 )}
+                </div>
               </div>
 
               {/* Supply */}
