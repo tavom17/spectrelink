@@ -1,9 +1,9 @@
 import Fastify from "fastify"
-import pool from "./db"
+import pool from "./service_dataOperations/databaseConnectivity"
 import redis from "./redis"
-import { register } from "./routes/internal/walletRoute"
-import { walletFunctions } from "./routes/internal/walletFunctions"
-import { solanaRoutes } from "./routes/internal/solanaRoute"
+import { register } from "./service_routing/registration"
+import { walletFunctions } from "./service_routing/walletFunctions"
+import { solanaRoutes } from "./service_routing/solanaRoute"
 
 const fastify = Fastify({ logger: true })
 

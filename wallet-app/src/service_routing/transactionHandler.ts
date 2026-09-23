@@ -1,15 +1,12 @@
 import { FastifyInstance } from "fastify";
 import { VersionedTransaction, PublicKey, VersionedMessage } from '@solana/web3.js';
 import nacl from 'tweetnacl';
-import { deriveKeyPair } from '../../wallet'
-import { getSeedPhrase } from "./walletFunctions";
-import { decrypt } from '../../crypto'
-import pool from "../../db"
+import { deriveKeyPair } from '../service_functionality/wallet'
+import { getSeedPhrase } from "../service_dataOperations/databaseCalls";
+import { decrypt } from '../service_functionality/crypto'
+import pool from "../service_dataOperations/databaseConnectivity"
 
-interface signers{
-    publicKey: string;
-    derivationPath: string;
-}[];
+
 
 
 //CREATE TABLE tb_wallets (

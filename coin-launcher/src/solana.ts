@@ -15,7 +15,6 @@ const rentProgramAddress : Address = address("SysvarRent111111111111111111111111
 
 
 
-
 export async function createTokenMint(
   decimals: number,
   fundingKeypair: { publicKey: string, secretKey: number[] }

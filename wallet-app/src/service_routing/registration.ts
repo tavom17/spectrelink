@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
-import { generateSeedPhrase,deriveKeyPair} from "../../wallet";
-import { encrypt } from "../../crypto";
-import pool from "../../db";
+import { generateSeedPhrase,deriveKeyPair} from "../service_functionality/wallet";
+import { encrypt } from "../service_functionality/crypto";
+import { registrationWalletSave } from "../service_dataOperations/databaseCalls";
 
 
 //walletRoute doesnt really explain the reason for this, basically wallet-app handles all wallet functions, including generating the first master seed phrase
@@ -17,21 +17,19 @@ export async function register(fastify: FastifyInstance) {
     const masterSecret = process.env.ENCRYPTION_KEY;
         if (!masterSecret) throw new Error("ENCRYPTION_KEY not set")
 
-    const { userID } = request.body as { userID: string }  
+    const { user_ID } = request.body as { user_ID: string }  
     
     const seedPhrase = generateSeedPhrase(); 
-    const encryptedSeedPhrase = encrypt(masterSecret, userID, seedPhrase);
+    const encryptedSeedPhrase = encrypt(masterSecret, user_ID, seedPhrase);
     const masterWalletPath = "m/44'/501'/0'/0'"
     const publicKey = (await deriveKeyPair(seedPhrase,masterWalletPath)).publicKey;
     
-   await pool.query(
-            
-          `INSERT INTO tb_wallets (user_id, wallet_index,derivation_path,public_key, encrypted_mnemonic, wallet_type, label) 
-           VALUES ($1, $2,$3, $4,$5, $6, $7)`,
-          [userID, 0, masterWalletPath, publicKey, encryptedSeedPhrase, 'master', 'first registration']
-            );
-
-reply.status(201).send({ message: "Master Wallet Created", seedPhrase: seedPhrase })
+   const response = await registrationWalletSave(user_ID,publicKey,masterWalletPath,'master',encryptedSeedPhrase)
+    
+   if (response.rowCount && response.rowCount > 0) {
+    reply.status(201).send({ message: "Master Wallet Created", seedPhrase: seedPhrase })
+    }
+    
     }catch(err){
     fastify.log.error(err)
     return reply.status(500).send({ error: "Internal server error" })

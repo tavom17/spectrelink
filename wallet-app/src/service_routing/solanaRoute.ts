@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify"
-import { getWalletBalance, withdrawSol } from "../../solanaActions"
+import { getWalletBalance, withdrawSol } from "../../../src_2/solanaActions"
 import { getKeypairForWallet } from "./walletFunctions"
 
 export async function solanaRoutes(fastify: FastifyInstance) {
