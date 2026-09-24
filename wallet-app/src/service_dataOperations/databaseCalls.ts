@@ -1,11 +1,17 @@
-import pool from "./databaseConnectivity";
-import { walletList } from "../interfaces";
+import { walletCreations, walletList } from "../interfaces";
+import { Pool, PoolClient } from "pg";
 
+//rules for db call functions
+//Query logic only
+//atomic transaction logic in route functions for multi call connections
+//pass a pool or a poolclient to the db calls
+//pool for single query calls
+//poolClient for multi call transactions
 
 //list wallets 
-export async function listWallets(user_ID: string){
+export async function listWallets(client: Pool | PoolClient, user_ID: string){
 
-  const result =  await pool.query<walletList>(
+  const result =  await client.query<walletList>(
                 `select public_key,wallet_type,wallet_id from tb_wallets
                 where user_id = $1`,[user_ID]);
                 
@@ -15,9 +21,9 @@ export async function listWallets(user_ID: string){
 
 //list public key
 
-export async function listPublicKey(wallet_ID: string){
+export async function listPublicKey(client: Pool | PoolClient, wallet_ID: string){
 
-   const result = await pool.query<walletList>(
+   const result = await client.query<walletList>(
             `select public_key from tb_wallets
             where wallet_id = $1`,[wallet_ID]);
             
@@ -26,60 +32,44 @@ export async function listPublicKey(wallet_ID: string){
 
 
 //only the saving, all other steps isolated to exact create slaves function
-export async function slaveWalletSave(slave: string[], user_ID: string, oneIndexPastMax: number){
-  const client = await pool.connect()
-    try {
-        await client.query('BEGIN')
+export async function slaveWalletSave(client: Pool | PoolClient, slave: walletCreations[], user_ID: string){
 
-        for (let i = 0; i < slave.length; i++) {
+    const result = await client.query<{ wallet_id: string; public_key: string }>(
+        `INSERT INTO tb_wallets (user_id, wallet_index, derivation_path, public_key, wallet_type)
+         SELECT $1, idx, path, pubkey, 'slave'
+         FROM unnest($2::int[], $3::text[], $4::text[]) AS t(idx, path, pubkey)
+         RETURNING wallet_id, public_key`,
+        [
+            user_ID,
+            slave.map(s => s.index),
+            slave.map(s => s.derivationPath),
+            slave.map(s => s.publicKey),
+        ]
+    );
+    return result.rows;
 
-            await client.query(
-                `INSERT INTO tb_wallets (user_id, wallet_index, derivation_path, public_key, wallet_type)
-                 VALUES ($1, $2, $3, $4, $5)`,
-                [user_ID, oneIndexPastMax + i, `m/44'/501'/2'/${oneIndexPastMax + i}'`, slave[i], 'slave']
-            )
-        }
 
-        await client.query('COMMIT')
-        return "successful"
-
-    } catch (error) {
-        await client.query('ROLLBACK')
-        return "failure"
-    } finally {
-        client.release()
-    }
 }
 
 
-export async function fundingWalletSave(wallet: string, user_ID: string, index: number ){
-   const client = await pool.connect()
-    try {
-        await client.query('BEGIN')
-
-
-            await client.query(
+export async function fundingWalletSave(client: Pool | PoolClient, user_ID: string, wallet: walletCreations){
+   
+  
+    const result = await client.query(
                 `INSERT INTO tb_wallets (user_id, wallet_index, derivation_path, public_key, wallet_type)
                  VALUES ($1, $2, $3, $4, $5)`,
-                [user_ID, index, `m/44'/501'/1'/${index}'`, wallet, 'funding']
+                [user_ID, wallet.index, wallet.derivationPath, wallet.publicKey, 'funding']
             )
         
+        
 
-        await client.query('COMMIT')
-        return "successful"
-
-    } catch (error) {
-        await client.query('ROLLBACK')
-        return "failure"
-    } finally {
-        client.release()
-    }
+        return result.rows;
 }
 
 
-export async function registrationWalletSave(user_ID: string, publicKey: string, derivationPath: string, walletType: string, encryptedMnemonic: string){
+export async function registrationWalletSave(client: Pool | PoolClient, user_ID: string, publicKey: string, derivationPath: string, walletType: string, encryptedMnemonic: string){
      
-    const response = await pool.query(
+    const response = await client.query(
             
           `INSERT INTO tb_wallets (user_id, wallet_index,derivation_path,public_key, encrypted_mnemonic, wallet_type, label) 
            VALUES ($1, $2,$3, $4,$5, $6, $7)`,
@@ -115,9 +105,9 @@ export async function registrationWalletSave(user_ID: string, publicKey: string,
 
 
 //this function is only ever used when retrieving a keypair, as we take derivation path and seed phrase which needs to be decrypted
-export async function getSeedPhrase(user_id: string): Promise<string>{
+export async function getSeedPhrase(client: Pool | PoolClient,user_id: string): Promise<string>{
             try {
-            const encryptedSeedPhrase = await pool.query(
+            const encryptedSeedPhrase = await client.query(
                   `select encrypted_mnemonic from tb_wallets
                   where user_id = $1 and wallet_type = $2`,[user_id, 'master'])
 
@@ -133,9 +123,9 @@ export async function getSeedPhrase(user_id: string): Promise<string>{
 
 //function required in order to maintain integrity for derivation path
 //can't reuse derivation paths, so this pulls lates wallet_index and increments by one when creating new wallets
-export async function getLatestIndex(user_id: string, wallet_type: string):Promise<number>{
+export async function getLatestIndex(client: Pool | PoolClient,user_id: string, wallet_type: string):Promise<number>{
                   try {
-            const index = await pool.query(
+            const index = await client.query(
                   `select MAX(wallet_index) from tb_wallets
                   where user_id = $1 and wallet_type = $2`,[user_id, wallet_type])
 
@@ -147,4 +137,15 @@ export async function getLatestIndex(user_id: string, wallet_type: string):Promi
             } catch (error) {
                   return -1
             }
+}
+
+
+//validate userID matches found wallet and  wallet type
+export async function validateForKeyPair(client: Pool | PoolClient, wallet_id: string, user_id: string, wallet_type: string) {
+    const response = await client.query(
+        `SELECT derivation_path FROM tb_wallets 
+         WHERE wallet_id = $1 AND user_id = $2 AND wallet_type = $3`,
+        [wallet_id, user_id, wallet_type]
+    )
+    return response.rows;
 }

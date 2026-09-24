@@ -2,6 +2,7 @@ import { FastifyInstance } from "fastify";
 import { generateSeedPhrase,deriveKeyPair} from "../service_functionality/wallet";
 import { encrypt } from "../service_functionality/crypto";
 import { registrationWalletSave } from "../service_dataOperations/databaseCalls";
+import pool from "../service_dataOperations/databaseConnectivity";
 
 
 //walletRoute doesnt really explain the reason for this, basically wallet-app handles all wallet functions, including generating the first master seed phrase
@@ -24,7 +25,7 @@ export async function register(fastify: FastifyInstance) {
     const masterWalletPath = "m/44'/501'/0'/0'"
     const publicKey = (await deriveKeyPair(seedPhrase,masterWalletPath)).publicKey;
     
-   const response = await registrationWalletSave(user_ID,publicKey,masterWalletPath,'master',encryptedSeedPhrase)
+   const response = await registrationWalletSave(pool,user_ID,publicKey,masterWalletPath,'master',encryptedSeedPhrase)
     
    if (response.rowCount && response.rowCount > 0) {
     reply.status(201).send({ message: "Master Wallet Created", seedPhrase: seedPhrase })

@@ -1,9 +1,8 @@
 import * as bip39 from "bip39";
 import { derivePath } from "ed25519-hd-key";
 import  nacl from 'tweetnacl';
-import { DerivedWallet } from "../interfaces";
+import { DerivedWallet,walletCreations } from "../interfaces";
 import { decrypt } from "./crypto";
-import { getSeedPhrase, getLatestIndex } from "../service_dataOperations/databaseCalls";
 
 
 
@@ -37,32 +36,32 @@ export async function deriveKeyPair(seedPhrase: string, path: string): Promise<D
 //because its so fused in the routes and doesnt have its own function to call
 
 
-export async function createSlaveWallets(amountOfSlaves: number, user_ID: string): Promise<Array<string>> {
+export async function createSlaveWallets(user_ID: string,encryptedMnemonic: string, startingIndex: number,amountOfSlaves: number, ): Promise<Array<walletCreations>> {
 
-    const encryptedMnemonic = await getSeedPhrase(user_ID);
     const decryptedMnemonic = decrypt(encryptedMnemonic, process.env.ENCRYPTION_KEY!, user_ID);
-    const oneIndexPastMax = await getLatestIndex(user_ID, 'slave');
-    const slaves: string[] = [];
-
+    const slaves: walletCreations[] = [];
+     
+    
 
         for (let i = 0; i < amountOfSlaves; i++) {
-            const derivedWallet = await deriveKeyPair(decryptedMnemonic, `m/44'/501'/2'/${oneIndexPastMax + i}'`);
-            slaves.push(derivedWallet.publicKey);
+            const calculatedIndex: number = (startingIndex + i);
+            const derivationPath = `m/44'/501'/2'/${calculatedIndex}'`
+            const derivedWallet = await deriveKeyPair(decryptedMnemonic, derivationPath);
+            slaves[i] = {publicKey:derivedWallet.publicKey,index: calculatedIndex, derivationPath:derivationPath}
         }
 
 
     return slaves; 
 }
 
-export async function createFundingWallet(user_ID: string): Promise<{wallet: string,index: number}>{
-    const encryptedMnemonic = await getSeedPhrase(user_ID);
+export async function createFundingWallet(user_ID: string,encryptedMnemonic: string, index: number): Promise<walletCreations>{
+
     const decryptedMnemonic = decrypt(encryptedMnemonic, process.env.ENCRYPTION_KEY!, user_ID);
-    const oneIndexPastMax = await getLatestIndex(user_ID, 'funding');
+    const derivationPath = `m/44/501/1/${index}`;
+    const wallet = await deriveKeyPair(decryptedMnemonic, derivationPath);
 
-    const wallet = await deriveKeyPair(decryptedMnemonic, `m/44/501/1/${oneIndexPastMax}`);
-
-    //return index as well for the save call
-    return {wallet: wallet.publicKey,index: oneIndexPastMax};
+    const fundingWallet = {publicKey: wallet.publicKey,index: index, derivationPath:derivationPath}
+    return fundingWallet; 
 }
 
 

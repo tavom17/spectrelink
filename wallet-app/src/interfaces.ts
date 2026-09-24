@@ -12,4 +12,12 @@ export interface DerivedWallet{
 export interface signers{
     publicKey: string;
     derivationPath: string;
-}[];
+};
+
+//sloppy I know as this is the same as signers, will clean up, just need
+//better naming for the create wallet functions
+export interface walletCreations{
+    publicKey: string;
+    index: number;
+    derivationPath: string;
+};
