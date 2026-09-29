@@ -2,7 +2,7 @@ import Fastify from "fastify"
 import pool from "./service_dataOperations/databaseConnectivity"
 import redis from "./redis"
 import { register } from "./service_routing/registration"
-import { walletFunctions } from "./service_routing/walletFunctions"
+import { walletEndpoints,bundleGroupEndpoints } from "./service_routing/walletFunctions"
 import { solanaRoutes } from "./service_routing/solanaRoute"
 
 const fastify = Fastify({ logger: true })
@@ -12,8 +12,10 @@ fastify.get("/health", async () => {
 })
 
 fastify.register(register,{prefix: "/internal"})
-fastify.register(walletFunctions,{prefix: "/internal"})
+fastify.register(walletEndpoints,{prefix: "/internal"})
 fastify.register(solanaRoutes,{prefix: "/internal"})
+fastify.register(bundleGroupEndpoints,{prefix: "/internal"})
+
 const start = async () => {
   try {
     await pool.query("SELECT 1")

@@ -5,8 +5,8 @@ import { FastifyInstance } from "fastify";
 async function bundleRoutes(fastify: FastifyInstance) {
 
     fastify.post("/distribute", async (request, reply) => {
-        const { user_id, group_id, fundingPubKey, targetPubKeys, totalSol, skewPct } =
-            request.body as DistributeBody;
+        const { user_id, group_id, fundingPubKey, totalSol, skewPct } = 
+        request.body as {user_id: string, group_id: string, fundingPubKey: string, totalSol: number, skewPct: BigInt}
 
         // 1. validate targets are members of this group
         // 2. fetch on-chain state for targets (one getMultipleAccounts)

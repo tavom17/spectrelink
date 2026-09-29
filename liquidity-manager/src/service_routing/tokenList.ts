@@ -1,6 +1,5 @@
 import { FastifyInstance } from "fastify"
-import pool from "../db"
-import { request } from "node:http"
+import pool from "../service_dataOperations/databaseConnectivity"
 
 export async function tokenListRoutes(fastify: FastifyInstance) {
   fastify.get('/tokens', async (request, reply) => {

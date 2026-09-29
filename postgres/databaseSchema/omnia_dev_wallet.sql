@@ -66,3 +66,32 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER trg_users_updated_at
 BEFORE UPDATE ON tb_users
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+
+
+
+
+--addition for bundle groups
+CREATE TABLE tb_bundle_groups (
+    group_id    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID NOT NULL REFERENCES tb_users(user_id) ON DELETE CASCADE,
+    group_name  VARCHAR NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_group_name_per_user UNIQUE (user_id, group_name)
+);
+
+CREATE INDEX idx_bundle_groups_user ON tb_bundle_groups (user_id, created_at DESC);
+
+CREATE TABLE tb_bundle_group_members (
+    member_id   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    group_id    UUID NOT NULL REFERENCES tb_bundle_groups(group_id) ON DELETE CASCADE,
+    wallet_id   UUID NOT NULL REFERENCES tb_wallets(wallet_id) ON DELETE CASCADE,
+    position    SMALLINT NOT NULL CHECK (position >= 0),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    CONSTRAINT uq_wallet_single_group UNIQUE (wallet_id),
+    CONSTRAINT uq_position_per_group  UNIQUE (group_id, position)
+);
+
+CREATE INDEX idx_group_members ON tb_bundle_group_members (group_id, position);

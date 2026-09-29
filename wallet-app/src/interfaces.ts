@@ -21,3 +21,8 @@ export interface walletCreations{
     index: number;
     derivationPath: string;
 };
+
+export interface savedWallet {
+    wallet_id: string;
+    public_key: string;
+};

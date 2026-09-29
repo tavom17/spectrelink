@@ -1,4 +1,4 @@
-import { walletCreations, walletList } from "../interfaces";
+import { walletCreations, walletList,savedWallet } from "../interfaces";
 import { Pool, PoolClient } from "pg";
 
 //rules for db call functions
@@ -34,7 +34,7 @@ export async function listPublicKey(client: Pool | PoolClient, wallet_ID: string
 //only the saving, all other steps isolated to exact create slaves function
 export async function slaveWalletSave(client: Pool | PoolClient, slave: walletCreations[], user_ID: string){
 
-    const result = await client.query<{ wallet_id: string; public_key: string }>(
+    const result = await client.query<savedWallet>(
         `INSERT INTO tb_wallets (user_id, wallet_index, derivation_path, public_key, wallet_type)
          SELECT $1, idx, path, pubkey, 'slave'
          FROM unnest($2::int[], $3::text[], $4::text[]) AS t(idx, path, pubkey)
@@ -81,26 +81,6 @@ export async function registrationWalletSave(client: Pool | PoolClient, user_ID:
 
 
 
-//helper function for all other routes that require a secret key from a public key selected
-//derive uses this function as well. This was a last minute change as a new route required and it was silly for derive to handle
-//abstracted the validation from derive and the retrieval into this function, derive and other routes can now use this one
-// the problem was derive is a post endpoint and not an actual exportable function
-// export async function getKeypairForWallet(wallet_id: string, user_id: string, wallet_type: string) {
-//     const response = await pool.query(
-//         `SELECT derivation_path FROM tb_wallets 
-//          WHERE wallet_id = $1 AND user_id = $2 AND wallet_type = $3`,
-//         [wallet_id, user_id, wallet_type]
-//     )
-
-//     if (!response || response.rowCount === 0) 
-//         throw new Error("Wallet validation failed")
-
-//     const encryptedMnemonic = await getSeedPhrase(user_id)
-//     const decryptedMnemonic = decrypt(encryptedMnemonic, process.env.ENCRYPTION_KEY!, user_id)
-//     return await wallet.deriveKeyPair(decryptedMnemonic, response.rows[0].derivation_path)
-// }
-
-
 
 
 
@@ -122,21 +102,24 @@ export async function getSeedPhrase(client: Pool | PoolClient,user_id: string): 
 }
 
 //function required in order to maintain integrity for derivation path
-//can't reuse derivation paths, so this pulls lates wallet_index and increments by one when creating new wallets
+//can't reuse derivation paths, so this pulls latest wallet_index and increments by one when creating new wallets
 export async function getLatestIndex(client: Pool | PoolClient,user_id: string, wallet_type: string):Promise<number>{
-                  try {
+            
+    try {
+
             const index = await client.query(
                   `select MAX(wallet_index) from tb_wallets
                   where user_id = $1 and wallet_type = $2`,[user_id, wallet_type])
 
             if(!index || index.rowCount ===0) 
                   return 0
+
             const maxIndex = index.rows[0].max
             return maxIndex ===null ? 0 : maxIndex + 1;
 
-            } catch (error) {
-                  return -1
-            }
+        } catch (error) {
+                  return 0
+        }
 }
 
 
@@ -149,3 +132,33 @@ export async function validateForKeyPair(client: Pool | PoolClient, wallet_id: s
     )
     return response.rows;
 }
+
+
+
+export async function bundleGroupSave(client: Pool | PoolClient, user_ID: string, label: string) {
+
+    const result = await client.query<{ group_id: string }>(
+        `INSERT INTO tb_bundle_groups (user_id, group_name)
+         VALUES ($1, $2)
+         RETURNING group_id`,
+        [user_ID, label]
+    );
+    return result.rows[0].group_id;
+}
+
+
+   export async function bundleGroupMemberSave(client: Pool | PoolClient, groupID: string, savedSlaves: savedWallet[]) {
+
+       const result = await client.query<{ member_id: string; wallet_id: string; position: number }>(
+           `INSERT INTO tb_bundle_group_members (group_id, wallet_id, position)
+            SELECT $1, wid, pos
+            FROM unnest($2::uuid[], $3::int[]) AS t(wid, pos)
+            RETURNING member_id, wallet_id, position`,
+           [
+               groupID,
+               savedSlaves.map(s => s.wallet_id),
+               savedSlaves.map((_, i) => i),
+           ]
+       );
+       return result.rows;
+   }

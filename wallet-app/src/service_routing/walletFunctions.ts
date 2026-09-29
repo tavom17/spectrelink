@@ -2,14 +2,14 @@ import { FastifyInstance } from "fastify";
 import * as wallet from "../service_functionality/wallet";
 import pool from "../service_dataOperations/databaseConnectivity";
 import { decrypt} from "../service_functionality/crypto"
-import { fundingWalletSave, listPublicKey, listWallets, slaveWalletSave, validateForKeyPair } from "../service_dataOperations/databaseCalls";
+import { bundleGroupMemberSave, bundleGroupSave, fundingWalletSave, listPublicKey, listWallets, slaveWalletSave, validateForKeyPair } from "../service_dataOperations/databaseCalls";
 import { getSeedPhrase,getLatestIndex } from "../service_dataOperations/databaseCalls";
-
+import { DatabaseError } from "pg";
 
 
 //fuction that basically acts as a do all for wallet functions hence the name, caters for all wallet functions leading to only one import in index file
 //this is a "protected" api call through fastify, will need valid jwt and authentication required
-export async function walletFunctions(fastify: FastifyInstance){
+export async function walletEndpoints(fastify: FastifyInstance){
 
     //grabs all user wallets for wallet manager, request only requires the user_id which will be the foreign key within the database for tb_wallets
       fastify.get("/listWallets", async (request, reply) => {
@@ -48,7 +48,7 @@ export async function walletFunctions(fastify: FastifyInstance){
 fastify.post("/slaveWallets", async (request, reply) => {
     const { user_ID, amountOfSlaves } = request.body as { user_ID: string, amountOfSlaves: number }
 
-    if(Number.isInteger(amountOfSlaves) && amountOfSlaves >= 1 && amountOfSlaves <= 25)
+    if(!(Number.isInteger(amountOfSlaves) && amountOfSlaves >= 1 && amountOfSlaves <= 25))
         return reply.status(400).send("Slave creation limit of 25: surpassed")
 
     const client = await pool.connect();
@@ -150,6 +150,73 @@ fastify.post("/derive", async (request, reply) => {
  
     
 })
+
+}
+
+
+
+export async function bundleGroupEndpoints(fastify: FastifyInstance){
+
+
+fastify.post("/createBundleGroups", async(request,reply) =>{
+    const {user_ID, amountOfSlaves, label} = request.body as {user_ID: string, amountOfSlaves: number, label: string}
+
+
+    if(!(Number.isInteger(amountOfSlaves) && amountOfSlaves >= 1 && amountOfSlaves <= 25))
+        return reply.status(400).send("Slave count must be between 1 - 25 and a number value");
+    
+    const trimmed = label.trim()
+    if(!(trimmed.length <=64 && trimmed.length>=1))
+        return reply.status(400).send("Label name must be between 1 and 64 characters");
+
+    const client = await pool.connect(); 
+
+    try {
+        await client.query('BEGIN');
+        await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [user_ID]);
+
+        //create new slaves for bundle group
+        const encryptedMnemonic = await getSeedPhrase(client,user_ID);
+        const index = await getLatestIndex(client,user_ID, 'slave');
+        const slaves = await wallet.createSlaveWallets(user_ID, encryptedMnemonic, index, amountOfSlaves);
+
+        //save slaves and get back wallet_id's for bundle group members save
+        const slaveWalletSaveResponse = await slaveWalletSave(client, slaves, user_ID);
+
+        //save bundle group
+        const bundleGroupSaveResponse = await bundleGroupSave(client, user_ID, trimmed);
+
+        //save bundle group members
+        await bundleGroupMemberSave(client, bundleGroupSaveResponse, slaveWalletSaveResponse);
+
+        await client.query('COMMIT');
+        return reply.status(200).send({
+            groupID: bundleGroupSaveResponse,
+            label: trimmed,
+            publicKeys: slaveWalletSaveResponse.map(s => s.public_key),
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        request.log.error(error);
+
+        if (error instanceof DatabaseError && error.code === '23505' && error.constraint === 'uq_group_name_per_user')
+            return reply.status(409).send("A bundle group with that name already exists");
+
+    return reply.status(500).send("Database Transaction Failure");
+    }finally{
+        client.release();    
+    }
+})
+
+
+
+
+
+
+// fastify.get("/listBundleGroups", async(request,reply)=>{
+
+// })
+
 
 
 }

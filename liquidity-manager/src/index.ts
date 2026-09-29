@@ -1,7 +1,7 @@
 import Fastify from "fastify"
-import { tokenListRoutes } from "./routes/tokenList"
-import { exitRoutes } from "./routes/exitPosition"
-import pool from "./db"
+import { tokenListRoutes } from "./service_routing/tokenList"
+import { exitRoutes } from "./service_routing/exitPosition"
+import pool from "./service_dataOperations/databaseConnectivity"
 
 const fastify = Fastify({ logger: true })
 

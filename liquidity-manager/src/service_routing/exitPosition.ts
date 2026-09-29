@@ -1,5 +1,5 @@
 import { FastifyInstance } from "fastify"
-import { exitPosition } from "../meteora"
+import { exitPosition } from "../service_functionality/meteora"
 
 export async function exitRoutes(fastify: FastifyInstance) {
   fastify.post('/exit', async (request, reply) => {
