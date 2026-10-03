@@ -10,167 +10,50 @@ import {
   type TokenSnapshot, type BundleGroup, type GroupMember, type FundingWallet,
   type Job, type BalanceEntry,
 } from '@/lib/commandCenter'
-
-/* ------------------------------------------------------------------ style */
-
-const mono: React.CSSProperties = { fontFamily: "'Share Tech Mono', monospace" }
+import { Sheet, SheetHead, Seg, Range, Check, TokenTile, CopyButton, ChevronDown, RefreshIcon, PreviewTag } from '@/components/ui'
 
 const ROSTER_PAGE = 10
 
 /** Roster checkbox availability depends on what the selection is being used for. */
 type Mode = 'distribute' | 'buy'
 
-const label: React.CSSProperties = {
-  ...mono, fontSize: '10px', letterSpacing: '0.12em',
-  color: 'var(--cc-faint)', marginBottom: '6px', display: 'block',
-}
-
-const card: React.CSSProperties = {
-  background: 'var(--cc-card)',
-  border: '1px solid var(--cc-line)',
-  marginBottom: '14px',
-}
-
-const cardHead: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: '10px',
-  padding: '13px 16px', borderBottom: '1px solid var(--cc-line)',
-}
-
-const cardTitle: React.CSSProperties = {
-  ...mono, fontSize: '13px', letterSpacing: '0.04em', color: 'var(--cc-text)',
-}
-
-const input: React.CSSProperties = {
-  ...mono, fontSize: '12px', color: 'var(--cc-text)',
-  background: 'var(--cc-input)', border: '1px solid var(--cc-line)',
-  padding: '9px 11px', width: '100%', outline: 'none', borderRadius: '2px',
-}
-
-function btn(variant: 'solid' | 'ghost' | 'quiet' = 'ghost', disabled = false): React.CSSProperties {
-  return {
-    ...mono, fontSize: '11px', letterSpacing: '0.06em',
-    padding: '8px 14px', borderRadius: '2px', cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.4 : 1,
-    display: 'inline-flex', alignItems: 'center', gap: '7px', whiteSpace: 'nowrap',
-    border: variant === 'solid' ? '1px solid var(--cc-accent)' : '1px solid var(--cc-line)',
-    background: variant === 'solid' ? 'var(--cc-accent)' : variant === 'quiet' ? 'transparent' : 'var(--cc-input)',
-    color: variant === 'solid' ? '#07121f' : 'var(--cc-text)',
-  }
-}
-
-function stepBadge(n: number): React.JSX.Element {
-  return (
-    <span style={{
-      ...mono, fontSize: '11px', width: '20px', height: '20px', flexShrink: 0,
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      border: '1px solid var(--cc-accent)', color: 'var(--cc-accent)', borderRadius: '2px',
-    }}>{n}</span>
-  )
-}
-
-function Badge({ children, tone = 'line' }: { children: React.ReactNode; tone?: 'line' | 'accent' | 'warning' | 'danger' | 'success' }) {
-  const tones = {
-    line:    { c: 'var(--cc-dim)',     b: 'var(--cc-line)',            bg: 'transparent' },
-    accent:  { c: 'var(--cc-accent)',  b: 'var(--cc-accent-line)',     bg: 'var(--cc-accent-tint)' },
-    warning: { c: 'var(--cc-warning)', b: 'var(--cc-warning-line)',    bg: 'var(--cc-warning-tint)' },
-    danger:  { c: 'var(--cc-danger)',  b: 'var(--cc-danger-line)',     bg: 'var(--cc-danger-tint)' },
-    success: { c: 'var(--cc-success)', b: 'var(--cc-success-line)',    bg: 'var(--cc-success-tint)' },
-  }[tone]
-  return (
-    <span style={{
-      ...mono, fontSize: '10px', letterSpacing: '0.06em', padding: '3px 7px',
-      color: tones.c, border: `1px solid ${tones.b}`, background: tones.bg, borderRadius: '2px',
-      whiteSpace: 'nowrap',
-    }}>{children}</span>
-  )
-}
-
-function Chevron({ open }: { open: boolean }) {
-  return (
-    <svg width="9" height="9" viewBox="0 0 10 10" fill="none" style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.12s', flexShrink: 0 }}>
-      <path d="M3 1.5 L7 5 L3 8.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function RefreshIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
-      <path d="M12 7a5 5 0 1 1-1.6-3.7" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-      <path d="M12 1.2V4H9.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
+const MODES = [
+  { id: 'distribute', label: 'Distribute' },
+  { id: 'buy', label: 'Buy' },
+] as const satisfies readonly { id: Mode; label: string }[]
 
 function StatusIcon({ status }: { status: Job['legs'][number]['status'] }) {
   if (status === 'confirmed') return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--cc-success)', flexShrink: 0 }}>
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--accent-400)', flexShrink: 0 }} aria-label="Confirmed">
       <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" />
       <path d="M4.6 7.2 L6.3 8.9 L9.4 5.3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
   if (status === 'failed') return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--cc-danger)', flexShrink: 0 }}>
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--danger)', flexShrink: 0 }} aria-label="Failed">
       <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" />
       <path d="M5 5 L9 9 M9 5 L5 9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
     </svg>
   )
   if (status === 'blocked') return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--cc-faint)', flexShrink: 0 }}>
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--ink-5)', flexShrink: 0 }} aria-label="Blocked">
       <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" strokeDasharray="2 2" />
     </svg>
   )
   return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--cc-warning)', flexShrink: 0 }}>
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--ink-3)', flexShrink: 0 }} aria-label="Pending">
       <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" />
       <path d="M7 4 V7 L9 8.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   )
 }
 
-function Checkbox({ checked, disabled, onChange, title }: {
-  checked: boolean; disabled?: boolean; onChange: () => void; title?: string
-}) {
-  return (
-    <span title={title} style={{ display: 'inline-flex', cursor: disabled ? 'not-allowed' : 'pointer' }}>
-      <button
-        type="button"
-        onClick={e => { e.stopPropagation(); if (!disabled) onChange() }}
-        disabled={disabled}
-        aria-checked={checked}
-        role="checkbox"
-        style={{
-          width: '13px', height: '13px', padding: 0, borderRadius: '2px',
-          border: `1px solid ${checked ? 'var(--cc-accent)' : 'var(--cc-line-2)'}`,
-          background: checked ? 'var(--cc-accent)' : 'transparent',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          opacity: disabled ? 0.3 : 1,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}
-      >
-        {checked && (
-          <svg width="9" height="9" viewBox="0 0 10 10" fill="none" style={{ color: '#07121f' }}>
-            <path d="M2 5.2 L4 7.2 L8 2.8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        )}
-      </button>
-    </span>
-  )
-}
-
-/** success → warning → danger ramp across the price walk. */
-function rampColor(t: number): string {
-  const stops: [number, number, number][] = [[63, 191, 127], [227, 165, 63], [236, 91, 80]]
-  const seg = t < 0.5 ? 0 : 1
-  const k = t < 0.5 ? t / 0.5 : (t - 0.5) / 0.5
-  const a = stops[seg], b = stops[seg + 1]
-  const c = a.map((v, i) => Math.round(v + (b[i] - v) * k))
-  return `rgb(${c[0]},${c[1]},${c[2]})`
-}
-
 /* -------------------------------------------------------------- component */
 
-export default function CommandCenter({ initialMint = '' }: { initialMint?: string }) {
+export default function CommandCenter({ initialMint = '', onNavigate }: {
+  initialMint?: string
+  onNavigate?: (tab: string) => void
+}) {
   /* token */
   const [mintInput, setMintInput] = useState(initialMint)
   const [token, setToken] = useState<TokenSnapshot | null>(null)
@@ -210,6 +93,10 @@ export default function CommandCenter({ initialMint = '' }: { initialMint?: stri
   const [job, setJob] = useState<Job | null>(null)
   const [retrying, setRetrying] = useState<number | null>(null)
   const [actionError, setActionError] = useState('')
+
+  /* layout only */
+  const [bundleOpen, setBundleOpen] = useState(true)
+  const [groupPickerOpen, setGroupPickerOpen] = useState(false)
 
   /* ------------------------------------------------------------- effects */
 
@@ -368,6 +255,17 @@ export default function CommandCenter({ initialMint = '' }: { initialMint?: stri
 
   const syncedAgo = syncedAt ? Math.max(0, Math.round((now - syncedAt) / 1000)) : null
 
+  /** Per-group readout for the picker, from whatever balances have been read. */
+  function groupStats(g: BundleGroup) {
+    const known = g.members.filter(m => balances[m.public_key] !== undefined)
+    if (known.length === 0) return null
+    const hydrated = known.map(m => ({ ...m, ...balances[m.public_key] }))
+    return {
+      funded: hydrated.filter(m => m.lamports >= minimumBuyLamports(m)).length,
+      lamports: hydrated.reduce((s, m) => s + m.lamports, 0),
+    }
+  }
+
   /* ------------------------------------------------------------- actions */
 
   async function handleDistribute() {
@@ -433,563 +331,481 @@ export default function CommandCenter({ initialMint = '' }: { initialMint?: stri
 
   /* ----------------------------------------------------------- rendering */
 
+  const rosterCols = '28px 34px 1fr auto'
+
   return (
-    <div className="cc">
-      <style>{`
-        .cc {
-          --cc-bg:            #0b0b0c;
-          --cc-card:          #101012;
-          --cc-input:         #161619;
-          --cc-line:          rgba(255,255,255,0.09);
-          --cc-line-2:        rgba(255,255,255,0.20);
-          --cc-text:          #ededf0;
-          --cc-dim:           rgba(237,237,240,0.62);
-          --cc-faint:         rgba(237,237,240,0.34);
-          --cc-accent:        #4c9ffe;
-          --cc-accent-line:   rgba(76,159,254,0.45);
-          --cc-accent-tint:   rgba(76,159,254,0.10);
-          --cc-success:       #3fbf7f;
-          --cc-success-line:  rgba(63,191,127,0.40);
-          --cc-success-tint:  rgba(63,191,127,0.09);
-          --cc-warning:       #e3a53f;
-          --cc-warning-line:  rgba(227,165,63,0.40);
-          --cc-warning-tint:  rgba(227,165,63,0.09);
-          --cc-danger:        #ec5b50;
-          --cc-danger-line:   rgba(236,91,80,0.40);
-          --cc-danger-tint:   rgba(236,91,80,0.09);
+    <div>
+      <div className="page-head">
+        <div className="page-kicker">Fund a bundle group, then fire a buy against one pool</div>
+        <PreviewTag />
+      </div>
 
-          background: var(--cc-bg);
-          color: var(--cc-text);
-          min-height: 100%;
-          padding: 26px 30px 60px;
-          font-family: 'Barlow', sans-serif;
-        }
-        .cc-col       { max-width: 880px; margin: 0 auto; }
-        .cc-row       { display: grid; grid-template-columns: 26px 34px 1fr 110px; align-items: center; gap: 10px; padding: 7px 14px; }
-        .cc-row-hover:hover { background: rgba(255,255,255,0.025); }
-        .cc-two       { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-        .cc-head-split{ display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-
-        .cc input[type=range] {
-          -webkit-appearance: none; appearance: none; width: 100%;
-          height: 2px; background: var(--cc-line-2); outline: none; margin: 10px 0;
-        }
-        .cc input[type=range]::-webkit-slider-thumb {
-          -webkit-appearance: none; appearance: none;
-          width: 12px; height: 12px; border-radius: 2px;
-          background: var(--cc-accent); cursor: pointer;
-        }
-        .cc input[type=range]::-moz-range-thumb {
-          width: 12px; height: 12px; border-radius: 2px; border: none;
-          background: var(--cc-accent); cursor: pointer;
-        }
-        .cc select option { background: var(--cc-input); color: var(--cc-text); }
-
-        @media (max-width: 620px) {
-          .cc      { padding: 18px 14px 48px; }
-          .cc-row  { grid-template-columns: 22px 26px 1fr 84px; gap: 8px; padding: 7px 10px; }
-          .cc-two  { grid-template-columns: 1fr; }
-        }
-      `}</style>
-
-      <div className="cc-col">
-
-        {/* ── title ─────────────────────────────────────────────── */}
-        <div style={{ marginBottom: '18px' }}>
-          <h1 style={{ ...mono, fontSize: '19px', letterSpacing: '0.04em', margin: 0, fontWeight: 400 }}>
-            Command center
-          </h1>
-          <div style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)', marginTop: '5px' }}>
-            Fund a bundle group, then fire a buy against one pool
-          </div>
+      {/* ── contract address ───────────────────────────────────────── */}
+      <div className="glass glow" style={{ padding: '18px 22px', '--glow-size': '360px' } as React.CSSProperties}>
+        <label className="kicker" htmlFor="cc-mint">Contract address</label>
+        <div className="row-flex" style={{ gap: 11, marginTop: 12 }}>
+          <input
+            id="cc-mint"
+            className="input mono"
+            value={mintInput}
+            onChange={e => { setMintInput(e.target.value); setTokenError('') }}
+            onKeyDown={e => { if (e.key === 'Enter') handleLoad(mintInput) }}
+            placeholder="Paste a mint address"
+            spellCheck={false}
+            style={{ flex: '1 1 260px', width: 'auto' }}
+          />
+          <button type="button" className="btn btn-accent" disabled={loadingToken} onClick={() => handleLoad(mintInput)}>
+            {loadingToken ? 'Loading…' : 'Load coin'}
+          </button>
+          <button type="button" className="btn" onClick={() => (pickerOpen ? setPickerOpen(false) : openPicker())} aria-expanded={pickerOpen}>
+            My tokens
+          </button>
         </div>
+        {tokenError && <div className="alert-inline" style={{ marginTop: 10 }}>{tokenError}</div>}
 
-        {/* ── A. load bar ───────────────────────────────────────── */}
-        {!token ? (
-          <div style={{ ...card, padding: '14px 16px' }}>
-            <label style={label} htmlFor="cc-mint">Contract address</label>
-            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <input
-                id="cc-mint"
-                value={mintInput}
-                onChange={e => { setMintInput(e.target.value); setTokenError('') }}
-                onKeyDown={e => { if (e.key === 'Enter') handleLoad(mintInput) }}
-                placeholder="Paste a mint address"
-                spellCheck={false}
-                style={{ ...input, flex: '1 1 260px', width: 'auto' }}
-              />
-              <button style={btn('solid', loadingToken)} disabled={loadingToken} onClick={() => handleLoad(mintInput)}>
-                {loadingToken ? 'Loading…' : 'Load coin'}
-              </button>
-              <button style={btn('ghost')} onClick={openPicker}>My tokens</button>
+        {pickerOpen && (
+          <div className="enter" style={{ marginTop: 14, borderRadius: 11, border: '1px solid rgba(233,233,237,.10)', background: 'rgba(16,18,32,.62)', overflow: 'hidden' }}>
+            <div className="row-flex" style={{ justifyContent: 'space-between', padding: '10px 15px', borderBottom: '1px solid rgba(233,233,237,.07)' }}>
+              <span className="kicker">Select a coin</span>
+              <button type="button" className="btn-link dim" onClick={() => setPickerOpen(false)}>Close</button>
             </div>
-            {tokenError && (
-              <div style={{ ...mono, fontSize: '11px', color: 'var(--cc-danger)', marginTop: '9px' }}>{tokenError}</div>
-            )}
-
-            {pickerOpen && (
-              <div style={{ marginTop: '12px', border: '1px solid var(--cc-line)', background: 'var(--cc-input)' }}>
-                {!myTokens ? (
-                  <div style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)', padding: '12px 14px' }}>Loading your tokens…</div>
-                ) : myTokens.map(t => (
-                  <button
-                    key={t.mint_address}
-                    onClick={() => { setMintInput(t.mint_address); handleLoad(t.mint_address) }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '10px', width: '100%', textAlign: 'left',
-                      padding: '10px 14px', background: 'transparent', border: 'none',
-                      borderBottom: '1px solid var(--cc-line)', cursor: 'pointer', color: 'var(--cc-text)',
-                    }}
-                  >
-                    <TokenAvatar token={t} size={26} radius={6} />
-                    <span style={{ ...mono, fontSize: '12px' }}>{t.name}</span>
-                    <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)' }}>{t.symbol}</span>
-                    <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)', marginLeft: 'auto' }}>
-                      {truncateAddress(t.mint_address)}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          /* ── B. token header card ────────────────────────────── */
-          <div style={{ ...card, padding: '14px 16px' }}>
-            <div className="cc-head-split">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
-                <TokenAvatar token={token} size={46} radius={12} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span style={{ ...mono, fontSize: '15px' }}>{token.name}</span>
-                    <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)' }}>{token.symbol}</span>
-                    {token.user_owned && <Badge tone="accent">Your launch</Badge>}
-                    <Badge>{token.pool_type}</Badge>
-                  </div>
-                  <div style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)', marginTop: '5px' }}>
-                    {truncateAddress(token.mint_address)} · {truncateAddress(token.pool_address)} · {token.pool_sol_reserves.toFixed(2)} SOL
-                  </div>
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ ...mono, fontSize: '15px' }}>{usd(token.price_usd)}</div>
-                <div style={{
-                  ...mono, fontSize: '11px', marginTop: '4px',
-                  color: token.change_24h >= 0 ? 'var(--cc-success)' : 'var(--cc-danger)',
-                }}>
-                  {pct(token.change_24h)} <span style={{ color: 'var(--cc-faint)' }}>24h</span>
-                </div>
-              </div>
+            <div style={{ maxHeight: 250, overflowY: 'auto' }}>
+              {!myTokens ? (
+                <div className="empty" style={{ padding: '12px 15px' }}>Loading your tokens…</div>
+              ) : myTokens.map(t => (
+                <button
+                  key={t.mint_address}
+                  type="button"
+                  onClick={() => { setMintInput(t.mint_address); handleLoad(t.mint_address) }}
+                  className="t-row clickable"
+                  style={{ gridTemplateColumns: '26px 1fr auto', width: '100%', padding: '10px 15px', background: 'transparent', border: 0, borderBottom: '1px solid var(--line-faint)', textAlign: 'left', color: 'inherit' }}
+                >
+                  <TokenTile src={t.image_uri} symbol={t.symbol} size={26} />
+                  <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.35, minWidth: 0 }}>
+                    <span style={{ fontSize: 12.5, color: token?.mint_address === t.mint_address ? 'var(--accent-300)' : 'var(--ink-1)' }}>{t.name}</span>
+                    <span className="meta" style={{ fontSize: 10 }}>{t.symbol} · {truncateAddress(t.mint_address)}</span>
+                  </span>
+                  <span className="t-cell-mono">{usd(t.price_usd)}</span>
+                </button>
+              ))}
             </div>
-            <button
-              onClick={() => { setToken(null); setSimReady(false); setPickerOpen(false) }}
-              style={{ ...mono, fontSize: '10px', color: 'var(--cc-faint)', background: 'none', border: 'none', padding: '9px 0 0', cursor: 'pointer', letterSpacing: '0.06em' }}
-            >
-              Change token
-            </button>
           </div>
         )}
 
-        {/* ── C. bundle groups ──────────────────────────────────── */}
-        <div style={card}>
-          <div style={{ ...cardHead, justifyContent: 'space-between', flexWrap: 'wrap' }}>
-            <span style={cardTitle}>Bundle groups</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <ModeToggle mode={mode} onChange={setMode} />
-              <span style={{ ...mono, fontSize: '10px', color: 'var(--cc-faint)' }}>
-                {syncing ? 'syncing balances…' : syncedAgo === null ? 'balances not synced' : `balances synced ${syncedAgo}s ago`}
-              </span>
-              <button
-                onClick={() => syncBalances(openGroup)}
-                disabled={syncing}
-                title="Refresh balances"
-                style={{
-                  background: 'transparent', border: '1px solid var(--cc-line)', borderRadius: '2px',
-                  color: 'var(--cc-dim)', padding: '5px', display: 'flex', cursor: syncing ? 'not-allowed' : 'pointer',
-                }}
-              >
-                <RefreshIcon />
+        {token && (
+          <div className="enter" style={{ marginTop: 14, padding: '15px 17px', borderRadius: 12, border: '1px solid rgba(145,132,217,.30)', background: 'rgba(66,58,106,.20)' }}>
+            <div className="row-flex" style={{ gap: 13 }}>
+              <TokenTile src={token.image_uri} symbol={token.symbol} size={40} radius={11} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: '1 1 200px', minWidth: 0 }}>
+                <div className="row-flex" style={{ gap: 9 }}>
+                  <span style={{ fontSize: 15 }}>{token.name}</span>
+                  <span className="tag tag-accent">{token.symbol}</span>
+                  {token.user_owned && <span className="tag tag-accent">Your launch</span>}
+                  <span className="tag">{token.pool_type}</span>
+                </div>
+                <div className="row-flex" style={{ gap: 8, flexWrap: 'nowrap' }}>
+                  <span className="meta" style={{ wordBreak: 'break-all' }}>{token.mint_address}</span>
+                  <CopyButton text={token.mint_address} />
+                </div>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div className="mono" style={{ fontSize: 16 }}>{usd(token.price_usd)}</div>
+                <div className="mono" style={{ fontSize: 11, marginTop: 4, color: token.change_24h >= 0 ? 'var(--accent-400)' : 'var(--danger)' }}>
+                  {pct(token.change_24h)} <span style={{ color: 'var(--ink-4)' }}>24h</span>
+                </div>
+              </div>
+              <button type="button" className="btn btn-sm" onClick={() => { setToken(null); setSimReady(false); setPickerOpen(false) }}>
+                Clear
               </button>
             </div>
+            <div className="grid-auto" style={{ '--min': '120px', gap: 12, marginTop: 15, paddingTop: 14, borderTop: '1px solid rgba(233,233,237,.07)' } as React.CSSProperties}>
+              {[
+                { k: 'Pool SOL', v: `${token.pool_sol_reserves.toFixed(2)} SOL` },
+                { k: 'Pool tokens', v: new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(token.pool_token_reserves) },
+                { k: 'Decimals', v: String(token.decimals) },
+                { k: 'Pool', v: truncateAddress(token.pool_address) },
+              ].map(f => (
+                <div key={f.k} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span className="kicker" style={{ fontSize: 9, letterSpacing: '.16em' }}>{f.k}</span>
+                  <span className="mono" style={{ fontSize: 12, color: 'var(--ink-1)' }}>{f.v}</span>
+                </div>
+              ))}
+            </div>
           </div>
+        )}
+      </div>
 
-          {/* group chips */}
-          <div style={{ display: 'flex', gap: '7px', padding: '12px 16px', flexWrap: 'wrap' }}>
+      {/* ── bundle ─────────────────────────────────────────────────── */}
+      <div style={{
+        marginTop: 14, borderRadius: 16, border: '1px solid rgba(233,233,237,.10)',
+        background: 'linear-gradient(158deg, rgba(72,77,106,.18), rgba(22,24,38,.16))',
+        boxShadow: '0 18px 44px -30px rgba(0,0,0,.9), inset 0 1px 0 rgba(233,233,237,.06)',
+      }}>
+        <button
+          type="button"
+          onClick={() => setBundleOpen(o => !o)}
+          aria-expanded={bundleOpen}
+          style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%', padding: '15px 18px', background: 'none', border: 0, cursor: 'pointer', textAlign: 'left' }}
+        >
+          <ChevronDown size={11} style={{ color: 'var(--ink-3)', transition: 'transform .35s var(--ease)', transform: bundleOpen ? 'none' : 'rotate(-90deg)' }} />
+          <span className="mono" style={{ fontSize: 11, letterSpacing: '.24em', textTransform: 'uppercase', color: 'var(--accent-300)' }}>Bundle</span>
+          <span className="meta" style={{ color: 'var(--ink-4)' }}>
+            {bundleOpen ? 'Wallets · distribute · execute · monitor' : `Collapsed · ${selected.length} selected`}
+          </span>
+        </button>
+
+        {bundleOpen && (
+          <div className="split-layout-even enter" style={{ padding: '0 14px 16px' }}>
+
+            {/* roster */}
+            <div className="glass glow" style={{ '--glow-size': '360px' } as React.CSSProperties}>
+              <div className="card-head" style={{ borderBottom: 0, paddingBottom: 12 }}>
+                <span className="step-title">Wallets</span>
+                <div className="row-flex" style={{ gap: 9 }}>
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    onClick={() => setGroupPickerOpen(true)}
+                    style={{ borderColor: 'rgba(145,132,217,.34)', background: 'rgba(145,132,217,.08)', letterSpacing: '.04em', textTransform: 'none', fontSize: 11 }}
+                  >
+                    <span style={{ color: 'var(--accent-300)' }}>{openGroup ? openGroup.name : 'Pick a group'}</span>
+                    {openGroup && <span style={{ color: 'var(--ink-3)' }}>{openGroup.members.length}/{openGroup.capacity}</span>}
+                    <ChevronDown />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => syncBalances(openGroup)}
+                    disabled={syncing}
+                    title="Refresh balances"
+                    aria-label="Refresh balances"
+                    style={{ color: syncing ? 'var(--accent-300)' : undefined }}
+                  >
+                    <RefreshIcon spinning={syncing} />
+                  </button>
+                </div>
+              </div>
+              <div className="row-flex" style={{ justifyContent: 'space-between', padding: '0 20px 12px' }}>
+                <Seg small options={MODES} value={mode} onChange={setMode} label="Selection mode" />
+                <span className="meta" style={{ color: 'var(--ink-4)' }}>
+                  {syncing ? 'syncing balances…' : syncedAgo === null ? 'balances not synced' : `balances synced ${syncedAgo}s ago`}
+                </span>
+              </div>
+
+              {!openGroup ? (
+                <div className="empty" style={{ borderTop: '1px solid var(--line-soft)' }}>Pick a bundle group to load its wallets.</div>
+              ) : (
+                <>
+                  <div className="t-head" style={{ gridTemplateColumns: rosterCols, padding: '10px 20px', borderTop: '1px solid var(--line-soft)' }}>
+                    <Check
+                      checked={allSelected}
+                      disabled={allSelectable.length === 0}
+                      onChange={() => (allSelected ? selectNone() : selectAll())}
+                      title="Select all"
+                    />
+                    <span>#</span><span>Wallet</span><span className="t-right">SOL</span>
+                  </div>
+
+                  {members.length === 0 ? (
+                    <div className="empty">No wallets in this group yet.</div>
+                  ) : visibleMembers.map(m => {
+                    const isSelected = selectedIds.has(m.wallet_id)
+                    const disabled = !selectable(m)
+                    const minSol = sol(minimumBuyLamports(m), 4)
+                    return (
+                      <div
+                        key={m.wallet_id}
+                        className="t-row hover glow glow-sm"
+                        onClick={() => { if (!disabled) toggle(m.wallet_id) }}
+                        title={disabled ? `Needs ${minSol} SOL to cover rent, its token account and fees before it can trade` : undefined}
+                        style={{
+                          gridTemplateColumns: rosterCols, padding: '9px 20px',
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                          opacity: disabled ? 0.45 : 1,
+                          background: isSelected ? 'rgba(145,132,217,.06)' : undefined,
+                        }}
+                      >
+                        <Check checked={isSelected} disabled={disabled} onChange={() => toggle(m.wallet_id)} />
+                        <span className="t-cell-mono" style={{ color: 'var(--ink-4)' }}>{m.index}</span>
+                        <span className="t-cell-mono" style={{ color: isSelected ? 'var(--text)' : 'var(--ink-2)' }}>{truncateAddress(m.public_key, 5, 4)}</span>
+                        <span className="t-cell-mono t-right" style={{ color: m.lamports === 0 ? 'var(--ink-5)' : 'var(--ink-1)' }}>
+                          {sol(m.lamports)}
+                        </span>
+                      </div>
+                    )
+                  })}
+
+                  {members.length > 0 && (
+                    <div className="t-row" style={{ gridTemplateColumns: rosterCols, padding: '9px 20px' }}>
+                      <span /><span />
+                      <span>
+                        {hiddenCount > 0 ? (
+                          <button type="button" className="btn-link" onClick={() => setShowAllRows(true)}>{hiddenCount} more wallets</button>
+                        ) : showAllRows && members.length > ROSTER_PAGE ? (
+                          <button type="button" className="btn-link dim" onClick={() => setShowAllRows(false)}>Show fewer</button>
+                        ) : <span className="meta">Group total</span>}
+                      </span>
+                      <span className="t-cell-mono t-right" style={{ color: 'var(--ink-3)' }}>{sol(groupTotalLamports)}</span>
+                    </div>
+                  )}
+
+                  <div className="row-flex" style={{ justifyContent: 'space-between', padding: '11px 20px', background: 'rgba(145,132,217,.08)', borderTop: '1px solid var(--line-soft)' }}>
+                    <span className="meta" style={{ color: 'var(--ink-1)' }}>
+                      {selected.length} of {members.length} selected · holding {sol(selectedLamports)} SOL
+                    </span>
+                    <div className="row-flex" style={{ gap: 6 }}>
+                      <button type="button" className="btn btn-xs" disabled={allSelectable.length === 0} onClick={selectAll}>All</button>
+                      <button type="button" className="btn btn-xs" disabled={selected.length === 0} onClick={selectNone}>None</button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="stack">
+              {actionError && <div className="alert" role="alert">{actionError}</div>}
+
+              {/* 1 distribute */}
+              <div className="glass glow">
+                <div className="card-head" style={{ justifyContent: 'flex-start' }}>
+                  <span className="step">1</span>
+                  <span className="section-title">Distribute funds</span>
+                </div>
+                <div className="card-body">
+                  <div className="grid-auto" style={{ '--min': '190px' } as React.CSSProperties}>
+                    <div className="field">
+                      <label className="label" htmlFor="cc-funding">Funding wallet</label>
+                      <select id="cc-funding" className="input mono" value={fundingId} onChange={e => setFundingId(e.target.value)} style={{ fontSize: 12 }}>
+                        {fundingWallets.length === 0 && <option value="">No funding wallets</option>}
+                        {fundingWallets.map(w => (
+                          <option key={w.wallet_id} value={w.wallet_id}>
+                            {truncateAddress(w.public_key, 6, 6)} · {sol(w.lamports, 3)} SOL
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="field">
+                      <label className="label" htmlFor="cc-total">Total to distribute (SOL)</label>
+                      <input
+                        id="cc-total"
+                        className="input mono"
+                        value={totalSol}
+                        onChange={e => setTotalSol(e.target.value.replace(/[^0-9.]/g, ''))}
+                        inputMode="decimal"
+                        style={{ fontSize: 12 }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="field" style={{ marginTop: 20 }}>
+                    <label className="label" htmlFor="cc-skew">
+                      Skew <span className="label-value mono">{skew}%</span>
+                    </label>
+                    <Range id="cc-skew" min={0} max={60} value={skew} onChange={setSkew} />
+                    <div className="hint" style={{ fontSize: 11 }}>0% sends every wallet the same amount · 60% spreads them widest</div>
+                  </div>
+
+                  <div className="callout" style={{ marginTop: 18 }}>
+                    <div className="kicker kicker-accent" style={{ letterSpacing: '.16em' }}>
+                      Reserve math · {math.wallets} selected {math.wallets === 1 ? 'wallet' : 'wallets'}
+                    </div>
+                    <div className="stack" style={{ gap: 9, marginTop: 13 }}>
+                      <Line k="Rent for empty wallets" v={`${sol(selected.filter(m => m.lamports === 0).length * 890_880)} SOL`} />
+                      <Line k="Token accounts to create" v={`${sol(selected.filter(m => !m.ata_exists).length * 2_039_280)} SOL`} />
+                      <Line k="Signatures" v={`${sol(selected.length * 10_000)} SOL`} />
+                      <Line k="Total overhead" v={`${sol(math.overheadLamports)} SOL`} strong />
+                      <Line k="Remaining tradeable" v={`${sol(math.tradeableLamports)} SOL`} strong />
+                    </div>
+                  </div>
+                </div>
+                <div className="card-foot">
+                  <span className="meta">
+                    {selected.length} {selected.length === 1 ? 'wallet' : 'wallets'} · {distTxCount} {distTxCount === 1 ? 'transaction' : 'transactions'}
+                  </span>
+                  <button
+                    type="button"
+                    className="btn btn-accent"
+                    disabled={distributing || selected.length === 0 || !fundingId || totalLamports <= 0}
+                    onClick={handleDistribute}
+                  >
+                    {distributing ? 'Distributing…' : 'Distribute'}
+                  </button>
+                </div>
+              </div>
+
+              {/* 2 execute buy */}
+              <div className="glass glow">
+                <div className="card-head">
+                  <div className="row-flex">
+                    <span className="step">2</span>
+                    <span className="section-title">Execute buy</span>
+                  </div>
+                  {unfundedSelected > 0 && (
+                    <span className="tag tag-danger">
+                      {unfundedSelected} {unfundedSelected === 1 ? 'wallet' : 'wallets'} unfunded
+                    </span>
+                  )}
+                </div>
+                <div className="card-body">
+                  <div className="label">Price walk preview</div>
+                  {!token ? (
+                    <div className="hint" style={{ padding: '22px 0' }}>Load a token to preview the walk.</div>
+                  ) : walk.length === 0 ? (
+                    <div className="hint" style={{ padding: '22px 0' }}>
+                      Select funded wallets to preview the walk{mode === 'distribute' ? ' — switch the roster to Buy to see only funded wallets.' : '.'}
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 88, marginTop: 12, borderBottom: '1px solid rgba(233,233,237,.10)' }}>
+                        {walk.map((price, i) => {
+                          const t = walk.length === 1 ? 0 : i / (walk.length - 1)
+                          return (
+                            <div
+                              key={i}
+                              title={`Wallet ${i + 1} — ${usd(price)}`}
+                              style={{
+                                flex: 1, minWidth: 3, maxWidth: 24,
+                                height: `${18 + t * 82}%`,
+                                borderRadius: '4px 4px 0 0',
+                                background: `rgba(145,132,217,${(0.18 + t * 0.52).toFixed(2)})`,
+                              }}
+                            />
+                          )
+                        })}
+                      </div>
+                      <div className="row-flex" style={{ justifyContent: 'space-between', marginTop: 8 }}>
+                        <span className="meta">Wallet 1 — {usd(walk[0])}</span>
+                        <span className="meta" style={{ color: 'var(--accent-300)' }}>
+                          Wallet {walk.length} — {usd(walk[walk.length - 1])} ({pct(walkImpact, 1)})
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="field" style={{ marginTop: 20 }}>
+                    <label className="label" htmlFor="cc-slip">
+                      Slippage <span className="label-value mono">{slippageBps} bps</span>
+                    </label>
+                    <Range id="cc-slip" min={50} max={500} step={50} value={slippageBps} onChange={v => { setSlippageBps(v); setSimReady(false) }} />
+                  </div>
+                </div>
+                <div className="card-foot">
+                  <span className="meta">
+                    {fundedSelected.length} funded · {buyBundles} {buyBundles === 1 ? 'bundle' : 'bundles'} · {buyTxCount} tx · tip {sol(BUNDLE_TIP_LAMPORTS, 3)} SOL
+                  </span>
+                  {simReady ? (
+                    <div className="row-flex" style={{ gap: 7 }}>
+                      <button type="button" className="btn" onClick={() => setSimReady(false)}>Cancel</button>
+                      <button type="button" className="btn btn-accent" disabled={firing} onClick={handleFire}>
+                        {firing ? 'Firing…' : `Confirm and fire ${fundedSelected.length}`}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-accent"
+                      disabled={simulating || !token || fundedSelected.length === 0}
+                      onClick={handleSimulate}
+                    >
+                      {simulating ? 'Simulating…' : 'Simulate and fire'}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* job monitor */}
+              <div className="glass-quiet">
+                <div className="card-head">
+                  <span className="section-title" style={{ fontSize: 13.5 }}>Job monitor</span>
+                  {job && <span className="meta" style={{ color: 'var(--ink-4)' }}>{job.job_id}</span>}
+                </div>
+                {!job ? (
+                  <div className="empty">No job yet. Distribute or fire a buy to see per-leg outcomes here.</div>
+                ) : job.legs.map(leg => (
+                  <div
+                    key={leg.leg}
+                    className="row-flex"
+                    style={{ gap: 10, flexWrap: 'nowrap', padding: '10px 20px', borderBottom: '1px solid rgba(233,233,237,.05)', opacity: leg.status === 'blocked' ? 0.55 : 1 }}
+                  >
+                    <StatusIcon status={leg.status} />
+                    <span className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+                      Leg {leg.leg} · {leg.transfers} {leg.transfers === 1 ? 'transfer' : 'transfers'}
+                    </span>
+                    <span className="mono" style={{
+                      fontSize: 11, marginLeft: 'auto', minWidth: 0, textAlign: 'right',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      color: leg.error ? 'var(--danger)' : 'var(--ink-3)',
+                    }}>
+                      {leg.error
+                        ? leg.error
+                        : leg.status === 'blocked'
+                          ? `blocked by leg ${leg.blocked_by}`
+                          : truncateAddress(leg.signature ?? '', 8, 8)}
+                    </span>
+                    {leg.status === 'failed' && (
+                      <button type="button" className="btn btn-xs" disabled={retrying === leg.leg} onClick={() => handleRetry(leg.leg)}>
+                        {retrying === leg.leg ? 'Retrying…' : 'Retry'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── group picker ───────────────────────────────────────────── */}
+      {groupPickerOpen && (
+        <Sheet onClose={() => setGroupPickerOpen(false)} width={860} labelledBy="cc-groups-title">
+          <SheetHead
+            id="cc-groups-title"
+            title="Select a bundle group"
+            sub={`${groups.length} groups · ${groups.reduce((a, g) => a + g.members.length, 0)} wallets assigned`}
+            onClose={() => setGroupPickerOpen(false)}
+          />
+          <div className="grid-fill" style={{ '--min': '190px', gap: 12, padding: '20px 26px' } as React.CSSProperties}>
             {groups.map(g => {
               const active = g.group_id === openGroupId
+              const stats = groupStats(g)
               return (
                 <button
                   key={g.group_id}
-                  onClick={() => openGroupChip(g.group_id)}
-                  style={{
-                    ...mono, fontSize: '11px', letterSpacing: '0.04em',
-                    display: 'inline-flex', alignItems: 'center', gap: '7px',
-                    padding: active ? '6px 11px' : '7px 12px',
-                    borderRadius: '2px', cursor: 'pointer',
-                    border: active ? '2px solid var(--cc-accent)' : '1px solid var(--cc-line)',
-                    background: active ? 'var(--cc-accent-tint)' : 'transparent',
-                    color: active ? 'var(--cc-text)' : 'var(--cc-dim)',
-                  }}
+                  type="button"
+                  className="glass glow glow-bright lift"
+                  onClick={() => { if (!active) openGroupChip(g.group_id); setGroupPickerOpen(false) }}
+                  style={{ padding: '15px 16px', borderRadius: 13, textAlign: 'left', cursor: 'pointer', color: 'inherit', font: 'inherit', borderColor: active ? 'rgba(145,132,217,.45)' : undefined, '--glow-size': '200px' } as React.CSSProperties}
                 >
-                  <Chevron open={active} />
-                  {g.name}
-                  <span style={{ color: 'var(--cc-faint)' }}>{g.members.length}/{g.capacity}</span>
+                  <div className="row-flex" style={{ justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 13.5, color: active ? 'var(--accent-300)' : 'var(--ink-1)' }}>{g.name}</span>
+                    {active && <span className="dot" style={{ background: 'var(--accent-400)' }} />}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 13 }}>
+                    <span className="value-lg">{g.members.length}</span>
+                    <span className="hint" style={{ fontSize: 11 }}>/ {g.capacity} wallets</span>
+                  </div>
+                  <div className="meta" style={{ marginTop: 9 }}>
+                    {stats ? `${stats.funded} funded · ${sol(stats.lamports)} SOL` : 'Balances not synced'}
+                  </div>
                 </button>
               )
             })}
             <button
-              onClick={handleNewGroup}
-              style={{
-                ...mono, fontSize: '11px', letterSpacing: '0.04em', padding: '7px 12px',
-                border: '1px dashed var(--cc-line-2)', background: 'transparent',
-                color: 'var(--cc-faint)', borderRadius: '2px', cursor: 'pointer',
-              }}
+              type="button"
+              onClick={() => { void handleNewGroup(); setGroupPickerOpen(false) }}
+              style={{ padding: '15px 16px', borderRadius: 13, border: '1px dashed rgba(145,132,217,.34)', background: 'rgba(66,58,106,.16)', color: 'var(--accent-400)', cursor: 'pointer', font: 'inherit', fontSize: 13, minHeight: 104 }}
             >
               + New group
             </button>
           </div>
-
-          {/* roster */}
-          {openGroup && (
-            <div style={{ borderTop: '1px solid var(--cc-line)' }}>
-              {/* header row */}
-              <div className="cc-row" style={{ borderBottom: '1px solid var(--cc-line)', background: 'rgba(255,255,255,0.02)' }}>
-                <Checkbox
-                  checked={allSelected}
-                  disabled={allSelectable.length === 0}
-                  onChange={() => (allSelected ? selectNone() : selectAll())}
-                  title="Select all"
-                />
-                <span style={{ ...mono, fontSize: '10px', color: 'var(--cc-faint)' }}>#</span>
-                <span style={{ ...mono, fontSize: '10px', color: 'var(--cc-faint)' }}>Wallet</span>
-                <span style={{ ...mono, fontSize: '10px', color: 'var(--cc-faint)', textAlign: 'right' }}>SOL</span>
-              </div>
-
-              {members.length === 0 ? (
-                <div style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)', padding: '20px 16px' }}>
-                  No wallets in this group yet.
-                </div>
-              ) : visibleMembers.map(m => {
-                const isSelected = selectedIds.has(m.wallet_id)
-                const disabled = !selectable(m)
-                const minSol = sol(minimumBuyLamports(m), 4)
-                return (
-                  <div
-                    key={m.wallet_id}
-                    className="cc-row cc-row-hover"
-                    onClick={() => { if (!disabled) toggle(m.wallet_id) }}
-                    style={{
-                      borderBottom: '1px solid var(--cc-line)',
-                      opacity: isSelected ? 1 : 0.5,
-                      cursor: disabled ? 'not-allowed' : 'pointer',
-                    }}
-                  >
-                    <Checkbox
-                      checked={isSelected}
-                      disabled={disabled}
-                      onChange={() => toggle(m.wallet_id)}
-                      title={disabled ? `Needs ${minSol} SOL to cover rent, its token account and fees before it can trade` : undefined}
-                    />
-                    <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)' }}>{m.index}</span>
-                    <span style={{ ...mono, fontSize: '12px' }}>{truncateAddress(m.public_key, 4, 4)}</span>
-                    <span style={{
-                      ...mono, fontSize: '12px', textAlign: 'right',
-                      color: m.lamports === 0 ? 'var(--cc-faint)' : 'var(--cc-text)',
-                    }}>
-                      {sol(m.lamports)}
-                    </span>
-                  </div>
-                )
-              })}
-
-              {/* footer row */}
-              {members.length > 0 && (
-                <div className="cc-row" style={{ borderBottom: '1px solid var(--cc-line)' }}>
-                  <span />
-                  <span />
-                  <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)' }}>
-                    {hiddenCount > 0 ? (
-                      <button
-                        onClick={() => setShowAllRows(true)}
-                        style={{ ...mono, fontSize: '11px', color: 'var(--cc-accent)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                      >
-                        {hiddenCount} more wallets
-                      </button>
-                    ) : showAllRows && members.length > ROSTER_PAGE ? (
-                      <button
-                        onClick={() => setShowAllRows(false)}
-                        style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                      >
-                        Show fewer
-                      </button>
-                    ) : 'Group total'}
-                  </span>
-                  <span style={{ ...mono, fontSize: '12px', textAlign: 'right', color: 'var(--cc-dim)' }}>
-                    {sol(groupTotalLamports)}
-                  </span>
-                </div>
-              )}
-
-              {/* selection summary */}
-              <div style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
-                padding: '9px 16px', background: 'var(--cc-accent-tint)', flexWrap: 'wrap',
-              }}>
-                <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-text)' }}>
-                  {selected.length} of {members.length} selected · holding {sol(selectedLamports)} SOL
-                </span>
-                <div style={{ display: 'flex', gap: '6px' }}>
-                  <button style={btn('quiet', allSelectable.length === 0)} disabled={allSelectable.length === 0} onClick={selectAll}>All</button>
-                  <button style={btn('quiet', selected.length === 0)} disabled={selected.length === 0} onClick={selectNone}>None</button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── D. distribute funds ───────────────────────────────── */}
-        <div style={card}>
-          <div style={cardHead}>
-            {stepBadge(1)}
-            <span style={cardTitle}>Distribute funds</span>
-          </div>
-
-          <div style={{ padding: '14px 16px' }}>
-            <div className="cc-two" style={{ marginBottom: '14px' }}>
-              <div>
-                <label style={label} htmlFor="cc-funding">Funding wallet</label>
-                <select
-                  id="cc-funding"
-                  value={fundingId}
-                  onChange={e => setFundingId(e.target.value)}
-                  style={{ ...input, appearance: 'none' }}
-                >
-                  {fundingWallets.length === 0 && <option value="">No funding wallets</option>}
-                  {fundingWallets.map(w => (
-                    <option key={w.wallet_id} value={w.wallet_id}>
-                      {truncateAddress(w.public_key, 6, 6)} · {sol(w.lamports, 3)} SOL
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={label} htmlFor="cc-total">Total to distribute (SOL)</label>
-                <input
-                  id="cc-total"
-                  value={totalSol}
-                  onChange={e => setTotalSol(e.target.value.replace(/[^0-9.]/g, ''))}
-                  inputMode="decimal"
-                  style={input}
-                />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '14px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <label style={{ ...label, marginBottom: 0 }} htmlFor="cc-skew">Skew</label>
-                <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-accent)' }}>{skew}%</span>
-              </div>
-              <input
-                id="cc-skew"
-                type="range"
-                min={0}
-                max={60}
-                step={1}
-                value={skew}
-                onChange={e => setSkew(Number(e.target.value))}
-              />
-              <div style={{ ...mono, fontSize: '10px', color: 'var(--cc-faint)' }}>
-                0% sends every wallet the same amount · 60% spreads them widest
-              </div>
-            </div>
-
-            {/* reserve math, over the selected wallets */}
-            <div style={{
-              border: '1px solid var(--cc-warning-line)', background: 'var(--cc-warning-tint)',
-              padding: '11px 13px',
-            }}>
-              <div style={{ ...mono, fontSize: '10px', color: 'var(--cc-warning)', letterSpacing: '0.08em', marginBottom: '8px' }}>
-                Reserve math · {math.wallets} selected {math.wallets === 1 ? 'wallet' : 'wallets'}
-              </div>
-              <Line k="Rent for empty wallets" v={`${sol(selected.filter(m => m.lamports === 0).length * 890_880)} SOL`} />
-              <Line k="Token accounts to create" v={`${sol(selected.filter(m => !m.ata_exists).length * 2_039_280)} SOL`} />
-              <Line k="Signatures" v={`${sol(selected.length * 10_000)} SOL`} />
-              <div style={{ height: '1px', background: 'var(--cc-warning-line)', margin: '8px 0' }} />
-              <Line k="Total overhead" v={`${sol(math.overheadLamports)} SOL`} strong />
-              <Line k="Remaining tradeable" v={`${sol(math.tradeableLamports)} SOL`} strong />
-            </div>
-
-            {actionError && (
-              <div style={{ ...mono, fontSize: '11px', color: 'var(--cc-danger)', marginTop: '11px' }}>{actionError}</div>
-            )}
-          </div>
-
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
-            padding: '11px 16px', borderTop: '1px solid var(--cc-line)', flexWrap: 'wrap',
-          }}>
-            <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)' }}>
-              {selected.length} {selected.length === 1 ? 'wallet' : 'wallets'} · {distTxCount} {distTxCount === 1 ? 'transaction' : 'transactions'}
-            </span>
-            <button
-              style={btn('solid', distributing || selected.length === 0 || !fundingId || totalLamports <= 0)}
-              disabled={distributing || selected.length === 0 || !fundingId || totalLamports <= 0}
-              onClick={handleDistribute}
-            >
-              {distributing ? 'Distributing…' : 'Distribute'}
+          <div className="row-flex" style={{ justifyContent: 'space-between', padding: '16px 26px 24px', borderTop: '1px solid rgba(233,233,237,.07)' }}>
+            <span className="hint">Groups hold up to 25 wallets — one Jito bundle roster.</span>
+            <button type="button" className="btn btn-sm" onClick={() => { setGroupPickerOpen(false); onNavigate?.('bundler') }}>
+              Manage wallets →
             </button>
           </div>
-        </div>
-
-        {/* ── E. execute buy ────────────────────────────────────── */}
-        <div style={card}>
-          <div style={{ ...cardHead, justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {stepBadge(2)}
-              <span style={cardTitle}>Execute buy</span>
-            </div>
-            {unfundedSelected > 0 && (
-              <Badge tone="warning">
-                {unfundedSelected} {unfundedSelected === 1 ? 'wallet' : 'wallets'} unfunded
-              </Badge>
-            )}
-          </div>
-
-          <div style={{ padding: '14px 16px' }}>
-            {/* price walk */}
-            <div style={{ ...label, marginBottom: '10px' }}>Price walk preview</div>
-            {!token ? (
-              <div style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)', padding: '18px 0' }}>
-                Load a token to preview the walk.
-              </div>
-            ) : walk.length === 0 ? (
-              <div style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)', padding: '18px 0' }}>
-                Select funded wallets to preview the walk.
-              </div>
-            ) : (
-              <>
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '74px' }}>
-                  {walk.map((price, i) => {
-                    const t = walk.length === 1 ? 0 : i / (walk.length - 1)
-                    return (
-                      <div
-                        key={i}
-                        title={`Wallet ${i + 1} — ${usd(price)}`}
-                        style={{
-                          flex: 1, minWidth: '3px',
-                          height: `${18 + t * 82}%`,
-                          background: rampColor(t),
-                        }}
-                      />
-                    )
-                  })}
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px', gap: '10px' }}>
-                  <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-dim)' }}>
-                    Wallet 1 — {usd(walk[0])}
-                  </span>
-                  <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-danger)', textAlign: 'right' }}>
-                    Wallet {walk.length} — {usd(walk[walk.length - 1])} ({pct(walkImpact, 1)})
-                  </span>
-                </div>
-              </>
-            )}
-
-            {/* slippage */}
-            <div style={{ marginTop: '18px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                <label style={{ ...label, marginBottom: 0 }} htmlFor="cc-slip">Slippage</label>
-                <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-accent)' }}>
-                  {slippageBps} bps
-                </span>
-              </div>
-              <input
-                id="cc-slip"
-                type="range"
-                min={50}
-                max={500}
-                step={50}
-                value={slippageBps}
-                onChange={e => { setSlippageBps(Number(e.target.value)); setSimReady(false) }}
-              />
-            </div>
-          </div>
-
-          <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
-            padding: '11px 16px', borderTop: '1px solid var(--cc-line)', flexWrap: 'wrap',
-          }}>
-            <span style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)' }}>
-              {fundedSelected.length} funded · {buyBundles} {buyBundles === 1 ? 'bundle' : 'bundles'} · {buyTxCount} tx · tip {sol(BUNDLE_TIP_LAMPORTS, 3)} SOL
-            </span>
-            {simReady ? (
-              <div style={{ display: 'flex', gap: '7px' }}>
-                <button style={btn('quiet')} onClick={() => setSimReady(false)}>Cancel</button>
-                <button style={btn('solid', firing)} disabled={firing} onClick={handleFire}>
-                  {firing ? 'Firing…' : `Confirm and fire ${fundedSelected.length}`}
-                </button>
-              </div>
-            ) : (
-              <button
-                style={btn('solid', simulating || !token || fundedSelected.length === 0)}
-                disabled={simulating || !token || fundedSelected.length === 0}
-                onClick={handleSimulate}
-              >
-                {simulating ? 'Simulating…' : 'Simulate and fire'}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* ── F. job monitor ────────────────────────────────────── */}
-        <div style={card}>
-          <div style={{ ...cardHead, justifyContent: 'space-between' }}>
-            <span style={cardTitle}>Job monitor</span>
-            {job && <span style={{ ...mono, fontSize: '10px', color: 'var(--cc-faint)' }}>{job.job_id}</span>}
-          </div>
-
-          {!job ? (
-            <div style={{ ...mono, fontSize: '11px', color: 'var(--cc-faint)', padding: '20px 16px' }}>
-              No job yet. Distribute or fire a buy to see per-leg outcomes here.
-            </div>
-          ) : job.legs.map(leg => (
-            <div
-              key={leg.leg}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '10px 16px', borderBottom: '1px solid var(--cc-line)',
-                opacity: leg.status === 'blocked' ? 0.5 : 1,
-              }}
-            >
-              <StatusIcon status={leg.status} />
-              <span style={{ ...mono, fontSize: '11px', whiteSpace: 'nowrap' }}>
-                Leg {leg.leg} · {leg.transfers} {leg.transfers === 1 ? 'transfer' : 'transfers'}
-              </span>
-              <span style={{
-                ...mono, fontSize: '11px', marginLeft: 'auto', minWidth: 0,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                color: leg.error ? 'var(--cc-danger)' : 'var(--cc-faint)',
-                textAlign: 'right',
-              }}>
-                {leg.error
-                  ? leg.error
-                  : leg.status === 'blocked'
-                    ? `blocked by leg ${leg.blocked_by}`
-                    : truncateAddress(leg.signature ?? '', 8, 8)}
-              </span>
-              {leg.status === 'failed' && (
-                <button
-                  style={btn('ghost', retrying === leg.leg)}
-                  disabled={retrying === leg.leg}
-                  onClick={() => handleRetry(leg.leg)}
-                >
-                  {retrying === leg.leg ? 'Retrying…' : 'Retry'}
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-
-      </div>
+        </Sheet>
+      )}
     </div>
   )
 }
@@ -998,55 +814,9 @@ export default function CommandCenter({ initialMint = '' }: { initialMint?: stri
 
 function Line({ k, v, strong }: { k: string; v: string; strong?: boolean }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', padding: '2px 0' }}>
-      <span style={{ ...mono, fontSize: '11px', color: strong ? 'var(--cc-text)' : 'var(--cc-dim)' }}>{k}</span>
-      <span style={{ ...mono, fontSize: '11px', color: strong ? 'var(--cc-text)' : 'var(--cc-dim)' }}>{v}</span>
-    </div>
-  )
-}
-
-function ModeToggle({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
-  return (
-    <div style={{ display: 'inline-flex', border: '1px solid var(--cc-line)', borderRadius: '2px', overflow: 'hidden' }}>
-      {(['distribute', 'buy'] as Mode[]).map(m => (
-        <button
-          key={m}
-          onClick={() => onChange(m)}
-          style={{
-            ...mono, fontSize: '10px', letterSpacing: '0.06em', padding: '5px 9px',
-            border: 'none', cursor: 'pointer',
-            background: mode === m ? 'var(--cc-accent-tint)' : 'transparent',
-            color: mode === m ? 'var(--cc-accent)' : 'var(--cc-faint)',
-          }}
-        >
-          {m}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function TokenAvatar({ token, size, radius }: { token: TokenSnapshot; size: number; radius: number }) {
-  const [broken, setBroken] = useState(false)
-  const show = token.image_uri && !broken
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: radius, flexShrink: 0, overflow: 'hidden',
-      background: 'var(--cc-accent-tint)', border: '1px solid var(--cc-line)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-    }}>
-      {show ? (
-        <img
-          src={token.image_uri as string}
-          alt={token.symbol}
-          onError={() => setBroken(true)}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        />
-      ) : (
-        <span style={{ ...mono, fontSize: size * 0.42, color: 'var(--cc-accent)' }}>
-          {(token.symbol || token.name || '?').charAt(0).toUpperCase()}
-        </span>
-      )}
+    <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 11.5 }}>
+      <span style={{ color: strong ? 'var(--accent-400)' : 'rgba(233,233,237,.55)' }}>{k}</span>
+      <span style={{ color: strong ? 'var(--accent-300)' : 'rgba(233,233,237,.78)' }}>{v}</span>
     </div>
   )
 }

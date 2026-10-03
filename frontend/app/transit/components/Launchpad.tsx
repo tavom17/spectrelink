@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useApiFetch } from '@/lib/api'
 import poolConfigs from '@/lib/poolConfigs.json'
+import { Sheet, SheetHead, Switch, Seg, Range, StepHead, CopyButton, ChevronDown, CheckIcon, CloseIcon } from '@/components/ui'
 
 interface Wallet {
   wallet_id: string
@@ -91,107 +92,23 @@ function getStepStatus(
   return 'pending'
 }
 
-const mono: React.CSSProperties = { fontFamily: "'Share Tech Mono', monospace" }
-const bebas: React.CSSProperties = { fontFamily: "'Bebas Neue', sans-serif" }
-
-const inputStyle: React.CSSProperties = {
-  ...mono,
-  width: '100%',
-  padding: '9px 12px',
-  background: 'transparent',
-  border: '1px solid var(--glass-border)',
-  color: 'var(--white)',
-  fontSize: '13px',
-  outline: 'none',
-  boxSizing: 'border-box',
-}
-
-const labelStyle: React.CSSProperties = {
-  ...mono,
-  fontSize: '10px',
-  letterSpacing: '0.15em',
-  color: 'var(--faint)',
-  textTransform: 'uppercase',
-  marginBottom: '6px',
-  display: 'block',
-}
-
 function truncate(pk: string) {
   return `${pk.slice(0, 8)}...${pk.slice(-8)}`
 }
 
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  function copy(e: React.MouseEvent) {
-    e.stopPropagation()
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
-    })
-  }
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      title="Copy address"
-      style={{
-        background: 'transparent',
-        border: '1px solid var(--glass-border)',
-        cursor: 'pointer',
-        padding: '3px 7px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        color: copied ? 'rgba(1,1,1,0.6)' : 'var(--faint)',
-        transition: 'color 0.15s',
-      }}
-    >
-      {copied
-        ? <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M1.5 6L4.5 9L10.5 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        : <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><rect x="4" y="1" width="7" height="8" rx="0.5" stroke="currentColor" strokeWidth="1"/><rect x="1" y="3" width="7" height="8" rx="0.5" stroke="currentColor" strokeWidth="1" fill="white"/></svg>
-      }
-    </button>
-  )
-}
+const usd2 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const usd0 = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+const int0 = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 })
 
 function RadioDot({ selected }: { selected: boolean }) {
   return (
-    <div style={{
-      width: '16px', height: '16px', borderRadius: '50%',
-      border: '1.5px solid rgba(1,1,1,0.35)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      flexShrink: 0,
-      background: selected ? 'rgba(1,1,1,0.85)' : 'transparent',
-      transition: 'background 0.12s',
-    }}>
-      {selected && <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'white' }} />}
-    </div>
-  )
-}
-
-function Toggle({ value, onChange, label: tLabel }: { value: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-      <button
-        type="button"
-        onClick={() => onChange(!value)}
-        style={{
-          width: '36px', height: '20px', borderRadius: '10px',
-          background: value ? 'rgba(1,1,1,0.75)' : 'rgba(1,1,1,0.15)',
-          border: 'none', cursor: 'pointer', position: 'relative',
-          transition: 'background 0.2s', flexShrink: 0,
-        }}
-      >
-        <div style={{
-          position: 'absolute', top: '3px',
-          left: value ? '19px' : '3px',
-          width: '14px', height: '14px', borderRadius: '50%',
-          background: 'white', transition: 'left 0.2s',
-        }} />
-      </button>
-      <span style={{ ...mono, fontSize: '12px', color: 'var(--dim)', letterSpacing: '0.06em' }}>{tLabel}</span>
-    </div>
+    <span style={{
+      width: 16, height: 16, borderRadius: '50%', flex: 'none',
+      border: `1.5px solid ${selected ? 'var(--accent)' : 'rgba(233,233,237,.22)'}`,
+      background: selected ? 'var(--accent)' : 'transparent',
+      boxShadow: selected ? 'inset 0 0 0 3px #1a1c2c' : 'none',
+      transition: 'background .12s, border-color .12s',
+    }} />
   )
 }
 
@@ -416,581 +333,399 @@ export default function Launchpad() {
   const isFailed = jobStatus?.state === 'failed'
   const launchSteps = useMemo(() => buildLaunchSteps(jobHasAutoBuy), [jobHasAutoBuy])
 
+  const launchDisabled = submitting || loadingWallets || !fundingWalletId || !feeWalletId || (autoBuyEnabled && !slaveWalletId)
+
+  /* ── presentation-only derivations ─────────────────────────────── */
+
+  const formattedTokenPrice = tokenPrice != null
+    ? (() => {
+        const places = Math.max(2, Math.ceil(-Math.log10(tokenPrice)) + 4)
+        const raw = tokenPrice.toFixed(places)
+        const trimmed = raw.replace(/(\.\d{2}.*?)0+$/, '$1')
+        return `$${trimmed}`
+      })()
+    : null
+
+  const estimate: { k: string; v: string | null; accent?: boolean }[] = [
+    { k: 'SOL price',       v: solPrice != null ? usd2.format(solPrice) : null },
+    { k: 'Est. market cap', v: marketCap != null ? usd0.format(marketCap) : null },
+    { k: 'Token price',     v: formattedTokenPrice },
+    { k: 'Pool supply',     v: parseFloat(supply) > 0 ? int0.format(parseFloat(supply) * (effectivePoolPct / 100)) : null, accent: advanced },
+    { k: 'Cost',            v: solPrice != null && parseFloat(initialLiquiditySol) > 0 ? usd2.format(solPrice * parseFloat(initialLiquiditySol)) : null },
+  ]
+
+  const preflight: { text: string; ok: boolean }[] = [
+    { text: image ? 'Token image ready' : 'Token image not chosen', ok: !!image },
+    { text: selectedFunding ? 'Funding wallet selected' : 'Funding wallet not selected', ok: !!selectedFunding },
+    { text: selectedFee ? 'Fee wallet selected' : 'Fee wallet not selected', ok: !!selectedFee },
+    ...(autoBuyEnabled ? [{ text: selectedSlave ? 'Auto-buy wallet selected' : 'Auto-buy wallet not selected', ok: !!selectedSlave }] : []),
+    { text: solPrice != null ? 'SOL price loaded' : 'SOL price unavailable', ok: solPrice != null },
+  ]
+
+  function walletButton(type: 'funding' | 'fee' | 'slave', selected: Wallet | undefined, id: string) {
+    return (
+      <button
+        type="button"
+        id={id}
+        className="input select-btn"
+        onClick={() => setPickerOpen(type)}
+        disabled={loadingWallets}
+      >
+        {loadingWallets
+          ? <span className="placeholder">Loading…</span>
+          : selected
+            ? <span>{truncate(selected.public_key)}</span>
+            : <span className="placeholder">Select {type} wallet</span>}
+        <ChevronDown />
+      </button>
+    )
+  }
+
   return (
-    <div style={{ padding: '40px 48px', overflowY: 'auto', height: '100%' }}>
-      <style>{`
-        @keyframes spin    { to { transform: rotate(360deg); } }
-        @keyframes fadeIn  { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-        input[type=range] { -webkit-appearance: none; appearance: none; height: 2px; background: rgba(1,1,1,0.2); outline: none; cursor: pointer; width: 100%; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 14px; height: 14px; border-radius: 50%; background: rgba(1,1,1,0.8); cursor: pointer; }
-        input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: rgba(1,1,1,0.8); cursor: pointer; border: none; }
-      `}</style>
-
-      {/* Header */}
-      <div style={{ marginBottom: '40px' }}>
-        <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '12px' }}>
-          SPL token deployment and mint management
-        </div>
-        <h1 style={{ ...bebas, fontSize: '48px', letterSpacing: '0.06em', color: 'var(--white)', lineHeight: 1, margin: 0 }}>
-          COIN LAUNCHPAD
-        </h1>
+    <div>
+      <div className="page-head">
+        <div className="page-kicker">SPL deployment and mint management</div>
+        <Seg
+          options={[{ id: 'default', label: 'Default' }, { id: 'advanced', label: 'Advanced' }] as const}
+          value={advanced ? 'advanced' : 'default'}
+          onChange={m => setAdvanced(m === 'advanced')}
+          label="Launch mode"
+        />
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'var(--glass-border)', border: '1px solid var(--glass-border)', marginBottom: '32px' }}>
-        {[
-          { label: 'TOKENS LAUNCHED', value: '—' },
-          { label: 'ACTIVE MINTS',    value: '—' },
-          { label: 'PENDING TXS',     value: '—' },
-        ].map(stat => (
-          <div key={stat.label} style={{ background: 'var(--deep)', padding: '24px 28px' }}>
-            <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '10px' }}>{stat.label}</div>
-            <div style={{ ...bebas, fontSize: '36px', letterSpacing: '0.05em', color: 'var(--white)' }}>{stat.value}</div>
-          </div>
-        ))}
-      </div>
+      <div className="split-layout">
+        <form id="launch-form" onSubmit={handleSubmit} className="stack">
 
-      {/* Mode toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginBottom: '24px', alignSelf: 'flex-start', border: '1px solid var(--glass-border)', width: 'fit-content' }}>
-        {(['default', 'advanced'] as const).map(mode => {
-          const active = (mode === 'advanced') === advanced
-          return (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setAdvanced(mode === 'advanced')}
-              style={{
-                ...mono,
-                fontSize: '10px',
-                letterSpacing: '0.15em',
-                textTransform: 'uppercase',
-                padding: '8px 20px',
-                border: 'none',
-                cursor: 'pointer',
-                background: active ? 'var(--white)' : 'transparent',
-                color: active ? 'var(--deep)' : 'var(--faint)',
-                transition: 'background 0.15s, color 0.15s',
-              }}
-            >
-              {mode}
-            </button>
-          )
-        })}
-      </div>
+          {error && <div className="alert" role="alert">{error}</div>}
 
-      {error && (
-        <div style={{ ...mono, fontSize: '12px', color: 'rgba(200,50,50,0.8)', marginBottom: '24px', padding: '12px 16px', border: '1px solid rgba(200,50,50,0.3)', background: 'rgba(200,50,50,0.05)' }}>
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit}>
-
-        {/* ── Token Identity ─────────────────────────────────── */}
-        <div style={{ border: '1px solid var(--glass-border)', background: 'var(--deep)', padding: '28px', marginBottom: '1px' }}>
-          <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '24px' }}>Token Identity</div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-            <div>
-              <label style={labelStyle}>Token Name</label>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Spectre Coin" required style={inputStyle} />
+          {/* ── 1 Token identity ───────────────────────────────── */}
+          <section className="glass glow card">
+            <StepHead n={1} title="Token identity" />
+            <div className="grid-auto" style={{ '--min': '200px', gap: 16 } as React.CSSProperties}>
+              <div className="field">
+                <label className="label" htmlFor="lp-name">Token name</label>
+                <input id="lp-name" className="input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Spectre Coin" required />
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="lp-symbol">Symbol</label>
+                <input id="lp-symbol" className="input mono" type="text" value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())} placeholder="e.g. SPCT" maxLength={10} required />
+              </div>
             </div>
-            <div>
-              <label style={labelStyle}>Symbol</label>
-              <input type="text" value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())} placeholder="e.g. SPCT" maxLength={10} required style={inputStyle} />
-            </div>
-          </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={labelStyle}>Description</label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe your token..." required rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
-          </div>
+            <div className="field" style={{ marginTop: 16 }}>
+              <label className="label" htmlFor="lp-desc">Description</label>
+              <textarea id="lp-desc" className="input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe your token..." required rows={3} />
+            </div>
 
-          <div>
-            <label style={labelStyle}>Token Image</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              {imagePreview && (
-                <img src={imagePreview} alt="preview" style={{ width: '56px', height: '56px', objectFit: 'cover', border: '1px solid var(--glass-border)', flexShrink: 0 }} />
-              )}
-              <label style={{ ...mono, fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', color: 'var(--white)', padding: '9px 20px', cursor: 'pointer', display: 'inline-block', whiteSpace: 'nowrap' }}>
-                {image ? image.name : 'Choose File →'}
-                <input type="file" accept="image/*" onChange={handleImageChange} required style={{ display: 'none' }} />
-              </label>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Token Parameters ───────────────────────────────── */}
-        <div style={{ border: '1px solid var(--glass-border)', borderTop: 'none', background: 'var(--deep)', padding: '28px', marginBottom: '1px' }}>
-          <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '24px' }}>Token Parameters</div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: advanced ? '1fr 1fr 1fr 1fr' : '1fr 1fr 1fr', gap: '20px', marginBottom: advanced ? '24px' : '0' }}>
-            <div>
-              <label style={labelStyle}>Decimals</label>
-              <input type="number" value={decimals} onChange={e => setDecimals(Number(e.target.value))} min={0} max={9} required style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Total Supply</label>
-              <input type="number" value={supply} onChange={e => setSupply(e.target.value)} placeholder="e.g. 1000000000" min={1} required style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>Initial Liquidity (SOL)</label>
-              <input type="number" value={initialLiquiditySol} onChange={e => setInitialLiquiditySol(e.target.value)} placeholder="e.g. 1.5" min={0} step="0.01" required style={inputStyle} />
-            </div>
-            {advanced && (
-              <div>
-                <label style={labelStyle}>
-                  Pool % of Supply
-                  <span style={{ marginLeft: '8px', color: 'var(--white)', letterSpacing: '0.05em' }}>{poolPercentage}%</span>
+            <div className="row-flex" style={{ gap: 14, marginTop: 16, flexWrap: 'nowrap' }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: 11, flex: 'none', overflow: 'hidden',
+                border: imagePreview ? '1px solid var(--line-2)' : '1px dashed rgba(233,233,237,.16)',
+                background: 'rgba(16,18,32,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                {imagePreview
+                  ? <img src={imagePreview} alt="Token preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <span className="mono" style={{ fontSize: 9, color: 'rgba(233,233,237,.58)' }}>IMG</span>}
+              </div>
+              <div className="field" style={{ gap: 9 }}>
+                <span className="label">Token image</span>
+                <label className="btn btn-accent btn-sm" style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {image ? image.name : 'Choose file →'}
+                  <input type="file" accept="image/*" onChange={handleImageChange} required style={{ display: 'none' }} />
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', paddingTop: '10px' }}>
-                  <input
-                    type="range"
-                    min={1} max={100}
-                    value={poolPercentage}
-                    onChange={e => setPoolPercentage(Number(e.target.value))}
-                  />
-                </div>
               </div>
-            )}
-          </div>
+            </div>
+          </section>
 
+          {/* ── Social links (advanced) ───────────────────────── */}
           {advanced && (
-            <div style={{ display: 'flex', gap: '32px' }}>
-              <Toggle value={revoke} onChange={setRevoke} label="Revoke Mint Authority" />
-              <Toggle value={lockMetaData} onChange={setLockMetaData} label="Lock Metadata" />
-            </div>
+            <section className="glass glow card enter">
+              <StepHead n="◇" title="Social links" />
+              <div className="grid-auto" style={{ '--min': '180px', gap: 16 } as React.CSSProperties}>
+                <div className="field">
+                  <label className="label" htmlFor="lp-web">Website</label>
+                  <input id="lp-web" className="input" type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://" />
+                </div>
+                <div className="field">
+                  <label className="label" htmlFor="lp-x">X</label>
+                  <input id="lp-x" className="input" type="text" value={twitter} onChange={e => setTwitter(e.target.value)} placeholder="@handle" />
+                </div>
+                <div className="field">
+                  <label className="label" htmlFor="lp-tg">Telegram</label>
+                  <input id="lp-tg" className="input" type="text" value={telegram} onChange={e => setTelegram(e.target.value)} placeholder="t.me/..." />
+                </div>
+              </div>
+            </section>
           )}
-        </div>
 
-        {/* ── Pool Configuration ─────────────────────────────── */}
-        <div style={{ border: '1px solid var(--glass-border)', borderTop: 'none', background: 'var(--deep)', padding: '28px', marginBottom: '1px' }}>
-          <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '24px' }}>Pool Configuration</div>
+          {/* ── 2 Token parameters ────────────────────────────── */}
+          <section className="glass glow card">
+            <StepHead n={2} title="Token parameters" />
+            <div className="grid-auto" style={{ '--min': '170px', gap: 16 } as React.CSSProperties}>
+              <div className="field">
+                <label className="label" htmlFor="lp-dec">Decimals</label>
+                <input id="lp-dec" className="input mono" type="number" value={decimals} onChange={e => setDecimals(Number(e.target.value))} min={0} max={9} required />
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="lp-supply">Total supply</label>
+                <input id="lp-supply" className="input mono" type="number" value={supply} onChange={e => setSupply(e.target.value)} placeholder="e.g. 1000000000" min={1} required />
+              </div>
+              <div className="field">
+                <label className="label" htmlFor="lp-liq">Initial liquidity (SOL)</label>
+                <input id="lp-liq" className="input mono" type="number" value={initialLiquiditySol} onChange={e => setInitialLiquiditySol(e.target.value)} placeholder="e.g. 1.5" min={0} step="0.01" required />
+              </div>
+            </div>
 
-          <div>
-            <label style={labelStyle}>Config Address</label>
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <input
-                type="text"
-                value={configAddress}
-                onChange={e => setConfigAddress(e.target.value)}
-                placeholder="e.g. FxWh7P9b5sU6LBu4b5SYZbYinTLnEUxWjiBDKVpj7ooF"
-                required
-                style={{ ...inputStyle, flex: 1 }}
-              />
-              <button
-                type="button"
-                onClick={() => setConfigPickerOpen(true)}
-                style={{ ...mono, fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--white)', padding: '9px 20px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-              >
-                Browse Configs
+            {advanced && (
+              <>
+                <div className="field" style={{ marginTop: 22 }}>
+                  <label className="label" htmlFor="lp-pool">
+                    Pool % of supply
+                    <span className="label-value mono">{poolPercentage}%</span>
+                  </label>
+                  <Range id="lp-pool" min={1} max={100} value={poolPercentage} onChange={setPoolPercentage} />
+                </div>
+                <div className="row-flex" style={{ gap: '16px 26px', marginTop: 22 }}>
+                  <Switch checked={revoke} onChange={setRevoke} label="Revoke mint authority" />
+                  <Switch checked={lockMetaData} onChange={setLockMetaData} label="Lock metadata" />
+                </div>
+              </>
+            )}
+          </section>
+
+          {/* ── 3 Pool configuration ──────────────────────────── */}
+          <section className="glass glow card">
+            <StepHead n={3} title="Pool configuration" />
+            <div className="row-flex" style={{ gap: 12, alignItems: 'flex-end' }}>
+              <div className="field" style={{ flex: '1 1 280px' }}>
+                <label className="label" htmlFor="lp-config">Config address</label>
+                <input
+                  id="lp-config"
+                  className="input mono"
+                  type="text"
+                  value={configAddress}
+                  onChange={e => setConfigAddress(e.target.value)}
+                  placeholder="e.g. FxWh7P9b5sU6LBu4b5SYZbYinTLnEUxWjiBDKVpj7ooF"
+                  required
+                  style={{ fontSize: 12 }}
+                />
+              </div>
+              <button type="button" className="btn" onClick={() => setConfigPickerOpen(true)}>
+                Browse configs
               </button>
             </div>
-          </div>
-        </div>
+          </section>
 
-        {/* ── Market Cap Estimator ──────────────────────────── */}
-        <div style={{ border: '1px solid var(--glass-border)', borderTop: 'none', background: 'rgba(0,0,0,0.03)', padding: '16px 28px', display: 'flex', alignItems: 'center', gap: '40px', flexWrap: 'wrap', marginBottom: '1px' }}>
-
-          {/* SOL price — always visible once loaded, shows — while waiting */}
-          <div>
-            <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.18em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '4px' }}>SOL PRICE</div>
-            <div style={{ ...mono, fontSize: '15px', letterSpacing: '0.04em', color: 'var(--white)' }}>
-              {solPrice != null
-                ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(solPrice)
-                : '—'}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.18em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '4px' }}>EST. MARKET CAP</div>
-            <div style={{ ...mono, fontSize: '15px', letterSpacing: '0.04em', color: 'var(--white)' }}>
-              {marketCap != null
-                ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(marketCap)
-                : '—'}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.18em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '4px' }}>TOKEN PRICE</div>
-            <div style={{ ...mono, fontSize: '15px', letterSpacing: '0.04em', color: 'var(--white)' }}>
-              {tokenPrice != null
-                ? (() => {
-                    const places = Math.max(2, Math.ceil(-Math.log10(tokenPrice)) + 4)
-                    const raw = tokenPrice.toFixed(places)
-                    const trimmed = raw.replace(/(\.\d{2}.*?)0+$/, '$1')
-                    return `$${trimmed}`
-                  })()
-                : '—'}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.18em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '4px' }}>COST</div>
-            <div style={{ ...mono, fontSize: '15px', letterSpacing: '0.04em', color: 'var(--white)' }}>
-              {solPrice != null && parseFloat(initialLiquiditySol) > 0
-                ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(solPrice * parseFloat(initialLiquiditySol))
-                : '—'}
-            </div>
-          </div>
-
-          <div>
-            <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.18em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '4px' }}>POOL SUPPLY</div>
-            <div style={{ ...mono, fontSize: '15px', letterSpacing: '0.04em', color: 'var(--white)' }}>
-              {parseFloat(supply) > 0
-                ? new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(parseFloat(supply) * (effectivePoolPct / 100))
-                : '—'}
-            </div>
-          </div>
-
-        </div>
-
-        {/* ── Social Links (advanced only) ───────────────────── */}
-        {advanced && (
-          <div style={{ border: '1px solid var(--glass-border)', borderTop: 'none', background: 'var(--deep)', padding: '28px', marginBottom: '1px' }}>
-            <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '24px' }}>Social Links</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
-              <div>
-                <label style={labelStyle}>Website</label>
-                <input type="text" value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://" style={inputStyle} />
+          {/* ── 4 Wallet selection + auto-buy ─────────────────── */}
+          <section className="glass glow card">
+            <StepHead n={4} title="Wallet selection" />
+            <div className="grid-auto" style={{ '--min': '200px', gap: 16 } as React.CSSProperties}>
+              <div className="field">
+                <label className="label" htmlFor="lp-funding">Funding wallet</label>
+                {walletButton('funding', selectedFunding, 'lp-funding')}
               </div>
-              <div>
-                <label style={labelStyle}>Twitter</label>
-                <input type="text" value={twitter} onChange={e => setTwitter(e.target.value)} placeholder="@handle" style={inputStyle} />
-              </div>
-              <div>
-                <label style={labelStyle}>Telegram</label>
-                <input type="text" value={telegram} onChange={e => setTelegram(e.target.value)} placeholder="t.me/..." style={inputStyle} />
+              <div className="field">
+                <label className="label" htmlFor="lp-fee">Fee wallet</label>
+                {walletButton('fee', selectedFee, 'lp-fee')}
               </div>
             </div>
-          </div>
-        )}
 
-        {/* ── Wallet Selection ───────────────────────────────── */}
-        <div style={{ border: '1px solid var(--glass-border)', borderTop: 'none', background: 'var(--deep)', padding: '28px', marginBottom: '32px' }}>
-          <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '24px' }}>Wallet Selection</div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            {(['funding', 'fee'] as const).map(type => {
-              const selected = type === 'funding' ? selectedFunding : selectedFee
-              return (
-                <div key={type}>
-                  <label style={labelStyle}>{type === 'funding' ? 'Funding Wallet' : 'Fee Wallet'}</label>
-                  <button
-                    type="button"
-                    onClick={() => setPickerOpen(type)}
-                    disabled={loadingWallets}
-                    style={{ ...inputStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: loadingWallets ? 'not-allowed' : 'pointer', textAlign: 'left', gap: '8px' }}
-                  >
-                    <span style={{ color: selected ? 'var(--white)' : 'var(--faint)' }}>
-                      {loadingWallets ? 'Loading...' : selected ? truncate(selected.public_key) : `Select ${type} wallet`}
-                    </span>
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0, opacity: 0.45 }}>
-                      <path d="M2 4L5 7L8 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* ── Auto-Buy ──────────────────────────────────────── */}
-        <div style={{ border: '1px solid var(--glass-border)', borderTop: 'none', background: 'var(--deep)', padding: '28px', marginBottom: '32px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: autoBuyEnabled ? '24px' : '0' }}>
-            <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase' }}>Auto-Buy</div>
-            <Toggle value={autoBuyEnabled} onChange={setAutoBuyEnabled} label="Enable auto-buy on launch" />
-          </div>
-
-          {autoBuyEnabled && (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px 140px', gap: '20px', marginBottom: '20px' }}>
-
-                {/* Slave wallet selector — same pattern as funding/fee */}
-                <div>
-                  <label style={labelStyle}>Slave Wallet</label>
-                  <button
-                    type="button"
-                    onClick={() => setPickerOpen('slave')}
-                    disabled={loadingWallets}
-                    style={{ ...inputStyle, display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: loadingWallets ? 'not-allowed' : 'pointer', textAlign: 'left', gap: '8px' }}
-                  >
-                    <span style={{ color: selectedSlave ? 'var(--white)' : 'var(--faint)' }}>
-                      {loadingWallets ? 'Loading...' : selectedSlave ? truncate(selectedSlave.public_key) : 'Select slave wallet'}
-                    </span>
-                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none" style={{ flexShrink: 0, opacity: 0.45 }}>
-                      <path d="M2 4L5 7L8 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </button>
-                </div>
-
-                <div>
-                  <label style={labelStyle}>Number of Buys</label>
-                  <input
-                    type="number"
-                    value={numberOfBuys}
-                    onChange={e => setNumberOfBuys(Math.max(1, Math.min(10, Number(e.target.value))))}
-                    min={1} max={10} step={1}
-                    style={inputStyle}
-                  />
-                </div>
-
-                <div>
-                  <label style={labelStyle}>SOL per Buy</label>
-                  <input
-                    type="number"
-                    value={solPerBuy}
-                    onChange={e => setSolPerBuy(e.target.value)}
-                    placeholder="0.0000"
-                    min={0} step="0.0001"
-                    style={inputStyle}
-                  />
-                </div>
+            <div style={{ marginTop: 22, paddingTop: 20, borderTop: '1px solid rgba(233,233,237,.07)' }}>
+              <div className="row-flex" style={{ justifyContent: 'space-between' }}>
+                <span className="step-title" style={{ color: 'var(--ink-3)' }}>Auto-buy</span>
+                <Switch checked={autoBuyEnabled} onChange={setAutoBuyEnabled} label="Enable auto-buy on launch" />
               </div>
 
-              {/* Estimator row */}
-              <div style={{ display: 'flex', gap: '40px', padding: '14px 18px', background: 'rgba(0,0,0,0.03)', border: '1px solid var(--glass-border)', flexWrap: 'wrap' }}>
-                <div>
-                  <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.18em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '4px' }}>Est. % Supply / Buy</div>
-                  <div style={{ ...mono, fontSize: '15px', letterSpacing: '0.04em', color: estimatedPctPerBuy != null && estimatedPctPerBuy >= 0.5 ? 'rgba(200,120,50,0.9)' : 'var(--white)' }}>
-                    {estimatedPctPerBuy != null ? `${estimatedPctPerBuy.toFixed(3)}%` : '—'}
-                    {estimatedPctPerBuy != null && estimatedPctPerBuy >= 0.5 && (
-                      <span style={{ ...mono, fontSize: '9px', letterSpacing: '0.1em', marginLeft: '8px', color: 'rgba(200,120,50,0.9)' }}>HIGH</span>
-                    )}
+              {autoBuyEnabled && (
+                <div className="enter" style={{ marginTop: 20 }}>
+                  <div className="grid-auto" style={{ '--min': '150px', gap: 16 } as React.CSSProperties}>
+                    <div className="field" style={{ gridColumn: '1 / -1' }}>
+                      <label className="label" htmlFor="lp-slave">Slave wallet</label>
+                      {walletButton('slave', selectedSlave, 'lp-slave')}
+                    </div>
+                    <div className="field">
+                      <label className="label" htmlFor="lp-buys">Number of buys</label>
+                      <input
+                        id="lp-buys"
+                        className="input mono"
+                        type="number"
+                        value={numberOfBuys}
+                        onChange={e => setNumberOfBuys(Math.max(1, Math.min(10, Number(e.target.value))))}
+                        min={1} max={10} step={1}
+                      />
+                    </div>
+                    <div className="field">
+                      <label className="label" htmlFor="lp-spb">SOL per buy</label>
+                      <input
+                        id="lp-spb"
+                        className="input mono"
+                        type="number"
+                        value={solPerBuy}
+                        onChange={e => setSolPerBuy(e.target.value)}
+                        placeholder="0.0000"
+                        min={0} step="0.0001"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="split" style={{ marginTop: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))' }}>
+                    <div>
+                      <div className="kv-k">Est. % supply / buy</div>
+                      <div className="mono" style={{ marginTop: 7, fontSize: 14, color: estimatedPctPerBuy != null && estimatedPctPerBuy >= 0.5 ? 'var(--danger)' : 'var(--text)' }}>
+                        {estimatedPctPerBuy != null ? `${estimatedPctPerBuy.toFixed(3)}%` : '—'}
+                        {estimatedPctPerBuy != null && estimatedPctPerBuy >= 0.5 && (
+                          <span className="tag tag-danger" style={{ marginLeft: 8 }}>High</span>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="kv-k">Total SOL required</div>
+                      <div className="mono" style={{ marginTop: 7, fontSize: 14 }}>
+                        {totalSolRequired != null ? `${totalSolRequired.toFixed(4)} SOL` : '—'}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div>
-                  <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.18em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '4px' }}>Total SOL Required</div>
-                  <div style={{ ...mono, fontSize: '15px', letterSpacing: '0.04em', color: 'var(--white)' }}>
-                    {totalSolRequired != null ? `${totalSolRequired.toFixed(4)} SOL` : '—'}
-                  </div>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-
-        <button
-          type="submit"
-          disabled={submitting || loadingWallets || !fundingWalletId || !feeWalletId || (autoBuyEnabled && !slaveWalletId)}
-          style={{
-            ...mono, fontSize: '12px', letterSpacing: '0.15em', textTransform: 'uppercase',
-            border: '1px solid var(--white)',
-            background: submitting ? 'transparent' : 'var(--white)',
-            color: submitting ? 'var(--white)' : 'var(--deep)',
-            padding: '14px 40px', cursor: submitting ? 'not-allowed' : 'pointer',
-            opacity: submitting || loadingWallets || !fundingWalletId || !feeWalletId || (autoBuyEnabled && !slaveWalletId) ? 0.5 : 1,
-            display: 'flex', alignItems: 'center', gap: '10px',
-          }}
-        >
-          {submitting ? 'Queuing...' : 'Launch Token →'}
-        </button>
-      </form>
-
-      {/* ── Wallet Picker Modal ────────────────────────────────────── */}
-      {pickerOpen && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001 }}
-          onClick={e => { if (e.target === e.currentTarget) setPickerOpen(null) }}
-        >
-          <div style={{ background: '#f0f0f0', border: '1px solid var(--glass-border)', width: '520px', maxWidth: '92vw', maxHeight: '70vh', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.15s ease', boxShadow: '0 24px 64px rgba(0,0,0,0.15)' }}>
-
-            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <div style={{ ...bebas, fontSize: '18px', letterSpacing: '0.08em', color: 'var(--white)' }}>
-                SELECT {pickerOpen?.toUpperCase()} WALLET
-              </div>
-              <button type="button" onClick={() => setPickerOpen(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--faint)', padding: '4px', display: 'flex' }}>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </button>
+              )}
             </div>
+          </section>
+        </form>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '32px 36px 1fr 80px', padding: '10px 22px', borderBottom: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.04)', flexShrink: 0 }}>
-              {['', '', 'ADDRESS', 'LABEL'].map((h, i) => (
-                <div key={i} style={{ ...mono, fontSize: '9px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase' }}>{h}</div>
+        {/* ── aside: estimate + launch ───────────────────────────── */}
+        <aside className="aside-sticky stack">
+          <div className="glass glass-accent glow glow-bright" style={{ padding: 20 }}>
+            <div className="kicker">Launch estimate</div>
+            <div className="split" style={{ marginTop: 16 }}>
+              {estimate.map(e => (
+                <div key={e.k} className="kv" style={{ padding: '11px 14px' }}>
+                  <span className="kv-k">{e.k}</span>
+                  <span className={e.v == null ? 'kv-v none' : 'kv-v'} style={e.v != null && e.accent ? { color: 'var(--accent-300)' } : undefined}>
+                    {e.v ?? '—'}
+                  </span>
+                </div>
               ))}
             </div>
+            <button type="submit" form="launch-form" className="btn btn-accent btn-block" style={{ marginTop: 16 }} disabled={launchDisabled}>
+              {submitting ? 'Queuing…' : 'Launch token →'}
+            </button>
+            <div className="hint" style={{ marginTop: 11, textAlign: 'center', fontSize: 11 }}>
+              {advanced ? 'Advanced launch' : 'Default launch · 100% of supply to pool, mint revoked, metadata locked'}
+            </div>
+          </div>
 
-            <div style={{ overflowY: 'auto', flex: 1 }}>
-              {pickerWallets.length === 0 ? (
-                <div style={{ ...mono, fontSize: '12px', color: 'var(--faint)', padding: '24px 22px' }}>
-                  No {pickerOpen} wallets found. Create one in Wallet Manager.
-                </div>
-              ) : pickerWallets.map((w, i) => {
+          <div className="glass-quiet" style={{ padding: '16px 18px' }}>
+            <div className="kicker">Preflight</div>
+            {preflight.map(p => (
+              <div key={p.text} className="row-flex" style={{ gap: 9, marginTop: 12, flexWrap: 'nowrap' }}>
+                <span className="dot" style={{ width: 5, height: 5, background: p.ok ? 'var(--accent-400)' : 'var(--accent-700)' }} />
+                <span style={{ fontSize: 12, color: p.ok ? 'var(--ink-2)' : 'var(--ink-3)' }}>{p.text}</span>
+              </div>
+            ))}
+          </div>
+        </aside>
+      </div>
+
+      {/* ── Wallet picker ─────────────────────────────────────────── */}
+      {pickerOpen && (
+        <Sheet onClose={() => setPickerOpen(null)} width={560} labelledBy="lp-picker-title">
+          <SheetHead
+            id="lp-picker-title"
+            title={`Select ${pickerOpen} wallet`}
+            sub={`${pickerWallets.length} available`}
+            onClose={() => setPickerOpen(null)}
+          />
+          {pickerWallets.length === 0 ? (
+            <div className="empty">No {pickerOpen} wallets found. Create one in Wallets.</div>
+          ) : (
+            <div>
+              <div className="t-head" style={{ gridTemplateColumns: '22px 26px 1fr 90px', padding: '10px 26px' }}>
+                <span /><span /><span>Address</span><span>Label</span>
+              </div>
+              {pickerWallets.map(w => {
                 const isSelected = w.wallet_id === pickerSelected
                 return (
                   <div
                     key={w.wallet_id}
+                    className="t-row clickable glow glow-sm"
                     onClick={() => handlePickerSelect(w.wallet_id)}
-                    style={{
-                      display: 'grid', gridTemplateColumns: '32px 36px 1fr 80px', alignItems: 'center',
-                      padding: '13px 22px',
-                      borderBottom: i < pickerWallets.length - 1 ? '1px solid var(--glass-border)' : 'none',
-                      cursor: 'pointer',
-                      background: isSelected ? 'rgba(0,0,0,0.05)' : 'transparent',
-                      transition: 'background 0.1s',
-                    }}
+                    style={{ gridTemplateColumns: '22px 26px 1fr 90px', padding: '12px 26px', background: isSelected ? 'rgba(145,132,217,.08)' : undefined }}
                   >
                     <RadioDot selected={isSelected} />
-                    <div onClick={e => e.stopPropagation()}>
-                      <CopyButton text={w.public_key} />
-                    </div>
-                    <span style={{ ...mono, fontSize: '12px', color: 'var(--dim)', letterSpacing: '0.04em', paddingLeft: '12px' }}>
-                      {truncate(w.public_key)}
-                    </span>
-                    <span style={{ ...mono, fontSize: '11px', color: 'var(--faint)', letterSpacing: '0.04em' }}>
-                      {w.label ?? '—'}
-                    </span>
+                    <CopyButton text={w.public_key} />
+                    <span className="t-cell-mono" style={{ color: isSelected ? 'var(--accent-300)' : 'var(--ink-1)' }}>{truncate(w.public_key)}</span>
+                    <span className="t-cell-mono" style={{ color: 'var(--ink-3)' }}>{w.label ?? '—'}</span>
                   </div>
                 )
               })}
             </div>
-          </div>
-        </div>
+          )}
+        </Sheet>
       )}
 
-      {/* ── Pool Config Picker Modal ───────────────────────────────── */}
+      {/* ── Pool config picker ────────────────────────────────────── */}
       {configPickerOpen && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001 }}
-          onClick={e => { if (e.target === e.currentTarget) setConfigPickerOpen(false) }}
-        >
-          <div style={{ background: '#f0f0f0', border: '1px solid var(--glass-border)', width: '640px', maxWidth: '92vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.15s ease', boxShadow: '0 24px 64px rgba(0,0,0,0.15)' }}>
+        <Sheet onClose={() => setConfigPickerOpen(false)} width={680} labelledBy="lp-config-title">
+          <SheetHead id="lp-config-title" title="Browse pool configs" sub="Meteora DAMM v2" onClose={() => setConfigPickerOpen(false)} />
 
-            <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <div style={{ ...bebas, fontSize: '18px', letterSpacing: '0.08em', color: 'var(--white)' }}>
-                BROWSE POOL CONFIGS
-              </div>
-              <button type="button" onClick={() => setConfigPickerOpen(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--faint)', padding: '4px', display: 'flex' }}>
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 2L12 12M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </button>
-            </div>
-
-            <div style={{ overflowY: 'auto', flex: 1 }}>
-
-              {/* Definitions */}
-              <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--glass-border)' }}>
-                <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '14px' }}>Definitions</div>
-                {CONFIG_DEFINITIONS.map(({ term, desc }) => (
-                  <div key={term} style={{ marginBottom: '10px' }}>
-                    <div style={{ ...mono, fontSize: '11px', color: 'var(--white)', letterSpacing: '0.05em', marginBottom: '2px' }}>{term}</div>
-                    <div style={{ ...mono, fontSize: '11px', color: 'var(--faint)', lineHeight: 1.5 }}>{desc}</div>
-                  </div>
-                ))}
-              </div>
-
-              {/* SOL Only */}
-              <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', padding: '10px 22px', background: 'rgba(0,0,0,0.04)', borderBottom: '1px solid var(--glass-border)' }}>
-                SOL Only
-              </div>
-              {SOL_ONLY_CONFIGS.map((cfg, i) => (
-                <div
-                  key={cfg.configAddress}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px',
-                    padding: '13px 22px',
-                    borderBottom: i < SOL_ONLY_CONFIGS.length - 1 ? '1px solid var(--glass-border)' : 'none',
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ ...mono, fontSize: '12px', color: 'var(--dim)', letterSpacing: '0.04em', marginBottom: '3px' }}>{cfg.label}</div>
-                    <div style={{ ...mono, fontSize: '11px', color: 'var(--faint)', lineHeight: 1.5 }}>{cfg.description}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleUseConfig(cfg.configAddress)}
-                    style={{ ...mono, fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--white)', padding: '7px 16px', cursor: 'pointer', flexShrink: 0 }}
-                  >
-                    Use
-                  </button>
-                </div>
-              ))}
-
-              {/* Compounding */}
-              <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', padding: '10px 22px', background: 'rgba(0,0,0,0.04)', borderBottom: '1px solid var(--glass-border)', borderTop: '1px solid var(--glass-border)' }}>
-                Compounding
-              </div>
-              {COMPOUNDING_CONFIGS.map((cfg, i) => (
-                <div
-                  key={cfg.configAddress}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px',
-                    padding: '13px 22px',
-                    borderBottom: i < COMPOUNDING_CONFIGS.length - 1 ? '1px solid var(--glass-border)' : 'none',
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ ...mono, fontSize: '12px', color: 'var(--dim)', letterSpacing: '0.04em', marginBottom: '3px' }}>{cfg.label}</div>
-                    <div style={{ ...mono, fontSize: '11px', color: 'var(--faint)', lineHeight: 1.5 }}>{cfg.description}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleUseConfig(cfg.configAddress)}
-                    style={{ ...mono, fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--white)', padding: '7px 16px', cursor: 'pointer', flexShrink: 0 }}
-                  >
-                    Use
-                  </button>
+          <div className="sheet-section">
+            <div className="kicker" style={{ marginBottom: 14 }}>Definitions</div>
+            <div className="stack" style={{ gap: 10 }}>
+              {CONFIG_DEFINITIONS.map(({ term, desc }) => (
+                <div key={term}>
+                  <div style={{ fontSize: 12.5, color: 'var(--text)' }}>{term}</div>
+                  <div className="hint" style={{ marginTop: 2 }}>{desc}</div>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+
+          {([['SOL only', SOL_ONLY_CONFIGS], ['Compounding', COMPOUNDING_CONFIGS]] as const).map(([title, list]) => (
+            <div key={title}>
+              <div className="kicker" style={{ padding: '12px 26px', background: 'rgba(16,18,32,.35)', borderBottom: '1px solid var(--line-soft)' }}>{title}</div>
+              {list.map(cfg => {
+                const inUse = cfg.configAddress === configAddress
+                return (
+                  <div key={cfg.configAddress} className="t-row hover" style={{ gridTemplateColumns: '1fr auto', padding: '13px 26px', gap: 16 }}>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, color: inUse ? 'var(--accent-300)' : 'var(--ink-1)' }}>{cfg.label}</div>
+                      <div className="hint" style={{ marginTop: 3 }}>{cfg.description}</div>
+                    </div>
+                    <button type="button" className={inUse ? 'btn btn-accent btn-xs' : 'btn btn-xs'} onClick={() => handleUseConfig(cfg.configAddress)}>
+                      {inUse ? 'In use' : 'Use'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          ))}
+        </Sheet>
       )}
 
-      {/* ── Launch Progress Modal ──────────────────────────────────── */}
+      {/* ── Launch progress ───────────────────────────────────────── */}
       {modalOpen && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-          onClick={e => { if (e.target === e.currentTarget) handleClose() }}
-        >
-          <div style={{ background: '#f0f0f0', border: '1px solid var(--glass-border)', width: '480px', maxWidth: '90vw', animation: 'fadeIn 0.18s ease', boxShadow: '0 24px 64px rgba(0,0,0,0.18)' }}>
+        <Sheet onClose={handleClose} width={500} labelledBy="lp-progress-title">
+          <SheetHead
+            id="lp-progress-title"
+            title={isDone ? 'Launch complete' : isFailed ? 'Launch failed' : 'Launching token'}
+            sub={isDone ? 'Token is live on Solana' : isFailed ? 'An error occurred' : 'Processing on-chain…'}
+            onClose={handleClose}
+          />
 
-            <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ ...bebas, fontSize: '22px', letterSpacing: '0.08em', color: 'var(--white)', lineHeight: 1 }}>
-                  {isDone ? 'LAUNCH COMPLETE' : isFailed ? 'LAUNCH FAILED' : 'LAUNCHING TOKEN'}
-                </div>
-                <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.2em', color: 'var(--faint)', textTransform: 'uppercase', marginTop: '4px' }}>
-                  {isDone ? 'Token is live on Solana' : isFailed ? 'An error occurred' : 'Processing on-chain...'}
-                </div>
-              </div>
-              <button type="button" onClick={handleClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--faint)', padding: '4px', display: 'flex' }}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                  <path d="M3 3L13 13M13 3L3 13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                </svg>
-              </button>
-            </div>
-
-            <div style={{ padding: '20px 24px' }}>
+          <div className="sheet-section">
+            <div className="stack" style={{ gap: 12 }}>
               {launchSteps.map(step => {
                 const status = getStepStatus(step, percent, jobStatus?.state ?? 'waiting')
                 return (
-                  <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                    <div style={{ width: '20px', height: '20px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {status === 'done' && (
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                          <path d="M2 7L5.5 10.5L12 4" stroke="rgba(1,1,1,0.6)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      )}
-                      {status === 'active' && (
-                        <div style={{ width: '14px', height: '14px', border: '1.5px solid rgba(1,1,1,0.5)', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-                      )}
-                      {status === 'failed' && (
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                          <path d="M3 3L11 11M11 3L3 11" stroke="rgba(200,50,50,0.8)" strokeWidth="1.5" strokeLinecap="round"/>
-                        </svg>
-                      )}
-                      {status === 'pending' && (
-                        <div style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'rgba(1,1,1,0.2)' }} />
-                      )}
-                    </div>
+                  <div key={step.label} className="row-flex" style={{ gap: 12, flexWrap: 'nowrap' }}>
+                    <span style={{ width: 18, height: 18, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {status === 'done' && <span style={{ color: 'var(--accent-400)' }}><CheckIcon size={12} /></span>}
+                      {status === 'active' && <span className="ring-spin" />}
+                      {status === 'failed' && <span style={{ color: 'var(--danger)' }}><CloseIcon size={12} /></span>}
+                      {status === 'pending' && <span className="dot" style={{ width: 5, height: 5, background: 'var(--ink-5)' }} />}
+                    </span>
                     <span style={{
-                      ...mono, fontSize: '12px', letterSpacing: '0.06em',
-                      color: status === 'done' ? 'rgba(1,1,1,0.65)' : status === 'active' ? 'var(--white)' : status === 'failed' ? 'rgba(200,50,50,0.8)' : 'rgba(1,1,1,0.28)',
+                      fontSize: 12.5,
+                      color: status === 'done' ? 'var(--ink-2)' : status === 'active' ? 'var(--text)' : status === 'failed' ? 'var(--danger)' : 'var(--ink-5)',
                     }}>
                       {step.label}
                     </span>
@@ -999,37 +734,40 @@ export default function Launchpad() {
               })}
             </div>
 
-            <div style={{ padding: '0 24px 20px' }}>
-              <div style={{ height: '3px', background: 'rgba(1,1,1,0.1)', position: 'relative' }}>
-                <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${percent}%`, background: isFailed ? 'rgba(200,50,50,0.6)' : 'rgba(1,1,1,0.55)', transition: 'width 0.4s ease' }} />
+            <div style={{ marginTop: 20 }}>
+              <div className="progress-track">
+                <div className={isFailed ? 'progress-fill failed' : 'progress-fill'} style={{ width: `${percent}%` }} />
               </div>
-              <div style={{ ...mono, fontSize: '10px', color: 'var(--faint)', marginTop: '8px', letterSpacing: '0.1em', display: 'flex', justifyContent: 'space-between' }}>
+              <div className="meta" style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
                 <span>{isFailed ? 'Failed' : isDone ? 'Complete' : 'In progress'}</span>
                 <span>{percent}%</span>
               </div>
             </div>
-
-            {isDone && jobStatus?.value && (
-              <div style={{ borderTop: '1px solid var(--glass-border)', padding: '20px 24px' }}>
-                {([
-                  { label: 'Mint Address', value: jobStatus.value.mintAddress },
-                  { label: 'Pool Address', value: jobStatus.value.poolAddress },
-                ] as const).map(item => (
-                  <div key={item.label} style={{ marginBottom: '12px' }}>
-                    <div style={{ ...mono, fontSize: '9px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '3px' }}>{item.label}</div>
-                    <div style={{ ...mono, fontSize: '11px', color: 'var(--dim)', wordBreak: 'break-all' }}>{item.value}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {isFailed && jobStatus?.failed && (
-              <div style={{ borderTop: '1px solid rgba(200,50,50,0.2)', padding: '16px 24px', background: 'rgba(200,50,50,0.04)' }}>
-                <div style={{ ...mono, fontSize: '11px', color: 'rgba(200,50,50,0.75)', lineHeight: 1.6 }}>{jobStatus.failed}</div>
-              </div>
-            )}
           </div>
-        </div>
+
+          {isDone && jobStatus?.value && (
+            <div className="sheet-section stack" style={{ gap: 14 }}>
+              {([
+                { label: 'Mint address', value: jobStatus.value.mintAddress },
+                { label: 'Pool address', value: jobStatus.value.poolAddress },
+              ] as const).map(item => (
+                <div key={item.label}>
+                  <div className="kicker">{item.label}</div>
+                  <div className="row-flex" style={{ marginTop: 6, flexWrap: 'nowrap' }}>
+                    <span className="addr" style={{ flex: 1 }}>{item.value}</span>
+                    <CopyButton text={item.value} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {isFailed && jobStatus?.failed && (
+            <div className="sheet-section">
+              <div className="alert">{jobStatus.failed}</div>
+            </div>
+          )}
+        </Sheet>
       )}
     </div>
   )

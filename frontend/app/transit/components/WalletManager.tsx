@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '@/lib/auth'
 import { useApiFetch } from '@/lib/api'
+import { Sheet, SheetHead, Seg, PreviewTag, CopyButton, ChevronDown, CheckIcon } from '@/components/ui'
+import { WALLET_TYPE_HOLDINGS, BUNDLE_GROUPS, type PlaceholderGroup } from '@/lib/placeholders'
 
 interface Wallet {
   public_key: string
@@ -11,33 +13,24 @@ interface Wallet {
   wallet_id: string
 }
 
-const mono: React.CSSProperties = { fontFamily: "'Share Tech Mono', monospace" }
-const bebas: React.CSSProperties = { fontFamily: "'Bebas Neue', sans-serif" }
+type Filter = 'all' | Wallet['wallet_type']
 
 const TYPE_ORDER = ['master', 'funding', 'fee', 'slave'] as const
 const PAGE_SIZE = 10
 
-const typeColor: Record<string, string> = {
-  master:  'var(--white)',
-  slave:   'var(--dim)',
-  funding: 'var(--dim)',
-  fee:     'var(--dim)',
-}
+const TYPE_CARDS = [
+  { id: 'funding', label: 'Funding wallets', desc: 'Hold treasury SOL and pay for launches and distributions.' },
+  { id: 'slave',   label: 'Slave wallets',   desc: 'Bundle buyers. Funded per job, rotated between launches.' },
+  { id: 'fee',     label: 'Fee wallets',     desc: 'Receive creator fees and pool claim payouts.' },
+] as const
 
-const btnBase: React.CSSProperties = {
-  fontFamily: "'Share Tech Mono', monospace",
-  fontSize: '11px',
-  letterSpacing: '0.1em',
-  textTransform: 'uppercase',
-  border: '1px solid var(--glass-border)',
-  background: 'transparent',
-  color: 'var(--white)',
-  padding: '9px 20px',
-  cursor: 'pointer',
-  display: 'flex',
-  alignItems: 'center',
-  gap: '8px',
-}
+const FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'master', label: 'Master' },
+  { id: 'funding', label: 'Funding' },
+  { id: 'fee', label: 'Fee' },
+  { id: 'slave', label: 'Slave' },
+] as const satisfies readonly { id: Filter; label: string }[]
 
 export default function WalletManager() {
   const { accessToken } = useAuth()
@@ -49,6 +42,7 @@ export default function WalletManager() {
   const [slaveCount, setSlaveCount] = useState(1)
   const [creating, setCreating] = useState<string | null>(null)
   const [page, setPage] = useState(0)
+  const [filter, setFilter] = useState<Filter>('all')
 
   // balances: undefined = not fetched, null = error, number = SOL
   const [balances, setBalances] = useState<Record<string, number | null | undefined>>({})
@@ -61,6 +55,12 @@ export default function WalletManager() {
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawError, setWithdrawError] = useState('')
   const [withdrawSuccess, setWithdrawSuccess] = useState(false)
+
+  // Bundle groups — placeholder until the groups endpoint exists
+  const [groups, setGroups] = useState<PlaceholderGroup[]>(BUNDLE_GROUPS)
+  const [groupsOpen, setGroupsOpen] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [newGroupSize, setNewGroupSize] = useState('10')
 
   const fetchWallets = useCallback(async () => {
     if (!accessToken) return
@@ -81,9 +81,10 @@ export default function WalletManager() {
       TYPE_ORDER.indexOf(a.wallet_type as typeof TYPE_ORDER[number]) -
       TYPE_ORDER.indexOf(b.wallet_type as typeof TYPE_ORDER[number])
   )
+  const filtered = filter === 'all' ? sorted : sorted.filter(w => w.wallet_type === filter)
 
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE)
-  const pageWallets = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+  const pageWallets = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
   // Fetch balances only for wallets currently visible on this page
   useEffect(() => {
@@ -97,7 +98,12 @@ export default function WalletManager() {
         .catch(() => setBalances(prev => ({ ...prev, [w.public_key]: null })))
         .finally(() => fetchingRef.current.delete(w.public_key))
     })
-  }, [page, wallets, accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [page, filter, wallets, accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  function changeFilter(next: Filter) {
+    setFilter(next)
+    setPage(0)
+  }
 
   async function createWallet(type: 'slave' | 'funding' | 'fee') {
     if (!accessToken) return
@@ -169,6 +175,16 @@ export default function WalletManager() {
     }
   }
 
+  /** Placeholder: adds a group locally. */
+  function createGroup() {
+    const label = newGroupName.trim() || `Group ${groups.length + 1}`
+    const size = Math.max(1, parseInt(newGroupSize, 10) || 10)
+    setGroups(prev => [...prev, { id: `g${Date.now()}`, label, size, funded: 0, sol: '0.0000' }])
+    setNewGroupName('')
+    setNewGroupSize('10')
+    setGroupsOpen(true)
+  }
+
   const counts = {
     slave:   wallets.filter(w => w.wallet_type === 'slave').length,
     funding: wallets.filter(w => w.wallet_type === 'funding').length,
@@ -178,256 +194,239 @@ export default function WalletManager() {
   const currentBalance = withdrawWallet ? balances[withdrawWallet.public_key] : undefined
 
   return (
-    <div style={{ padding: '40px 48px', overflowY: 'auto', height: '100%' }}>
-
-      {/* Header */}
-      <div style={{ marginBottom: '40px' }}>
-        <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '12px' }}>
-          HD-derived Solana wallet management
-        </div>
-        <h1 style={{ ...bebas, fontSize: '48px', letterSpacing: '0.06em', color: 'var(--white)', lineHeight: 1, margin: 0 }}>
-          WALLET MANAGER
-        </h1>
+    <div>
+      <div className="page-head">
+        <div className="page-kicker">HD-derived Solana wallet management</div>
+        <div className="meta">{loadingWallets ? 'Loading…' : `${wallets.length} total`}</div>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1px', background: 'var(--glass-border)', border: '1px solid var(--glass-border)', marginBottom: '32px' }}>
-        {[
-          { label: 'SLAVE WALLETS',   value: loadingWallets ? '—' : String(counts.slave) },
-          { label: 'FUNDING WALLETS', value: loadingWallets ? '—' : String(counts.funding) },
-          { label: 'FEE WALLETS',     value: loadingWallets ? '—' : String(counts.fee) },
-        ].map(stat => (
-          <div key={stat.label} style={{ background: 'var(--deep)', padding: '24px 28px' }}>
-            <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '10px' }}>
-              {stat.label}
+      {error && <div className="alert" style={{ marginBottom: 14 }}>{error}</div>}
+
+      {/* ── wallet types ─────────────────────────────────────────── */}
+      <div className="grid-auto" style={{ '--min': '255px' } as React.CSSProperties}>
+        {TYPE_CARDS.map(t => {
+          const active = filter === t.id
+          const holdings = WALLET_TYPE_HOLDINGS[t.id]
+          return (
+            <div
+              key={t.id}
+              className="glass glow glow-bright lift"
+              onClick={() => changeFilter(active ? 'all' : t.id)}
+              style={{ padding: '20px 22px', cursor: 'pointer', borderColor: active ? 'rgba(145,132,217,.42)' : undefined, '--glow-size': '260px' } as React.CSSProperties}
+              aria-pressed={active}
+              title={active ? 'Show all wallets' : `Show ${t.id} wallets in the registry`}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className="kicker">{t.label}</span>
+                <ChevronDown size={11} style={{ color: 'var(--ink-4)', transition: 'transform .2s', transform: active ? 'rotate(180deg)' : 'none' }} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 9, marginTop: 14 }}>
+                <span className="mono" style={{ fontSize: 34, letterSpacing: '-.02em' }}>{loadingWallets ? '—' : counts[t.id]}</span>
+                <span className="hint">wallets</span>
+              </div>
+              <div className="row-flex" style={{ gap: 18, marginTop: 14 }} title="Placeholder values — not wired to the API yet">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span className="kicker" style={{ fontSize: 9, letterSpacing: '.16em' }}>Holdings</span>
+                  <span className="mono" style={{ fontSize: 12.5, color: 'var(--ink-1)' }}>{holdings.sol} SOL</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  <span className="kicker" style={{ fontSize: 9, letterSpacing: '.16em' }}>Funded</span>
+                  <span className="mono" style={{ fontSize: 12.5, color: 'var(--ink-1)' }}>{holdings.funded}</span>
+                </div>
+                <span className="tag" style={{ marginLeft: 'auto', alignSelf: 'flex-end', fontSize: 8.5 }}>Preview</span>
+              </div>
+              <div className="hint" style={{ marginTop: 16 }}>{t.desc}</div>
+
+              <div
+                className="row-flex"
+                style={{ gap: 9, marginTop: 16, paddingTop: 15, borderTop: '1px solid rgba(233,233,237,.07)' }}
+                onClick={e => e.stopPropagation()}
+              >
+                {t.id === 'slave' && (
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={slaveCount}
+                    onChange={e => setSlaveCount(Math.max(1, Math.min(20, Number(e.target.value))))}
+                    className="input mono"
+                    aria-label="Number of slave wallets to create"
+                    style={{ width: 64, padding: '8px 10px', fontSize: 12 }}
+                  />
+                )}
+                <button
+                  type="button"
+                  className="btn btn-accent btn-sm"
+                  onClick={() => createWallet(t.id)}
+                  disabled={creating !== null}
+                >
+                  {creating === t.id ? 'Creating…' : 'Create →'}
+                </button>
+                {t.id === 'slave' && <span className="hint" style={{ fontSize: 11 }}>up to 20 at once</span>}
+              </div>
             </div>
-            <div style={{ ...bebas, fontSize: '36px', letterSpacing: '0.05em', color: 'var(--white)' }}>
-              {stat.value}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
-      {error && (
-        <div style={{ ...mono, fontSize: '12px', color: 'rgba(200,50,50,0.8)', marginBottom: '24px', padding: '12px 16px', border: '1px solid rgba(200,50,50,0.3)', background: 'rgba(200,50,50,0.05)' }}>
-          {error}
+      {/* ── bundle groups (placeholder) ──────────────────────────── */}
+      <div className="glass glow" style={{ marginTop: 14, '--glow-size': '400px' } as React.CSSProperties}>
+        <div className="card-head">
+          <span className="step-title">Bundle groups</span>
+          <div className="row-flex">
+            <span className="meta">{groups.length} groups · {groups.reduce((a, g) => a + g.size, 0)} wallets assigned</span>
+            <PreviewTag />
+          </div>
         </div>
-      )}
-
-      {/* Create Actions */}
-      <div style={{ border: '1px solid var(--glass-border)', background: 'var(--deep)', padding: '28px', marginBottom: '32px' }}>
-        <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '20px' }}>
-          Create Wallets
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ ...mono, fontSize: '11px', color: 'var(--dim)', letterSpacing: '0.08em', width: '140px', textTransform: 'uppercase' }}>
-              Slave Wallets
+        <div style={{ padding: '18px 20px 20px' }}>
+          <div style={{ padding: '17px 18px', borderRadius: 13, border: '1px dashed rgba(145,132,217,.34)', background: 'rgba(66,58,106,.16)' }}>
+            <div className="kicker kicker-accent">Create a group</div>
+            <div className="row-flex" style={{ alignItems: 'flex-end', gap: 12, marginTop: 14 }}>
+              <div className="field" style={{ flex: '1 1 190px' }}>
+                <label className="label" htmlFor="wm-group-name">Group name</label>
+                <input id="wm-group-name" className="input" placeholder="e.g. Launch set B" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
+              </div>
+              <div className="field" style={{ width: 120 }}>
+                <label className="label" htmlFor="wm-group-size">Wallets</label>
+                <input id="wm-group-size" className="input mono" inputMode="numeric" value={newGroupSize} onChange={e => setNewGroupSize(e.target.value.replace(/[^0-9]/g, ''))} />
+              </div>
+              <button type="button" className="btn btn-accent" onClick={createGroup}>Create group →</button>
             </div>
-            <input
-              type="number" min={1} max={20} value={slaveCount}
-              onChange={e => setSlaveCount(Math.max(1, Math.min(20, Number(e.target.value))))}
-              style={{ ...mono, width: '64px', padding: '8px 10px', background: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--white)', fontSize: '13px', outline: 'none', textAlign: 'center' }}
-            />
-            <button onClick={() => createWallet('slave')} disabled={creating !== null} style={{ ...btnBase, opacity: creating !== null ? 0.45 : 1 }}>
-              {creating === 'slave' ? 'Creating...' : 'Create'}{creating !== 'slave' && <span>→</span>}
-            </button>
+            <div className="hint" style={{ marginTop: 11 }}>Pulls the next unassigned slave wallets from the registry.</div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ ...mono, fontSize: '11px', color: 'var(--dim)', letterSpacing: '0.08em', width: '140px', textTransform: 'uppercase' }}>
-              Funding Wallet
-            </div>
-            <button onClick={() => createWallet('funding')} disabled={creating !== null} style={{ ...btnBase, opacity: creating !== null ? 0.45 : 1 }}>
-              {creating === 'funding' ? 'Creating...' : 'Create'}{creating !== 'funding' && <span>→</span>}
-            </button>
-          </div>
+          <button type="button" className="btn btn-sm" style={{ marginTop: 14 }} onClick={() => setGroupsOpen(o => !o)} aria-expanded={groupsOpen}>
+            <ChevronDown size={11} style={{ transition: 'transform .3s var(--ease)', transform: groupsOpen ? 'none' : 'rotate(-90deg)' }} />
+            {groupsOpen ? 'Hide groups' : 'Show groups'}
+          </button>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <div style={{ ...mono, fontSize: '11px', color: 'var(--dim)', letterSpacing: '0.08em', width: '140px', textTransform: 'uppercase' }}>
-              Fee Wallet
+          <div style={{ overflow: 'hidden', transition: 'max-height .45s var(--ease), opacity .3s ease', maxHeight: groupsOpen ? 1600 : 0, opacity: groupsOpen ? 1 : 0 }}>
+            <div className="grid-fill" style={{ '--min': '190px', gap: 12, paddingTop: 16 } as React.CSSProperties}>
+              {groups.map(g => (
+                <div key={g.id} className="glass glow glow-bright" style={{ padding: '15px 16px', borderRadius: 13, '--glow-size': '200px' } as React.CSSProperties}>
+                  <div style={{ fontSize: 13.5 }}>{g.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 13 }}>
+                    <span className="value-lg">{g.size}</span>
+                    <span className="hint" style={{ fontSize: 11 }}>wallets</span>
+                  </div>
+                  <div className="meta" style={{ marginTop: 9 }}>{g.funded} funded · {g.sol} SOL</div>
+                </div>
+              ))}
             </div>
-            <button onClick={() => createWallet('fee')} disabled={creating !== null} style={{ ...btnBase, opacity: creating !== null ? 0.45 : 1 }}>
-              {creating === 'fee' ? 'Creating...' : 'Create'}{creating !== 'fee' && <span>→</span>}
-            </button>
           </div>
-
         </div>
       </div>
 
-      {/* Wallet Registry */}
-      <div style={{ border: '1px solid var(--glass-border)', background: 'var(--deep)' }}>
-        <div style={{ padding: '20px 28px', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase' }}>
-            Wallet Registry
-          </div>
-          <div style={{ ...mono, fontSize: '11px', color: 'var(--faint)' }}>
-            {wallets.length} total
+      {/* ── registry ─────────────────────────────────────────────── */}
+      <div className="glass glow" style={{ marginTop: 14, '--glow-size': '420px' } as React.CSSProperties}>
+        <div className="card-head">
+          <span className="step-title">Wallet registry</span>
+          <div className="row-flex">
+            <Seg small options={FILTERS} value={filter} onChange={changeFilter} label="Wallet type" />
+            <span className="meta">{filtered.length} shown</span>
           </div>
         </div>
 
         {loadingWallets ? (
-          <div style={{ padding: '32px 28px', ...mono, fontSize: '12px', color: 'var(--faint)' }}>
-            Loading wallets...
-          </div>
+          <div className="empty">Loading wallets…</div>
         ) : wallets.length === 0 ? (
-          <div style={{ padding: '32px 28px', ...mono, fontSize: '12px', color: 'var(--faint)' }}>
-            No wallets found. Create slave, funding, or fee wallets above.
-          </div>
+          <div className="empty">No wallets found. Create slave, funding, or fee wallets above.</div>
+        ) : filtered.length === 0 ? (
+          <div className="empty">No {filter} wallets yet.</div>
         ) : (
-          <div>
-            {/* Table header */}
-            <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 130px 110px', padding: '10px 28px', borderBottom: '1px solid var(--glass-border)', background: 'rgba(0,0,0,0.04)', alignItems: 'center' }}>
-              <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.12em', color: 'var(--faint)', textTransform: 'uppercase' }}>Type</div>
-              <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.12em', color: 'var(--faint)', textTransform: 'uppercase' }}>Public Key</div>
-              <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.12em', color: 'var(--faint)', textTransform: 'uppercase', textAlign: 'right', paddingRight: '16px' }}>Balance</div>
-              <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.12em', color: 'var(--faint)', textTransform: 'uppercase', textAlign: 'right' }}>Action</div>
+          <>
+            <div className="t-scroll">
+              <div style={{ minWidth: 620 }}>
+                <div className="t-head" style={{ gridTemplateColumns: '34px 84px 1fr 130px 110px' }}>
+                  <span>#</span><span>Type</span><span>Public key</span><span className="t-right">Balance</span><span className="t-right">Action</span>
+                </div>
+                {pageWallets.map((w, i) => {
+                  const bal = balances[w.public_key]
+                  const balStr = bal === undefined ? '—' : bal === null ? 'err' : `${bal.toFixed(4)} SOL`
+                  const balColor = bal === undefined || bal === null ? 'var(--ink-5)' : bal === 0 ? 'var(--ink-3)' : 'var(--ink-1)'
+                  return (
+                    <div key={w.public_key} className="t-row hover glow glow-sm" style={{ gridTemplateColumns: '34px 84px 1fr 130px 110px' }}>
+                      <span className="t-cell-mono" style={{ color: 'var(--ink-4)' }}>{String(page * PAGE_SIZE + i + 1).padStart(2, '0')}</span>
+                      <span>
+                        <span className={w.wallet_type === 'master' ? 'tag tag-accent' : 'tag'} style={{ fontSize: 8.5 }}>{w.wallet_type}</span>
+                      </span>
+                      <div className="row-flex" style={{ gap: 8, flexWrap: 'nowrap', minWidth: 0 }}>
+                        <span className="t-cell-mono" style={{ color: 'var(--ink-1)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.public_key}</span>
+                        <CopyButton text={w.public_key} />
+                      </div>
+                      <span className="t-cell-mono t-right" style={{ color: balColor }}>{balStr}</span>
+                      <div className="t-right">
+                        {w.wallet_type !== 'master' && (
+                          <button type="button" className="btn btn-xs" onClick={() => openWithdraw(w)}>Withdraw</button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
-            {pageWallets.map((w, i) => {
-              const bal = balances[w.public_key]
-              const balStr = bal === undefined
-                ? '—'
-                : bal === null
-                ? 'err'
-                : `${bal.toFixed(4)} SOL`
-              const balColor = bal === undefined || bal === null ? 'var(--faint)' : bal === 0 ? 'var(--dim)' : 'var(--white)'
-
-              return (
-                <div
-                  key={w.public_key}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '100px 1fr 130px 110px',
-                    padding: '14px 28px',
-                    borderBottom: i < pageWallets.length - 1 ? '1px solid var(--glass-border)' : 'none',
-                    background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.02)',
-                    alignItems: 'center',
-                  }}
-                >
-                  <div style={{ ...mono, fontSize: '11px', letterSpacing: '0.1em', color: typeColor[w.wallet_type] ?? 'var(--dim)', textTransform: 'uppercase' }}>
-                    {w.wallet_type}
-                  </div>
-                  <div style={{ ...mono, fontSize: '12px', color: 'var(--dim)', letterSpacing: '0.04em', wordBreak: 'break-all', paddingRight: '16px' }}>
-                    {w.public_key}
-                  </div>
-                  <div style={{ ...mono, fontSize: '12px', color: balColor, textAlign: 'right', paddingRight: '16px' }}>
-                    {balStr}
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    {w.wallet_type !== 'master' && (
-                      <button
-                        onClick={() => openWithdraw(w)}
-                        style={{
-                          ...mono,
-                          fontSize: '10px',
-                          letterSpacing: '0.1em',
-                          textTransform: 'uppercase',
-                          border: '1px solid var(--glass-border)',
-                          background: 'transparent',
-                          color: 'var(--white)',
-                          padding: '6px 14px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Withdraw
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-
-            {/* Pagination */}
             {totalPages > 1 && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '24px', padding: '16px 28px', borderTop: '1px solid var(--glass-border)' }}>
-                <button
-                  onClick={() => setPage(p => Math.max(0, p - 1))}
-                  disabled={page === 0}
-                  style={{ ...mono, fontSize: '20px', background: 'transparent', border: 'none', color: page === 0 ? 'var(--faint)' : 'var(--white)', cursor: page === 0 ? 'default' : 'pointer', lineHeight: 1, padding: '4px 8px' }}
-                >
-                  ←
-                </button>
-                <div style={{ ...mono, fontSize: '11px', color: 'var(--faint)', letterSpacing: '0.1em' }}>
-                  {page + 1} / {totalPages}
-                </div>
-                <button
-                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                  disabled={page === totalPages - 1}
-                  style={{ ...mono, fontSize: '20px', background: 'transparent', border: 'none', color: page === totalPages - 1 ? 'var(--faint)' : 'var(--white)', cursor: page === totalPages - 1 ? 'default' : 'pointer', lineHeight: 1, padding: '4px 8px' }}
-                >
-                  →
-                </button>
+              <div className="pager">
+                <button type="button" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} aria-label="Previous page">←</button>
+                <span>{page + 1} / {totalPages}</span>
+                <button type="button" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page === totalPages - 1} aria-label="Next page">→</button>
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
 
-      {/* Withdraw Modal */}
+      {/* ── withdraw ─────────────────────────────────────────────── */}
       {withdrawWallet && (
-        <div
-          onClick={closeWithdraw}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{ background: 'var(--deep)', border: '1px solid var(--glass-border)', padding: '40px', width: '500px', maxWidth: '92vw', position: 'relative' }}
-          >
-            <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.15em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '6px' }}>
-              Withdraw SOL · {withdrawWallet.wallet_type}
-            </div>
-            <div style={{ ...bebas, fontSize: '30px', letterSpacing: '0.06em', color: 'var(--white)', marginBottom: '6px' }}>
-              WITHDRAW
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '28px' }}>
-              <div style={{ padding: '12px', background: '#fff', display: 'inline-block' }}>
-                <QRCodeSVG value={withdrawWallet.public_key} size={160} />
-              </div>
-            </div>
+        <Sheet onClose={closeWithdraw} width={500} labelledBy="wd-title">
+          <SheetHead id="wd-title" title="Withdraw SOL" sub={`${withdrawWallet.wallet_type} wallet`} onClose={closeWithdraw} />
 
+          <div className="sheet-section" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+            <div style={{ padding: 12, borderRadius: 12, background: 'var(--text)' }}>
+              <QRCodeSVG value={withdrawWallet.public_key} size={148} bgColor="#e9e9ed" fgColor="#161826" />
+            </div>
+            <div className="row-flex" style={{ gap: 8, flexWrap: 'nowrap', maxWidth: '100%' }}>
+              <span className="addr" style={{ fontSize: 11, color: 'var(--ink-3)', textAlign: 'center' }}>{withdrawWallet.public_key}</span>
+              <CopyButton text={withdrawWallet.public_key} />
+            </div>
+          </div>
+
+          <div className="sheet-body">
             {withdrawSuccess ? (
-              <div style={{ textAlign: 'center', padding: '16px 0 8px' }}>
-                <div style={{ fontSize: '36px', marginBottom: '14px', color: 'var(--white)' }}>✓</div>
-                <div style={{ ...mono, fontSize: '13px', color: 'var(--white)', marginBottom: '28px', letterSpacing: '0.06em' }}>
-                  Withdrawal submitted
+              <div style={{ textAlign: 'center', padding: '8px 0' }}>
+                <div style={{ width: 40, height: 40, margin: '0 auto 14px', borderRadius: '50%', border: '1px solid var(--accent-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-300)' }}>
+                  <CheckIcon size={16} />
                 </div>
-                <button
-                  onClick={closeWithdraw}
-                  style={{ ...mono, fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--white)', padding: '10px 32px', cursor: 'pointer' }}
-                >
-                  Close
-                </button>
+                <div style={{ fontSize: 14, marginBottom: 22 }}>Withdrawal submitted</div>
+                <button type="button" className="btn" onClick={closeWithdraw}>Close</button>
               </div>
             ) : (
-              <>
-                {/* Recipient */}
-                <div style={{ marginBottom: '20px' }}>
-                  <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.12em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                    Recipient Address
-                  </div>
+              <div className="stack" style={{ gap: 18 }}>
+                <div className="field">
+                  <label className="label" htmlFor="wd-to">Recipient address</label>
                   <input
+                    id="wd-to"
+                    className="input mono"
                     type="text"
                     placeholder="Solana wallet address..."
                     value={withdrawRecipient}
                     onChange={e => setWithdrawRecipient(e.target.value)}
                     disabled={withdrawing}
-                    style={{ ...mono, width: '100%', padding: '10px 14px', background: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--white)', fontSize: '12px', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
 
-                {/* Amount */}
-                <div style={{ marginBottom: '28px' }}>
-                  <div style={{ ...mono, fontSize: '10px', letterSpacing: '0.12em', color: 'var(--faint)', textTransform: 'uppercase', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Amount (SOL)</span>
+                <div className="field">
+                  <label className="label" htmlFor="wd-amt">
+                    Amount (SOL)
                     {typeof currentBalance === 'number' && (
-                      <span style={{ color: 'var(--dim)' }}>Available: {currentBalance.toFixed(4)} SOL</span>
+                      <span className="label-value mono" style={{ color: 'var(--ink-3)' }}>Available: {currentBalance.toFixed(4)} SOL</span>
                     )}
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
+                  </label>
+                  <div className="row-flex" style={{ gap: 8, flexWrap: 'nowrap' }}>
                     <input
+                      id="wd-amt"
+                      className="input mono"
                       type="number"
                       min="0"
                       step="0.0001"
@@ -435,48 +434,28 @@ export default function WalletManager() {
                       value={withdrawAmount}
                       onChange={e => setWithdrawAmount(e.target.value)}
                       disabled={withdrawing}
-                      style={{ ...mono, flex: 1, padding: '10px 14px', background: 'transparent', border: '1px solid var(--glass-border)', color: 'var(--white)', fontSize: '14px', outline: 'none' }}
                     />
                     {typeof currentBalance === 'number' && currentBalance > 0 && (
-                      <button
-                        onClick={() => setWithdrawAmount(String(currentBalance))}
-                        disabled={withdrawing}
-                        style={{ ...mono, fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--white)', padding: '10px 18px', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                      >
+                      <button type="button" className="btn" onClick={() => setWithdrawAmount(String(currentBalance))} disabled={withdrawing}>
                         Max
                       </button>
                     )}
                   </div>
                 </div>
 
-                {withdrawError && (
-                  <div style={{ ...mono, fontSize: '12px', color: 'rgba(200,50,50,0.8)', marginBottom: '20px', padding: '10px 14px', border: '1px solid rgba(200,50,50,0.3)', background: 'rgba(200,50,50,0.05)' }}>
-                    {withdrawError}
-                  </div>
-                )}
+                {withdrawError && <div className="alert">{withdrawError}</div>}
 
-                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={closeWithdraw}
-                    disabled={withdrawing}
-                    style={{ ...mono, fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--faint)', padding: '10px 24px', cursor: withdrawing ? 'default' : 'pointer', opacity: withdrawing ? 0.45 : 1 }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleWithdraw}
-                    disabled={withdrawing}
-                    style={{ ...mono, fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--white)', padding: '10px 28px', cursor: withdrawing ? 'default' : 'pointer', opacity: withdrawing ? 0.45 : 1 }}
-                  >
-                    {withdrawing ? 'Sending...' : 'Confirm →'}
+                <div className="row-flex" style={{ justifyContent: 'flex-end' }}>
+                  <button type="button" className="btn" onClick={closeWithdraw} disabled={withdrawing}>Cancel</button>
+                  <button type="button" className="btn btn-accent" onClick={handleWithdraw} disabled={withdrawing}>
+                    {withdrawing ? 'Sending…' : 'Confirm →'}
                   </button>
                 </div>
-              </>
+              </div>
             )}
           </div>
-        </div>
+        </Sheet>
       )}
-
     </div>
   )
 }

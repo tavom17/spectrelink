@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/nocturne-0b37e10a-dddc-40d1-81c0-068ebf011ff7/styles.css">
+<script src="_ds/nocturne-0b37e10a-dddc-40d1-81c0-068ebf011ff7/_ds_bundle.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#101220;color:#e9e9ed;font-family:"Inter",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#b5abfc;text-decoration:none}a:hover{color:#d2cefd}
+*{box-sizing:border-box}
+::selection{background:rgba(145,132,217,.28)}
+input,select,textarea,button{font-family:inherit}
+input[type=range]{accent-color:#9184d9}
+:focus-visible{outline:2px solid #9184d9;outline-offset:2px}
+@keyframes omIn{from{opacity:0;transform:translateY(10px) scale(.99)}to{opacity:1;transform:none}}
+@keyframes omFade{from{opacity:0}to{opacity:1}}
+@keyframes omSheet{from{opacity:0;transform:translateY(18px) scale(.975)}to{opacity:1;transform:none}}
+@keyframes omPulse{0%,100%{opacity:.35}50%{opacity:1}}
+::-webkit-scrollbar{width:10px;height:10px}::-webkit-scrollbar-thumb{background:rgba(233,233,237,.12);border-radius:8px}::-webkit-scrollbar-track{background:transparent}
+@keyframes omSweep{from{background-position:0% 0}to{background-position:100% 0}}
+@keyframes omStaffFloat{0%{transform:translate(0,-8px) rotate(15deg)}25%{transform:translate(-3px,-2px) rotate(20deg)}50%{transform:translate(0,7px) rotate(24deg)}75%{transform:translate(3px,-1px) rotate(19deg)}100%{transform:translate(0,-8px) rotate(15deg)}}
+@keyframes omOrbPulse{0%,34%{opacity:.75;r:3.3}44%{opacity:1;r:4.6}60%{opacity:.9;r:3.6}100%{opacity:.75;r:3.3}}
+@keyframes omOrbRing{0%,36%{opacity:0;transform:scale(.3)}46%{opacity:.8;transform:scale(1)}62%{opacity:0;transform:scale(1.5)}100%{opacity:0;transform:scale(.3)}}
+@keyframes omTipFlare{0%,34%{opacity:.25;transform:scale(.7)}44%{opacity:1;transform:scale(1.5)}60%{opacity:.4;transform:scale(.9)}100%{opacity:.25;transform:scale(.7)}}
+@keyframes omSpellRing{0%,38%{opacity:0;transform:scale(.3) rotate(-24deg)}48%{opacity:1;transform:scale(1) rotate(0deg)}70%{opacity:.9;transform:scale(1) rotate(6deg)}84%{opacity:.35;transform:scale(.72) rotate(14deg)}92%,100%{opacity:0;transform:scale(.3) rotate(20deg)}}
+@keyframes omSpellRing2{0%,40%{opacity:0;transform:scale(.4) rotate(0deg)}52%{opacity:.7;transform:scale(1) rotate(60deg)}76%{opacity:.5;transform:scale(1) rotate(150deg)}88%,100%{opacity:0;transform:scale(.4) rotate(220deg)}}
+@keyframes omSpin{to{transform:rotate(360deg)}}
+</style>
+</helmet>
+
+<div style="position:relative;min-height:100vh;width:100%;background:#101220;overflow:hidden">
+
+  <div style="position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(rgba(233,233,237,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(233,233,237,.035) 1px,transparent 1px);background-size:34px 34px;mask-image:radial-gradient(120% 90% at 50% 0%,#000 30%,transparent 100%)"></div>
+  <div style="position:fixed;top:-280px;left:12%;width:820px;height:620px;pointer-events:none;background:radial-gradient(closest-side,rgba(145,132,217,.22),transparent);filter:blur(10px)"></div>
+  <div style="position:fixed;bottom:-340px;right:4%;width:760px;height:620px;pointer-events:none;background:radial-gradient(closest-side,rgba(38,42,96,.55),transparent)"></div>
+
+  <div style="position:relative;width:100%;max-width:1440px;margin:0 auto;padding:0 clamp(16px,3vw,40px) 48px">
+
+    <header style="display:flex;align-items:center;flex-wrap:wrap;gap:16px 24px;padding:22px 0 26px;position:sticky;top:0;z-index:40;background:linear-gradient(180deg,rgba(16,18,32,.94) 60%,rgba(16,18,32,0));backdrop-filter:blur(6px)">
+      <div style="position:relative;display:flex;align-items:center;gap:24px;flex:none;padding:2px 0">
+        <div style="position:relative;width:36px;height:56px;flex:none;margin-left:-8px;transform-origin:62% 88%;animation:omStaffFloat 7.2s cubic-bezier(.37,0,.63,1) infinite">
+          <svg viewBox="0 0 26 40" width="36" height="56" style="display:block;overflow:visible">
+            <defs>
+              <linearGradient id="arcWood" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#7a6248"></stop>
+                <stop offset="45%" stop-color="#4e3f2e"></stop>
+                <stop offset="100%" stop-color="#2d251b"></stop>
+              </linearGradient>
+              <radialGradient id="arcOrb" cx="42%" cy="34%" r="70%">
+                <stop offset="0%" stop-color="#ffffff"></stop>
+                <stop offset="42%" stop-color="#cfc7ff"></stop>
+                <stop offset="100%" stop-color="#6d5fb8"></stop>
+              </radialGradient>
+            </defs>
+            <path d="M14.2 11.5 C12.4 18 12 26 12.6 38" stroke="url(#arcWood)" stroke-width="3" stroke-linecap="round" fill="none"></path>
+            <path d="M13.3 20.2 C15.6 21.1 16.2 22.6 15.4 24.1" stroke="#6b563e" stroke-width="1.4" stroke-linecap="round" fill="none"></path>
+            <path d="M14.6 11.8 C10.6 9.6 10.2 5.4 13 3.6 C16.2 1.6 20.4 3.6 20.2 7.2" stroke="url(#arcWood)" stroke-width="2.4" stroke-linecap="round" fill="none"></path>
+            <circle cx="19.6" cy="8.4" r="3.5" fill="url(#arcOrb)" style="animation:omOrbPulse 6.4s ease-in-out infinite"></circle>
+            <circle cx="19.6" cy="8.4" r="6.4" fill="none" stroke="rgba(181,171,252,.45)" stroke-width=".8" style="animation:omOrbRing 6.4s ease-out infinite"></circle>
+          </svg>
+          <div style="position:absolute;left:14px;top:2px;width:12px;height:12px;border-radius:50%;background:radial-gradient(circle,rgba(226,220,255,.9),transparent 70%);filter:blur(2px);animation:omTipFlare 6.4s ease-in-out infinite"></div>
+        </div>
+        <div style="position:relative;display:flex;flex-direction:column;line-height:1;padding:6px 2px">
+          <div style="position:absolute;left:-12px;right:-12px;top:-3px;bottom:-3px;border-radius:50%;border:1px solid rgba(181,171,252,.75);box-shadow:0 0 18px -4px rgba(145,132,217,.85),inset 0 0 14px -6px rgba(181,171,252,.7);pointer-events:none;animation:omSpellRing 6.4s cubic-bezier(.3,.7,.3,1) infinite"></div>
+          <div style="position:absolute;left:-12px;right:-12px;top:-3px;bottom:-3px;border-radius:50%;border:1px dashed rgba(216,208,255,.45);pointer-events:none;animation:omSpellRing2 6.4s linear infinite"></div>
+          <span style="position:relative;font-size:22px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;background:linear-gradient(100deg,#7f72cc 0%,#b7aced 12%,#ffffff 25%,#b7aced 38%,#7f72cc 50%,#b7aced 62%,#ffffff 75%,#b7aced 88%,#7f72cc 100%);background-size:200% 100%;background-repeat:repeat;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:#efecff;filter:drop-shadow(0 0 16px rgba(145,132,217,.42));animation:omSweep 5s linear infinite">Arcana</span>
+        </div>
+      </div>
+
+      <nav style="display:flex;align-items:center;flex-wrap:wrap;gap:5px;padding:6px;min-width:0;margin-left:clamp(0px,3vw,64px);border-radius:13px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(150deg,rgba(72,77,106,.34),rgba(22,24,38,.30));backdrop-filter:blur(20px) saturate(150%);box-shadow:0 14px 34px -22px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)">
+        <sc-for list="{{ nav }}" as="item" hint-placeholder-count="6">
+          <div onClick="{{ item.go }}" onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;padding:9px 17px;border-radius:9px;cursor:pointer;font-size:13.5px;letter-spacing:.01em;white-space:nowrap;transition:background .18s" style-hover="background:rgba(233,233,237,.055)" style-before="content:'';position:absolute;inset:0;border-radius:9px;pointer-events:none;background:radial-gradient(60px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.20),transparent 70%)">
+            <sc-if value="{{ item.active }}" hint-placeholder-val="{{ true }}">
+              <span style="position:relative;color:#e9e9ed">{{ item.label }}</span>
+            </sc-if>
+            <sc-if value="{{ item.idle }}">
+              <span style="position:relative;color:rgba(233,233,237,.52)">{{ item.label }}</span>
+            </sc-if>
+            <sc-if value="{{ item.active }}">
+              <div style="position:absolute;left:15px;right:15px;bottom:3px;height:1px;background:linear-gradient(90deg,transparent,#9184d9,transparent)"></div>
+            </sc-if>
+            <sc-if value="{{ item.active }}">
+              <div style="position:absolute;inset:0;border-radius:9px;background:rgba(145,132,217,.10);border:1px solid rgba(145,132,217,.26);pointer-events:none"></div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </nav>
+
+      <div style="margin-left:auto;display:flex;align-items:center;flex-wrap:wrap;gap:14px">
+        <div style="display:flex;align-items:center;gap:7px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(233,233,237,.48)">
+          <span style="width:6px;height:6px;border-radius:50%;background:#9184d9;animation:omPulse 2.4s ease-in-out infinite"></span>
+          <span>MAINNET · 41ms</span>
+        </div>
+        <div style="padding:7px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.12);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:rgba(233,233,237,.72);cursor:pointer;transition:border-color .18s,background .18s" style-hover="border-color:rgba(145,132,217,.5);background:rgba(145,132,217,.08)">j3wKV7…Fyb1h</div>
+      </div>
+    </header>
+
+    <!-- ══════════ DASHBOARD ══════════ -->
+    <sc-if value="{{ isDash }}" hint-placeholder-val="{{ true }}">
+      <div style="animation:omIn .32s cubic-bezier(.2,.8,.2,1)">
+        <div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:16px;justify-content:space-between;margin:14px 0 22px">
+          <div>
+            <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:rgba(233,233,237,.62)">Portfolio overview</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">
+          <sc-for list="{{ stats }}" as="s" hint-placeholder-count="5">
+            <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:17px 18px 16px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 16px 36px -24px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07);transition:transform .2s,border-color .2s" style-hover="transform:translateY(-2px);border-color:rgba(145,132,217,.32)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(220px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.14),transparent 70%)">
+              <div style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.62)">{{ s.label }}</div>
+              <div style="position:relative;display:flex;align-items:baseline;gap:6px;margin-top:12px">
+                <span style="font-size:29px;font-weight:400;letter-spacing:-.02em;font-family:'JetBrains Mono',ui-monospace,monospace">{{ s.value }}</span>
+                <span style="font-size:11px;color:rgba(233,233,237,.60)">{{ s.unit }}</span>
+              </div>
+              <div style="position:relative;margin-top:9px;font-size:11px;color:rgba(233,233,237,.64)">{{ s.note }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;margin-top:14px">
+          <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:20px 22px 18px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 18px 40px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(320px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.11),transparent 70%)">
+            <div style="position:relative;display:flex;align-items:flex-start;justify-content:space-between">
+              <div>
+                <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.62)">Profit and loss · 30d</div>
+                <div style="display:flex;align-items:baseline;gap:10px;margin-top:13px">
+                  <span style="font-size:40px;font-weight:400;letter-spacing:-.025em;color:#b5abfc;font-family:'JetBrains Mono',ui-monospace,monospace">+18.44</span>
+                  <span style="font-size:13px;color:rgba(233,233,237,.64)">SOL</span>
+                  <span style="padding:3px 8px;border-radius:6px;border:1px solid rgba(145,132,217,.34);background:rgba(145,132,217,.10);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:#d2cefd">+21.9%</span>
+                </div>
+              </div>
+              <div style="display:flex;gap:4px;padding:4px;border-radius:9px;border:1px solid rgba(233,233,237,.09);background:rgba(16,18,32,.4)">
+                <sc-for list="{{ ranges }}" as="r" hint-placeholder-count="3">
+                  <div onClick="{{ r.go }}" style="padding:5px 11px;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;transition:background .16s" style-hover="background:rgba(233,233,237,.06)">
+                    <sc-if value="{{ r.active }}"><span style="color:#d2cefd">{{ r.label }}</span></sc-if>
+                    <sc-if value="{{ r.idle }}"><span style="color:rgba(233,233,237,.64)">{{ r.label }}</span></sc-if>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="position:relative;margin-top:16px">{{ pnlChart }}</div>
+            <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;margin-top:16px;background:rgba(233,233,237,.08);border:1px solid rgba(233,233,237,.08);border-radius:10px;overflow:hidden">
+              <sc-for list="{{ pnlSplit }}" as="p" hint-placeholder-count="3">
+                <div style="padding:13px 15px;background:rgba(22,24,38,.55)">
+                  <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.60)">{{ p.label }}</div>
+                  <div style="margin-top:8px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:17px;color:{{ p.color }}">{{ p.value }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:20px 22px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 18px 40px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(300px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.11),transparent 70%)">
+            <div style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.62)">Wallet composition</div>
+            <div style="position:relative;display:flex;flex-direction:column;gap:16px;margin-top:20px">
+              <sc-for list="{{ walletTypes }}" as="w" hint-placeholder-count="3">
+                <div>
+                  <div style="display:flex;align-items:baseline;justify-content:space-between">
+                    <span style="font-size:12.5px;color:rgba(233,233,237,.80)">{{ w.label }}</span>
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;color:#e9e9ed">{{ w.count }}</span>
+                  </div>
+                  <div style="margin-top:8px;height:4px;border-radius:3px;background:rgba(233,233,237,.07);overflow:hidden">
+                    <div style="height:100%;width:{{ w.pct }};background:linear-gradient(90deg,#5d5294,#b5abfc);border-radius:3px"></div>
+                  </div>
+                  <div style="margin-top:7px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(233,233,237,.62)">{{ w.sol }} SOL held</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;margin-top:14px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.28),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 18px 40px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(360px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+          <div style="position:relative;display:flex;align-items:center;justify-content:space-between;padding:16px 22px 13px">
+            <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.62)">Recent launches</span>
+            <span onClick="{{ goTokens }}" style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:#b5abfc;cursor:pointer">View all →</span>
+          </div>
+          <div style="position:relative;display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:1px;padding:0 22px 8px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(233,233,237,.60)">
+            <span>Token</span><span>Launched</span><span>Liquidity</span><span>Fees</span><span style="text-align:right">PnL</span>
+          </div>
+          <sc-for list="{{ recent }}" as="r" hint-placeholder-count="5">
+            <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:1px;align-items:center;padding:12px 22px;border-top:1px solid rgba(233,233,237,.06);cursor:pointer;transition:background .16s" style-hover="background:rgba(233,233,237,.035)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(200px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.10),transparent 70%)">
+              <div style="position:relative;display:flex;align-items:center;gap:11px">
+                <div style="width:28px;height:28px;border-radius:8px;border:1px solid rgba(233,233,237,.12);background:{{ r.tile }};flex:none"></div>
+                <div style="display:flex;flex-direction:column;line-height:1.3">
+                  <span style="font-size:12.5px">{{ r.name }}</span>
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;color:rgba(233,233,237,.62)">{{ r.sym }}</span>
+                </div>
+              </div>
+              <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:rgba(233,233,237,.60)">{{ r.date }}</span>
+              <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:rgba(233,233,237,.75)">{{ r.liq }}</span>
+              <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:rgba(233,233,237,.75)">{{ r.fees }}</span>
+              <span style="position:relative;text-align:right;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:{{ r.pnlColor }}">{{ r.pnl }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ══════════ LAUNCHPAD ══════════ -->
+    <sc-if value="{{ isLaunch }}">
+      <div style="animation:omIn .32s cubic-bezier(.2,.8,.2,1)">
+        <div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:16px;justify-content:space-between;margin:14px 0 22px">
+          <div>
+            <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:rgba(233,233,237,.62)">SPL deployment and mint management</div>
+          </div>
+          <div style="display:flex;gap:4px;padding:5px;border-radius:11px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(150deg,rgba(72,77,106,.32),rgba(22,24,38,.28));backdrop-filter:blur(18px)">
+            <sc-for list="{{ lpTabs }}" as="t" hint-placeholder-count="2">
+              <div onClick="{{ t.go }}" style="position:relative;padding:7px 18px;border-radius:7px;cursor:pointer;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;transition:background .16s" style-hover="background:rgba(233,233,237,.05)">
+                <sc-if value="{{ t.active }}"><span style="position:relative;color:#e9e9ed">{{ t.label }}</span></sc-if>
+                <sc-if value="{{ t.idle }}"><span style="position:relative;color:rgba(233,233,237,.64)">{{ t.label }}</span></sc-if>
+                <sc-if value="{{ t.active }}"><div style="position:absolute;inset:0;border-radius:7px;background:rgba(145,132,217,.12);border:1px solid rgba(145,132,217,.3)"></div></sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start">
+          <div style="display:flex;flex-direction:column;gap:14px">
+
+            <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:22px 24px 24px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 18px 40px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(340px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+              <div style="position:relative;display:flex;align-items:center;gap:10px;margin-bottom:20px">
+                <span style="width:18px;height:18px;border-radius:5px;border:1px solid rgba(145,132,217,.42);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;color:#b5abfc">1</span>
+                <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.55)">Token identity</span>
+              </div>
+              <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Token name</label>
+                  <input placeholder="e.g. Spectre Coin" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:13px;outline:none;transition:border-color .18s,background .18s" style-hover="border-color:rgba(145,132,217,.34)" style-focus="border-color:#9184d9;background:rgba(16,18,32,.75)">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Symbol</label>
+                  <input placeholder="e.g. SPCT" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:13px;outline:none;font-family:'JetBrains Mono',ui-monospace,monospace;transition:border-color .18s" style-hover="border-color:rgba(145,132,217,.34)" style-focus="border-color:#9184d9">
+                </div>
+              </div>
+              <div style="position:relative;display:flex;flex-direction:column;gap:8px;margin-top:16px">
+                <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Description</label>
+                <textarea placeholder="Describe your token..." rows="3" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:13px;outline:none;resize:vertical;transition:border-color .18s" style-hover="border-color:rgba(145,132,217,.34)" style-focus="border-color:#9184d9"></textarea>
+              </div>
+              <div style="position:relative;display:flex;align-items:center;gap:14px;margin-top:16px">
+                <div style="width:56px;height:56px;border-radius:11px;border:1px dashed rgba(233,233,237,.16);background:rgba(16,18,32,.45);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;color:rgba(233,233,237,.58)">IMG</div>
+                <div style="display:flex;flex-direction:column;gap:9px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Token image</label>
+                  <div style="padding:9px 15px;border-radius:9px;border:1px solid rgba(145,132,217,.38);color:#d2cefd;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;cursor:pointer;transition:background .18s" style-hover="background:rgba(145,132,217,.12)">Choose file →</div>
+                </div>
+              </div>
+            </div>
+
+            <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:22px 24px 24px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 18px 40px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(340px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+              <div style="position:relative;display:flex;align-items:center;gap:10px;margin-bottom:20px">
+                <span style="width:18px;height:18px;border-radius:5px;border:1px solid rgba(145,132,217,.42);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;color:#b5abfc">◇</span>
+                <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.55)">Social links</span>
+              </div>
+              <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Website</label>
+                  <input placeholder="https://" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:12.5px;outline:none;transition:border-color .18s" style-hover="border-color:rgba(145,132,217,.34)" style-focus="border-color:#9184d9">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">X</label>
+                  <input placeholder="@handle" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:12.5px;outline:none;transition:border-color .18s" style-hover="border-color:rgba(145,132,217,.34)" style-focus="border-color:#9184d9">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Telegram</label>
+                  <input placeholder="t.me/..." style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:12.5px;outline:none;transition:border-color .18s" style-hover="border-color:rgba(145,132,217,.34)" style-focus="border-color:#9184d9">
+                </div>
+              </div>
+            </div>
+
+            <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:22px 24px 24px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 18px 40px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(340px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+              <div style="position:relative;display:flex;align-items:center;gap:10px;margin-bottom:20px">
+                <span style="width:18px;height:18px;border-radius:5px;border:1px solid rgba(145,132,217,.42);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;color:#b5abfc">2</span>
+                <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.55)">Token parameters</span>
+              </div>
+              <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Decimals</label>
+                  <input value="6" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:13px;outline:none;font-family:'JetBrains Mono',ui-monospace,monospace" style-focus="border-color:#9184d9">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Total supply</label>
+                  <input placeholder="e.g. 1000000000" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:13px;outline:none;font-family:'JetBrains Mono',ui-monospace,monospace" style-focus="border-color:#9184d9">
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Initial liquidity (SOL)</label>
+                  <input placeholder="e.g. 1.5" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:13px;outline:none;font-family:'JetBrains Mono',ui-monospace,monospace" style-focus="border-color:#9184d9">
+                </div>
+              </div>
+              <sc-if value="{{ isAdvanced }}">
+                <div style="position:relative;margin-top:22px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px">
+                    <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Pool % of supply</label>
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:#d2cefd">{{ poolPctLabel }}</span>
+                  </div>
+                  <input type="range" min="1" max="100" value="{{ poolPct }}" onChange="{{ setPoolPct }}" style="width:100%;height:4px;cursor:pointer">
+                </div>
+                <div style="position:relative;display:flex;flex-wrap:wrap;gap:16px 26px;margin-top:22px">
+                  <div onClick="{{ toggleRevoke }}" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                    <div style="width:34px;height:19px;border-radius:10px;border:1px solid rgba(233,233,237,.12);background:{{ revokeTrack }};position:relative;transition:background .2s">
+                      <div style="position:absolute;top:2px;left:{{ revokeX }};width:13px;height:13px;border-radius:50%;background:#e9e9ed;transition:left .2s cubic-bezier(.2,.8,.2,1)"></div>
+                    </div>
+                    <span style="font-size:12.5px;color:rgba(233,233,237,.78)">Revoke mint authority</span>
+                  </div>
+                  <div onClick="{{ toggleLock }}" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                    <div style="width:34px;height:19px;border-radius:10px;border:1px solid rgba(233,233,237,.12);background:{{ lockTrack }};position:relative;transition:background .2s">
+                      <div style="position:absolute;top:2px;left:{{ lockX }};width:13px;height:13px;border-radius:50%;background:#e9e9ed;transition:left .2s cubic-bezier(.2,.8,.2,1)"></div>
+                    </div>
+                    <span style="font-size:12.5px;color:rgba(233,233,237,.78)">Lock metadata</span>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+
+            <sc-if value="{{ isAdvanced }}">
+              <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:22px 24px 24px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 18px 40px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(340px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+                <div style="position:relative;display:flex;align-items:center;gap:10px;margin-bottom:20px">
+                  <span style="width:18px;height:18px;border-radius:5px;border:1px solid rgba(145,132,217,.42);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;color:#b5abfc">3</span>
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.55)">Pool configuration</span>
+                </div>
+                <div style="position:relative;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+                  <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                    <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Config address</label>
+                    <input value="FxWh7P9b5sU6LBu4b55YZbYinTLnEUxWjiBDKVpj7ooF" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:12px;outline:none;font-family:'JetBrains Mono',ui-monospace,monospace" style-focus="border-color:#9184d9">
+                  </div>
+                  <div style="padding:11px 16px;border-radius:9px;border:1px solid rgba(233,233,237,.14);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:rgba(233,233,237,.72);cursor:pointer;white-space:nowrap;transition:border-color .18s,background .18s" style-hover="border-color:rgba(145,132,217,.5);background:rgba(145,132,217,.09)">Browse configs</div>
+                </div>
+              </div>
+            </sc-if>
+
+            <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:22px 24px 24px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 18px 40px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(340px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+              <div style="position:relative;display:flex;align-items:center;gap:10px;margin-bottom:20px">
+                <span style="width:18px;height:18px;border-radius:5px;border:1px solid rgba(145,132,217,.42);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;color:#b5abfc">4</span>
+                <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.55)">Wallet selection</span>
+              </div>
+              <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Funding wallet</label>
+                  <select style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:rgba(233,233,237,.72);font-size:13px;outline:none;appearance:none;cursor:pointer" style-hover="border-color:rgba(145,132,217,.34)">
+                    <option>Select funding wallet</option>
+                    <option>j3wKV7…ZFyb1h · 84.120 SOL</option>
+                  </select>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Fee wallet</label>
+                  <select style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:rgba(233,233,237,.72);font-size:13px;outline:none;appearance:none;cursor:pointer" style-hover="border-color:rgba(145,132,217,.34)">
+                    <option>Select fee wallet</option>
+                    <option>7xYJz…Ckay9 · 0.000 SOL</option>
+                  </select>
+                </div>
+              </div>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;margin-top:22px;padding-top:20px;border-top:1px solid rgba(233,233,237,.07)">
+                <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.64)">Auto-buy</span>
+                <div onClick="{{ toggleAuto }}" style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                  <div style="width:34px;height:19px;border-radius:10px;border:1px solid rgba(233,233,237,.12);background:{{ autoTrack }};position:relative;transition:background .2s">
+                    <div style="position:absolute;top:2px;left:{{ autoX }};width:13px;height:13px;border-radius:50%;background:#e9e9ed;transition:left .2s cubic-bezier(.2,.8,.2,1)"></div>
+                  </div>
+                  <span style="font-size:12.5px;color:rgba(233,233,237,.78)">Enable auto-buy on launch</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="position:sticky;top:96px;display:flex;flex-direction:column;gap:14px;min-width:280px">
+            <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:20px;border-radius:14px;border:1px solid rgba(145,132,217,.22);background:linear-gradient(155deg,rgba(66,58,106,.40),rgba(22,24,38,.32));backdrop-filter:blur(20px) saturate(150%);box-shadow:0 20px 44px -26px rgba(0,0,0,.95),inset 0 1px 0 rgba(233,233,237,.08)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(280px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.14),transparent 70%)">
+              <div style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.64)">Launch estimate</div>
+              <div style="position:relative;display:flex;flex-direction:column;gap:1px;margin-top:16px;background:rgba(233,233,237,.07);border:1px solid rgba(233,233,237,.07);border-radius:10px;overflow:hidden">
+                <sc-for list="{{ estimate }}" as="e" hint-placeholder-count="5">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;padding:11px 14px;background:rgba(18,20,34,.66)">
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(233,233,237,.62)">{{ e.k }}</span>
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;color:{{ e.color }}">{{ e.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="position:relative;margin-top:16px;padding:13px;border-radius:10px;border:1px solid rgba(145,132,217,.45);text-align:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#d2cefd;cursor:pointer;transition:background .18s,box-shadow .18s" style-hover="background:rgba(145,132,217,.14);box-shadow:0 0 28px -8px rgba(145,132,217,.6)">Launch token →</div>
+              <div style="position:relative;margin-top:11px;text-align:center;font-size:11px;color:rgba(233,233,237,.58)">Simulated before broadcast</div>
+            </div>
+
+            <div style="padding:16px 18px;border-radius:14px;border:1px solid rgba(233,233,237,.08);background:rgba(22,24,38,.34);backdrop-filter:blur(14px)">
+              <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.60)">Preflight</div>
+              <sc-for list="{{ preflight }}" as="p" hint-placeholder-count="3">
+                <div style="display:flex;align-items:center;gap:9px;margin-top:12px">
+                  <span style="width:5px;height:5px;border-radius:50%;background:{{ p.color }}"></span>
+                  <span style="font-size:12px;color:rgba(233,233,237,.62)">{{ p.text }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ══════════ TOKENS ══════════ -->
+    <sc-if value="{{ isTokens }}">
+      <div style="animation:omIn .32s cubic-bezier(.2,.8,.2,1)">
+        <div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:16px;justify-content:space-between;margin:14px 0 22px">
+          <div>
+            <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:rgba(233,233,237,.62)">12 launched · 3 open positions</div>
+          </div>
+          <div style="display:flex;gap:4px;padding:5px;border-radius:11px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(150deg,rgba(72,77,106,.32),rgba(22,24,38,.28));backdrop-filter:blur(18px)">
+            <sc-for list="{{ tokenViews }}" as="v" hint-placeholder-count="2">
+              <div onClick="{{ v.go }}" style="position:relative;padding:7px 16px;border-radius:7px;cursor:pointer;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;transition:background .16s" style-hover="background:rgba(233,233,237,.05)">
+                <sc-if value="{{ v.active }}"><span style="position:relative;color:#e9e9ed">{{ v.label }}</span></sc-if>
+                <sc-if value="{{ v.idle }}"><span style="position:relative;color:rgba(233,233,237,.64)">{{ v.label }}</span></sc-if>
+                <sc-if value="{{ v.active }}"><div style="position:absolute;inset:0;border-radius:7px;background:rgba(145,132,217,.12);border:1px solid rgba(145,132,217,.3)"></div></sc-if>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <sc-if value="{{ isGridView }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px">
+            <sc-for list="{{ tokens }}" as="t" hint-placeholder-count="8">
+              <div onClick="{{ t.open }}" onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:16px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.28),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 16px 36px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07);cursor:pointer;transition:transform .22s cubic-bezier(.2,.8,.2,1),border-color .22s" style-hover="transform:translateY(-4px);border-color:rgba(145,132,217,.38)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(240px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.16),transparent 70%)">
+                <div style="position:relative;aspect-ratio:1;border-radius:11px;border:1px solid rgba(233,233,237,.10);background:{{ t.tile }};display:flex;align-items:flex-end;padding:10px">
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.16em;color:#e9e9ed;background:rgba(12,13,22,.72);padding:3px 7px;border-radius:5px">{{ t.sym }}</span>
+                </div>
+                <div style="position:relative;display:flex;align-items:baseline;justify-content:space-between;margin-top:14px">
+                  <span style="font-size:13.5px;letter-spacing:-.005em">{{ t.name }}</span>
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:#b5abfc">{{ t.sol }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isRailView }}">
+          <div style="display:flex;flex-direction:column;gap:1px;border-radius:14px;overflow:hidden;border:1px solid rgba(233,233,237,.09);background:rgba(233,233,237,.06);backdrop-filter:blur(18px)">
+            <sc-for list="{{ tokens }}" as="t" hint-placeholder-count="8">
+              <div onClick="{{ t.open }}" onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;display:flex;align-items:center;gap:18px;padding:14px 20px;background:linear-gradient(120deg,rgba(40,43,64,.72),rgba(22,24,38,.66));cursor:pointer;transition:padding-left .22s cubic-bezier(.2,.8,.2,1),background .2s" style-hover="padding-left:30px;background:linear-gradient(120deg,rgba(54,50,86,.78),rgba(26,28,44,.7))" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(280px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.13),transparent 70%)">
+                <div style="position:relative;width:44px;height:44px;border-radius:10px;border:1px solid rgba(233,233,237,.10);background:{{ t.tile }};flex:none"></div>
+                <span style="position:relative;font-size:14px;min-width:150px">{{ t.name }}</span>
+                <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:rgba(233,233,237,.62);letter-spacing:.14em">{{ t.sym }}</span>
+                <div style="position:relative;flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(233,233,237,.16),transparent)"></div>
+                <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;color:#b5abfc">{{ t.sol }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ tokenOpen }}">
+          <div onClick="{{ closeToken }}" style="position:fixed;inset:0;z-index:80;background:rgba(10,11,20,.68);backdrop-filter:blur(8px);animation:omFade .2s ease;display:flex;align-items:center;justify-content:center;padding:clamp(16px,5vw,60px)">
+            <div onClick="{{ stop }}" onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;width:100%;max-width:760px;border-radius:18px;border:1px solid rgba(145,132,217,.24);background:linear-gradient(158deg,rgba(78,74,116,.52),rgba(20,22,36,.72));backdrop-filter:blur(30px) saturate(160%);box-shadow:0 40px 90px -30px rgba(0,0,0,.95),inset 0 1px 0 rgba(233,233,237,.10);animation:omSheet .3s cubic-bezier(.2,.85,.2,1)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.12),transparent 70%)">
+              <div style="position:relative;display:flex;align-items:center;gap:18px;padding:24px 26px;border-bottom:1px solid rgba(233,233,237,.08)">
+                <div style="width:62px;height:62px;border-radius:13px;border:1px solid rgba(233,233,237,.12);background:{{ selTile }};flex:none"></div>
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <span style="font-size:24px;font-weight:500;letter-spacing:-.015em">{{ selName }}</span>
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(233,233,237,.62)">{{ selMeta }}</span>
+                </div>
+                <div onClick="{{ closeToken }}" style="margin-left:auto;width:32px;height:32px;border-radius:9px;border:1px solid rgba(233,233,237,.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(233,233,237,.6);font-size:15px;transition:background .18s" style-hover="background:rgba(233,233,237,.07)">✕</div>
+              </div>
+
+              <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:rgba(233,233,237,.07)">
+                <sc-for list="{{ selStats }}" as="s" hint-placeholder-count="4">
+                  <div style="padding:16px 18px;background:rgba(20,22,36,.5)">
+                    <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.60)">{{ s.k }}</div>
+                    <div style="margin-top:9px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:14px;color:{{ s.color }}">{{ s.v }}</div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="position:relative;padding:22px 26px 24px">
+                <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.64)">Token info</div>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px 26px;margin-top:16px">
+                  <sc-for list="{{ selToken }}" as="f" hint-placeholder-count="4">
+                    <div>
+                      <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">{{ f.k }}</div>
+                      <div style="margin-top:7px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:rgba(233,233,237,.84);word-break:break-all">{{ f.v }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <div style="margin-top:26px;padding-top:22px;border-top:1px solid rgba(233,233,237,.07)">
+                  <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.64)">Pool info</div>
+                  <div style="display:flex;flex-direction:column;gap:16px;margin-top:16px">
+                    <sc-for list="{{ selPool }}" as="f" hint-placeholder-count="3">
+                      <div>
+                        <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">{{ f.k }}</div>
+                        <div style="margin-top:7px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:rgba(233,233,237,.84);word-break:break-all">{{ f.v }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="display:flex;gap:10px;margin-top:26px">
+                  <div onClick="{{ goCommand }}" style="padding:11px 18px;border-radius:9px;border:1px solid rgba(145,132,217,.45);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:#d2cefd;cursor:pointer;transition:background .18s" style-hover="background:rgba(145,132,217,.13)">Open in command center →</div>
+                  <div style="padding:11px 18px;border-radius:9px;border:1px solid rgba(233,233,237,.13);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:rgba(233,233,237,.7);cursor:pointer;transition:background .18s" style-hover="background:rgba(233,233,237,.06)">Claim fees</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- ══════════ WALLETS ══════════ -->
+    <sc-if value="{{ isWallets }}">
+      <div style="animation:omIn .32s cubic-bezier(.2,.8,.2,1)">
+        <div style="display:flex;align-items:flex-end;flex-wrap:wrap;gap:16px;justify-content:space-between;margin:14px 0 22px">
+          <div>
+            <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:rgba(233,233,237,.62)">HD-derived Solana wallet management</div>
+          </div>
+          <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:rgba(233,233,237,.60)">51 total · 84.12 SOL</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:14px">
+          <sc-for list="{{ walletCards }}" as="w" hint-placeholder-count="3">
+            <div onClick="{{ w.toggle }}" onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:20px 22px;border-radius:14px;border:1px solid {{ w.border }};background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 16px 36px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07);cursor:pointer;transition:transform .2s,border-color .2s" style-hover="transform:translateY(-2px)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(260px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.14),transparent 70%)">
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between">
+                <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.64)">{{ w.label }}</span>
+                <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;color:rgba(233,233,237,.5);transition:transform .2s;transform:{{ w.caret }}">▾</span>
+              </div>
+              <div style="position:relative;display:flex;align-items:baseline;gap:9px;margin-top:14px">
+                <span style="font-size:34px;font-weight:400;letter-spacing:-.02em;font-family:'JetBrains Mono',ui-monospace,monospace">{{ w.count }}</span>
+                <span style="font-size:11.5px;color:rgba(233,233,237,.60)">wallets</span>
+              </div>
+              <div style="position:relative;display:flex;gap:18px;margin-top:14px">
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:rgba(233,233,237,.60)">Holdings</span>
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;color:rgba(233,233,237,.82)">{{ w.sol }} SOL</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:5px">
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:rgba(233,233,237,.60)">Funded</span>
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12.5px;color:rgba(233,233,237,.82)">{{ w.funded }}</span>
+                </div>
+              </div>
+              <div style="position:relative;margin-top:16px;font-size:11.5px;color:rgba(233,233,237,.62);line-height:1.5">{{ w.desc }}</div>
+              <div style="position:relative;display:flex;align-items:center;gap:9px;margin-top:16px;padding-top:15px;border-top:1px solid rgba(233,233,237,.07)">
+                <input value="{{ w.createCount }}" onChange="{{ w.setCount }}" style="width:58px;padding:8px 10px;border-radius:8px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:12px;outline:none;font-family:'JetBrains Mono',ui-monospace,monospace" onClick="{{ stop }}" style-focus="border-color:#9184d9">
+                <div onClick="{{ stop }}" style="padding:8px 15px;border-radius:8px;border:1px solid rgba(145,132,217,.4);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#d2cefd;cursor:pointer;transition:background .18s" style-hover="background:rgba(145,132,217,.13)">Create →</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;margin-top:14px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.28),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 16px 36px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(400px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+          <div style="position:relative;display:flex;align-items:center;flex-wrap:wrap;gap:12px;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(233,233,237,.07)">
+            <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.58)">Bundle groups</span>
+            <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(233,233,237,.52)">{{ groupCountLabel }}</span>
+          </div>
+          <div style="position:relative;padding:0 20px 20px">
+            <div style="padding:17px 18px;border-radius:13px;border:1px dashed rgba(145,132,217,.34);background:rgba(66,58,106,.16)">
+              <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:#b5abfc">Create a group</div>
+              <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px;margin-top:14px">
+                <div style="flex:1;min-width:190px;display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Group name</label>
+                  <input placeholder="e.g. Launch set B" value="{{ newGroupName }}" onChange="{{ setNewName }}" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:13px;outline:none" style-focus="border-color:#9184d9">
+                </div>
+                <div style="width:120px;display:flex;flex-direction:column;gap:8px">
+                  <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Wallets</label>
+                  <input value="{{ newGroupSize }}" onChange="{{ setNewSize }}" style="width:100%;padding:11px 13px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:13px;outline:none;font-family:'JetBrains Mono',ui-monospace,monospace" style-focus="border-color:#9184d9">
+                </div>
+                <div onClick="{{ createGroup }}" style="padding:12px 20px;border-radius:9px;border:1px solid rgba(145,132,217,.45);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#d2cefd;cursor:pointer;transition:background .18s,box-shadow .18s" style-hover="background:rgba(145,132,217,.14);box-shadow:0 0 26px -10px rgba(145,132,217,.7)">Create group →</div>
+              </div>
+              <div style="margin-top:11px;font-size:11.5px;color:rgba(233,233,237,.60)">Pulls the next unassigned slave wallets from the registry.</div>
+            </div>
+            <div onClick="{{ toggleGroupList }}" style="display:inline-flex;align-items:center;gap:9px;margin-top:14px;padding:9px 16px;border-radius:9px;border:1px solid rgba(233,233,237,.13);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(233,233,237,.72);cursor:pointer;transition:background .18s" style-hover="background:rgba(233,233,237,.06)">
+              <span style="display:inline-block;font-size:12px;transition:transform .3s cubic-bezier(.2,.8,.2,1);transform:{{ groupListCaret }}">▾</span>
+              <span>{{ groupListLabel }}</span>
+            </div>
+            <div style="overflow:hidden;transition:max-height .45s cubic-bezier(.2,.8,.2,1),opacity .3s ease;{{ groupListStyle }}">
+            <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;padding:16px 0 0">
+              <sc-for list="{{ groupCards }}" as="g" hint-placeholder-count="4">
+                <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:15px 16px;border-radius:13px;border:1px solid {{ g.border }};background:linear-gradient(155deg,rgba(72,77,106,.26),rgba(22,24,38,.28))" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(200px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.14),transparent 70%)">
+                  <div style="position:relative;font-size:13.5px;color:{{ g.color }}">{{ g.label }}</div>
+                  <div style="position:relative;display:flex;align-items:baseline;gap:6px;margin-top:13px">
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:24px">{{ g.size }}</span>
+                    <span style="font-size:11px;color:rgba(233,233,237,.60)">wallets</span>
+                  </div>
+                  <div style="position:relative;margin-top:9px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(233,233,237,.62)">{{ g.funded }} funded · {{ g.sol }} SOL</div>
+                </div>
+              </sc-for>
+            </div>
+            </div>
+          </div>
+        </div>
+
+        <sc-if value="{{ walletOpen }}">
+          <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;margin-top:14px;border-radius:14px;border:1px solid rgba(145,132,217,.20);background:linear-gradient(155deg,rgba(74,72,110,.34),rgba(20,22,36,.30));backdrop-filter:blur(20px) saturate(150%);box-shadow:0 20px 46px -28px rgba(0,0,0,.95),inset 0 1px 0 rgba(233,233,237,.08);animation:omIn .26s cubic-bezier(.2,.8,.2,1)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.09),transparent 70%)">
+            <div style="position:relative;display:flex;align-items:center;flex-wrap:wrap;gap:12px 16px;padding:16px 22px;border-bottom:1px solid rgba(233,233,237,.07)">
+              <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.62)">{{ openLabel }}</span>
+              <div style="display:flex;gap:4px;padding:4px;border-radius:9px;border:1px solid rgba(233,233,237,.09);background:rgba(16,18,32,.4)">
+                <sc-for list="{{ walletTabs }}" as="t" hint-placeholder-count="3">
+                  <div onClick="{{ t.go }}" style="position:relative;padding:5px 12px;border-radius:6px;cursor:pointer;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;transition:background .16s" style-hover="background:rgba(233,233,237,.06)">
+                    <sc-if value="{{ t.active }}"><span style="position:relative;color:#d2cefd">{{ t.label }}</span></sc-if>
+                    <sc-if value="{{ t.idle }}"><span style="position:relative;color:rgba(233,233,237,.64)">{{ t.label }}</span></sc-if>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-left:auto;display:flex;gap:9px">
+                <div style="padding:7px 13px;border-radius:8px;border:1px solid rgba(233,233,237,.12);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:rgba(233,233,237,.7);cursor:pointer;transition:background .18s" style-hover="background:rgba(233,233,237,.06)">Export keys</div>
+                <div onClick="{{ closeWallet }}" style="width:30px;height:30px;border-radius:8px;border:1px solid rgba(233,233,237,.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(233,233,237,.55);font-size:13px;transition:background .18s" style-hover="background:rgba(233,233,237,.06)">✕</div>
+              </div>
+            </div>
+            <div style="position:relative;display:grid;grid-template-columns:34px 1.4fr 1fr 1fr 110px;gap:1px;padding:11px 22px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.60);border-bottom:1px solid rgba(233,233,237,.06)">
+              <span>#</span><span>Public key</span><span>Label</span><span>Holdings</span><span style="text-align:right">Action</span>
+            </div>
+            <sc-for list="{{ walletRows }}" as="r" hint-placeholder-count="8">
+              <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;display:grid;grid-template-columns:34px 1.4fr 1fr 1fr 110px;gap:1px;align-items:center;padding:11px 22px;border-bottom:1px solid rgba(233,233,237,.05);transition:background .16s" style-hover="background:rgba(233,233,237,.035)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(220px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.10),transparent 70%)">
+                <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:rgba(233,233,237,.62)">{{ r.n }}</span>
+                <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:rgba(233,233,237,.80)">{{ r.key }}</span>
+                <span style="position:relative;font-size:12px;color:rgba(233,233,237,.55)">{{ r.label }}</span>
+                <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:{{ r.color }}">{{ r.sol }} SOL</span>
+                <div style="position:relative;display:flex;justify-content:flex-end">
+                  <div style="padding:6px 12px;border-radius:7px;border:1px solid rgba(233,233,237,.12);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:rgba(233,233,237,.68);cursor:pointer;transition:border-color .18s,background .18s" style-hover="border-color:rgba(145,132,217,.5);background:rgba(145,132,217,.1)">Withdraw</div>
+                </div>
+              </div>
+            </sc-for>
+            <div style="position:relative;display:flex;align-items:center;justify-content:center;gap:18px;padding:14px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:rgba(233,233,237,.62)">
+              <span style="cursor:pointer">←</span><span>1 / {{ walletPages }}</span><span style="cursor:pointer;color:#b5abfc">→</span>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- ══════════ COMMAND CENTER ══════════ -->
+    <sc-if value="{{ isCommand }}">
+      <div style="animation:omIn .32s cubic-bezier(.2,.8,.2,1)">
+        <div style="margin:14px 0 22px">
+          <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:rgba(233,233,237,.62)">Fund a bundle group, then fire a buy against one pool</div>
+        </div>
+
+        <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:18px 22px;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 16px 36px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(360px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.11),transparent 70%)">
+          <div style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.62)">Contract address</div>
+          <div style="position:relative;display:flex;flex-wrap:wrap;gap:11px;margin-top:12px">
+            <input placeholder="Paste a mint address" style="flex:1;padding:11px 14px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:12.5px;outline:none;font-family:'JetBrains Mono',ui-monospace,monospace" style-focus="border-color:#9184d9">
+            <div onClick="{{ loadCoin }}" style="padding:11px 20px;border-radius:9px;border:1px solid rgba(145,132,217,.45);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#d2cefd;cursor:pointer;transition:background .18s" style-hover="background:rgba(145,132,217,.13)">Load coin</div>
+            <div onClick="{{ openCoinPick }}" style="padding:11px 20px;border-radius:9px;border:1px solid rgba(233,233,237,.13);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(233,233,237,.72);cursor:pointer;transition:background .18s" style-hover="background:rgba(233,233,237,.06)">My tokens</div>
+          </div>
+
+          <sc-if value="{{ ccPickOpen }}">
+            <div style="position:relative;margin-top:14px;border-radius:11px;border:1px solid rgba(233,233,237,.10);background:rgba(16,18,32,.62);overflow:hidden;animation:omIn .2s cubic-bezier(.2,.8,.2,1)">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 15px;border-bottom:1px solid rgba(233,233,237,.07)">
+                <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.60)">Select a coin</span>
+                <div onClick="{{ closeCoinPick }}" style="width:26px;height:26px;border-radius:8px;border:1px solid rgba(233,233,237,.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(233,233,237,.6);font-size:13px;transition:background .18s" style-hover="background:rgba(233,233,237,.06)">✕</div>
+              </div>
+              <div style="max-height:250px;overflow-y:auto">
+                <sc-for list="{{ ccCoinList }}" as="c" hint-placeholder-count="5">
+                  <div onClick="{{ c.pick }}" style="display:flex;align-items:center;gap:12px;padding:10px 15px;cursor:pointer;border-bottom:1px solid rgba(233,233,237,.04);transition:background .16s" style-hover="background:rgba(233,233,237,.045)">
+                    <div style="width:26px;height:26px;border-radius:8px;border:1px solid rgba(233,233,237,.12);background:{{ c.tile }};flex:none"></div>
+                    <div style="display:flex;flex-direction:column;line-height:1.35;flex:1;min-width:0">
+                      <span style="font-size:12.5px;color:{{ c.nameColor }}">{{ c.name }}</span>
+                      <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;color:rgba(233,233,237,.58)">{{ c.sym }} · {{ c.mintShort }}</span>
+                    </div>
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:rgba(233,233,237,.65)">{{ c.sol }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ hasCoin }}">
+            <div style="position:relative;margin-top:14px;padding:15px 17px;border-radius:12px;border:1px solid rgba(145,132,217,.30);background:rgba(66,58,106,.20);animation:omIn .22s cubic-bezier(.2,.8,.2,1)">
+              <div style="display:flex;align-items:center;flex-wrap:wrap;gap:13px">
+                <div style="width:38px;height:38px;border-radius:11px;border:1px solid rgba(233,233,237,.14);background:{{ coinTile }};flex:none"></div>
+                <div style="display:flex;flex-direction:column;gap:5px;flex:1;min-width:160px">
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <span style="font-size:15px">{{ coinName }}</span>
+                    <span style="padding:3px 8px;border-radius:6px;border:1px solid rgba(145,132,217,.34);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.14em;color:#d2cefd">{{ coinSym }}</span>
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:#b5abfc">Selected</span>
+                  </div>
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(233,233,237,.58);word-break:break-all">{{ coinMint }}</span>
+                </div>
+                <div onClick="{{ clearCoin }}" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(233,233,237,.12);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:rgba(233,233,237,.68);cursor:pointer;transition:background .18s" style-hover="background:rgba(233,233,237,.06)">Clear</div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-top:15px;padding-top:14px;border-top:1px solid rgba(233,233,237,.07)">
+                <sc-for list="{{ coinFacts }}" as="f" hint-placeholder-count="4">
+                  <div style="display:flex;flex-direction:column;gap:6px">
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:rgba(233,233,237,.58)">{{ f.k }}</span>
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:rgba(233,233,237,.85)">{{ f.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="margin-top:14px;border-radius:16px;border:1px solid rgba(233,233,237,.10);background:linear-gradient(158deg,rgba(72,77,106,.18),rgba(22,24,38,.16));backdrop-filter:blur(14px) saturate(140%);box-shadow:0 18px 44px -30px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.06);overflow:hidden">
+          <div style="display:flex;align-items:center;flex-wrap:wrap;gap:12px;justify-content:space-between;padding:15px 18px">
+            <div onClick="{{ toggleBundle }}" style="display:flex;align-items:center;gap:11px;cursor:pointer">
+              <span style="display:inline-block;font-size:12px;color:rgba(233,233,237,.62);transition:transform .35s cubic-bezier(.2,.8,.2,1);transform:{{ bundleCaret }}">▾</span>
+              <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#d2cefd">Bundle</span>
+              <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(233,233,237,.48)">{{ bundleSummary }}</span>
+            </div>
+          </div>
+          <div style="overflow:hidden;transition:max-height .5s cubic-bezier(.2,.8,.2,1),opacity .32s ease;{{ bundleBodyStyle }}">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(390px,1fr));gap:14px;padding:0 14px 16px;align-items:start">
+
+          <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.28),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 16px 36px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(360px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+            <div style="position:relative;display:flex;align-items:center;flex-wrap:wrap;gap:12px;justify-content:space-between;padding:16px 20px 14px">
+              <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.58)">Wallets</span>
+              <div style="display:flex;align-items:center;gap:9px">
+                <div onClick="{{ openPicker }}" style="display:flex;align-items:center;gap:10px;padding:8px 13px;border-radius:9px;border:1px solid rgba(145,132,217,.34);background:rgba(145,132,217,.08);cursor:pointer;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;transition:background .18s" style-hover="background:rgba(145,132,217,.16)">
+                  <span style="color:#d2cefd">{{ activeGroupLabel }}</span>
+                  <span style="color:rgba(233,233,237,.60)">{{ activeGroupCount }}</span>
+                  <span style="color:rgba(233,233,237,.60);font-size:12px">▾</span>
+                </div>
+                <div onClick="{{ refreshBalances }}" title="Repull balances" style="width:32px;height:32px;border-radius:9px;border:1px solid rgba(233,233,237,.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ refreshColor }};transition:background .18s,border-color .18s" style-hover="background:rgba(233,233,237,.06);border-color:rgba(145,132,217,.4)">
+                  <span style="display:inline-block;font-size:13px;line-height:1;animation:{{ refreshAnim }}">↻</span>
+                </div>
+              </div>
+            </div>
+            <div>
+            <div style="position:relative;display:grid;grid-template-columns:28px 34px 1fr auto;gap:1px;align-items:center;padding:10px 20px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62);border-top:1px solid rgba(233,233,237,.06);border-bottom:1px solid rgba(233,233,237,.06)">
+              <span onClick="{{ toggleAllRows }}" title="Select all wallets" style="width:14px;height:14px;border-radius:4px;border:1px solid {{ allBorder }};background:{{ allFill }};cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .16s,border-color .16s">
+                <sc-if value="{{ allMark }}"><span style="width:6px;height:2px;background:#101220;border-radius:1px"></span></sc-if>
+              </span><span>#</span><span>Wallet</span><span>SOL</span>
+            </div>
+            <div style="max-height:430px;overflow-y:auto">
+            <sc-for list="{{ bundleRows }}" as="b" hint-placeholder-count="8">
+              <div onClick="{{ b.toggle }}" onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;display:grid;grid-template-columns:28px 34px 1fr auto;gap:1px;align-items:center;padding:9px 20px;cursor:pointer;border-bottom:1px solid rgba(233,233,237,.04);transition:background .16s" style-hover="background:rgba(233,233,237,.035)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(200px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.10),transparent 70%)">
+                <span style="position:relative;width:14px;height:14px;border-radius:4px;border:1px solid {{ b.boxBorder }};background:{{ b.boxFill }};display:block"></span>
+                <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11px;color:rgba(233,233,237,.62)">{{ b.n }}</span>
+                <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:rgba(233,233,237,.78)">{{ b.key }}</span>
+                <span style="position:relative;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:{{ b.color }}">{{ b.sol }}</span>
+              </div>
+            </sc-for>
+            </div>
+            <div style="position:relative;display:flex;align-items:center;justify-content:space-between;padding:13px 20px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(233,233,237,.52)">
+              <span>{{ selCountLabel }}</span>
+              <span style="color:rgba(233,233,237,.40)">Use the header checkbox to select all</span>
+            </div>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.28),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 16px 36px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(340px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+              <div style="position:relative;display:flex;align-items:center;gap:11px;padding:16px 20px;border-bottom:1px solid rgba(233,233,237,.07)">
+                <span style="width:19px;height:19px;border-radius:5px;border:1px solid rgba(145,132,217,.42);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;color:#b5abfc">1</span>
+                <span style="font-size:14px">Distribute funds</span>
+              </div>
+              <div style="position:relative;padding:18px 20px 20px">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px">
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Funding wallet</label>
+                    <select style="width:100%;padding:10px 12px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:rgba(233,233,237,.85);font-size:12px;font-family:'JetBrains Mono',ui-monospace,monospace;outline:none;appearance:none;cursor:pointer">
+                      <option>j3wKV7…ZFyb1h · 84.120 SOL</option>
+                    </select>
+                  </div>
+                  <div style="display:flex;flex-direction:column;gap:8px">
+                    <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Total to distribute (SOL)</label>
+                    <input value="2" style="width:100%;padding:10px 12px;border-radius:9px;border:1px solid rgba(233,233,237,.11);background:rgba(16,18,32,.55);color:#e9e9ed;font-size:12px;font-family:'JetBrains Mono',ui-monospace,monospace;outline:none" style-focus="border-color:#9184d9">
+                  </div>
+                </div>
+                <div style="margin-top:20px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px">
+                    <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Skew</label>
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:#d2cefd">{{ skewLabel }}</span>
+                  </div>
+                  <input type="range" min="0" max="60" value="{{ skew }}" onChange="{{ setSkew }}" style="width:100%;height:4px;cursor:pointer">
+                  <div style="margin-top:9px;font-size:11px;color:rgba(233,233,237,.62)">0% sends every wallet the same amount · 60% spreads them widest</div>
+                </div>
+                <div style="margin-top:18px;border-radius:11px;border:1px solid rgba(145,132,217,.26);background:rgba(66,58,106,.20);padding:14px 16px">
+                  <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:#b5abfc">Reserve math · {{ selCountShort }}</div>
+                  <div style="display:flex;flex-direction:column;gap:9px;margin-top:13px">
+                    <sc-for list="{{ reserve }}" as="r" hint-placeholder-count="5">
+                      <div style="display:flex;align-items:baseline;justify-content:space-between;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px">
+                        <span style="color:{{ r.labelColor }}">{{ r.k }}</span>
+                        <span style="color:{{ r.color }}">{{ r.v }}</span>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:18px">
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(233,233,237,.62)">{{ distMeta }}</span>
+                  <div style="padding:10px 22px;border-radius:9px;border:1px solid rgba(145,132,217,.45);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#d2cefd;cursor:pointer;transition:background .18s,box-shadow .18s" style-hover="background:rgba(145,132,217,.14);box-shadow:0 0 26px -10px rgba(145,132,217,.7)">Distribute</div>
+                </div>
+              </div>
+            </div>
+
+            <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.28),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 16px 36px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(340px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+              <div style="position:relative;display:flex;align-items:center;gap:11px;padding:16px 20px;border-bottom:1px solid rgba(233,233,237,.07)">
+                <span style="width:19px;height:19px;border-radius:5px;border:1px solid rgba(145,132,217,.42);display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;color:#b5abfc">2</span>
+                <span style="font-size:14px">Execute buy</span>
+              </div>
+              <div style="position:relative;padding:18px 20px 20px">
+                <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Price walk preview</div>
+                <div style="margin-top:12px">{{ walkChart }}</div>
+                <div style="margin-top:20px">
+                  <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:9px">
+                    <label style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">Slippage</label>
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:12px;color:#d2cefd">{{ slipLabel }}</span>
+                  </div>
+                  <input type="range" min="10" max="1000" step="10" value="{{ slippage }}" onChange="{{ setSlip }}" style="width:100%;height:4px;cursor:pointer">
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:20px;padding-top:16px;border-top:1px solid rgba(233,233,237,.07)">
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(233,233,237,.62)">{{ fireMeta }}</span>
+                  <div style="padding:10px 22px;border-radius:9px;border:1px solid rgba(145,132,217,.45);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:#d2cefd;cursor:pointer;transition:background .18s,box-shadow .18s" style-hover="background:rgba(145,132,217,.14);box-shadow:0 0 26px -10px rgba(145,132,217,.7)">Simulate and fire</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="border-radius:14px;border:1px solid rgba(233,233,237,.08);background:rgba(22,24,38,.32);backdrop-filter:blur(14px)">
+              <div style="padding:15px 20px;border-bottom:1px solid rgba(233,233,237,.06);font-size:13.5px">Job monitor</div>
+              <div style="padding:22px 20px;font-size:12px;color:rgba(233,233,237,.60)">No job yet. Distribute or fire a buy to see per-leg outcomes here.</div>
+            </div>
+          </div>
+        </div>
+          </div>
+        </div>
+
+        <sc-if value="{{ pickerOpen }}">
+          <div onClick="{{ closePicker }}" style="position:fixed;inset:0;z-index:80;background:rgba(10,11,20,.68);backdrop-filter:blur(8px);animation:omFade .2s ease;display:flex;align-items:center;justify-content:center;padding:clamp(16px,5vw,60px)">
+            <div onClick="{{ stop }}" onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;width:100%;max-width:860px;max-height:80vh;overflow-y:auto;border-radius:18px;border:1px solid rgba(145,132,217,.24);background:linear-gradient(158deg,rgba(78,74,116,.52),rgba(20,22,36,.74));backdrop-filter:blur(30px) saturate(160%);box-shadow:0 40px 90px -30px rgba(0,0,0,.95),inset 0 1px 0 rgba(233,233,237,.10);animation:omSheet .3s cubic-bezier(.2,.85,.2,1)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.10),transparent 70%)">
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;padding:22px 26px 18px;border-bottom:1px solid rgba(233,233,237,.08)">
+                <div style="display:flex;flex-direction:column;gap:7px">
+                  <span style="font-size:20px;font-weight:500;letter-spacing:-.012em">Select a bundle group</span>
+                  <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:rgba(233,233,237,.62)">{{ groupCountLabel }}</span>
+                </div>
+                <div onClick="{{ closePicker }}" style="width:32px;height:32px;border-radius:9px;border:1px solid rgba(233,233,237,.12);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(233,233,237,.6);font-size:15px;transition:background .18s" style-hover="background:rgba(233,233,237,.07)">✕</div>
+              </div>
+
+              <div style="position:relative;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;padding:20px 26px">
+                <sc-for list="{{ groupCards }}" as="g" hint-placeholder-count="4">
+                  <div onClick="{{ g.pick }}" onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;padding:15px 16px;border-radius:13px;border:1px solid {{ g.border }};background:linear-gradient(155deg,rgba(72,77,106,.30),rgba(22,24,38,.30));cursor:pointer;transition:transform .2s cubic-bezier(.2,.8,.2,1),border-color .2s" style-hover="transform:translateY(-3px);border-color:rgba(145,132,217,.42)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(200px circle at var(--mx,-999px) var(--my,-999px),rgba(181,171,252,.16),transparent 70%)">
+                          <div style="position:relative;display:flex;align-items:center;justify-content:space-between">
+                      <span style="font-size:13.5px;color:{{ g.color }}">{{ g.label }}</span>
+                      <sc-if value="{{ g.active }}"><span style="width:6px;height:6px;border-radius:50%;background:#b5abfc"></span></sc-if>
+                    </div>
+                    <div style="position:relative;display:flex;align-items:baseline;gap:6px;margin-top:13px">
+                      <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:24px">{{ g.size }}</span>
+                      <span style="font-size:11px;color:rgba(233,233,237,.60)">wallets</span>
+                    </div>
+                    <div style="position:relative;margin-top:9px;font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10.5px;color:rgba(233,233,237,.62)">{{ g.funded }} funded · {{ g.sol }} SOL</div>
+                  </div>
+                </sc-for>
+              </div>
+
+              <div style="position:relative;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:16px 26px 24px;border-top:1px solid rgba(233,233,237,.07);margin-top:6px">
+                <span style="font-size:11.5px;color:rgba(233,233,237,.60)">Groups are created and managed in the Wallets tab.</span>
+                <div onClick="{{ goWallets }}" style="padding:9px 16px;border-radius:9px;border:1px solid rgba(233,233,237,.13);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(233,233,237,.72);cursor:pointer;transition:background .18s" style-hover="background:rgba(233,233,237,.06)">Manage wallets →</div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- ══════════ SETTINGS ══════════ -->
+    <sc-if value="{{ isSettings }}">
+      <div style="animation:omIn .32s cubic-bezier(.2,.8,.2,1)">
+        <div style="margin:14px 0 22px">
+          <div style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.26em;text-transform:uppercase;color:rgba(233,233,237,.62)">Network, execution and session</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:14px;align-items:start">
+          <sc-for list="{{ settingGroups }}" as="g" hint-placeholder-count="4">
+            <div onMouseMove="{{ track }}" onMouseLeave="{{ untrack }}" style="position:relative;overflow:hidden;border-radius:14px;border:1px solid rgba(233,233,237,.09);background:linear-gradient(155deg,rgba(72,77,106,.28),rgba(22,24,38,.26));backdrop-filter:blur(18px) saturate(150%);box-shadow:0 16px 36px -26px rgba(0,0,0,.9),inset 0 1px 0 rgba(233,233,237,.07)" style-before="content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(300px circle at var(--mx,-999px) var(--my,-999px),rgba(145,132,217,.10),transparent 70%)">
+              <div style="position:relative;padding:16px 20px;border-bottom:1px solid rgba(233,233,237,.07);font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:rgba(233,233,237,.55)">{{ g.title }}</div>
+              <div style="position:relative;padding:6px 20px 16px">
+                <sc-for list="{{ g.rows }}" as="r" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;padding:14px 0;border-bottom:1px solid rgba(233,233,237,.05)">
+                    <div style="display:flex;flex-direction:column;gap:5px">
+                      <span style="font-size:13px;color:rgba(233,233,237,.88)">{{ r.k }}</span>
+                      <span style="font-size:11.5px;color:rgba(233,233,237,.60)">{{ r.note }}</span>
+                    </div>
+                    <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:{{ r.color }};white-space:nowrap">{{ r.v }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+
+  </div>
+
+  <div style="position:relative;width:100%;border-top:1px solid rgba(233,233,237,.07);background:rgba(13,15,26,.55);backdrop-filter:blur(8px)">
+    <footer style="width:100%;max-width:1440px;margin:0 auto;padding:30px clamp(16px,3vw,40px) 44px;display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:18px 32px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:20px;height:20px;border-radius:6px;border:1px solid rgba(145,132,217,.45);background:linear-gradient(150deg,rgba(145,132,217,.26),rgba(145,132,217,.02));display:flex;align-items:center;justify-content:center">
+          <div style="width:6px;height:6px;background:#b5abfc;border-radius:2px;transform:rotate(45deg)"></div>
+        </div>
+        <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:rgba(233,233,237,.62)">Powered by Spectre Link</span>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px 26px;font-size:11.5px">
+        <a href="#" style="color:rgba(233,233,237,.62);text-decoration:none;transition:color .18s" style-hover="color:#d2cefd">Terms of service</a>
+        <a href="#" style="color:rgba(233,233,237,.62);text-decoration:none;transition:color .18s" style-hover="color:#d2cefd">Privacy policy</a>
+        <a href="#" style="color:rgba(233,233,237,.62);text-decoration:none;transition:color .18s" style-hover="color:#d2cefd">Risk disclosure</a>
+        <a href="#" style="color:rgba(233,233,237,.62);text-decoration:none;transition:color .18s" style-hover="color:#d2cefd">Docs</a>
+        <a href="#" style="color:rgba(233,233,237,.62);text-decoration:none;transition:color .18s" style-hover="color:#d2cefd">Support</a>
+      </div>
+      <span style="font-family:'JetBrains Mono',ui-monospace,monospace;font-size:10px;color:rgba(233,233,237,.40)">© 2026 Arcana · Trading digital assets carries risk</span>
+    </footer>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:1000}}">
+const MONO = "'JetBrains Mono',ui-monospace,monospace";
+const TILES = [
+  "linear-gradient(140deg,#4a4270,#1d1f33)",
+  "linear-gradient(140deg,#5d5294,#242a4a)",
+  "linear-gradient(140deg,#2b2741,#3b4470)",
+  "linear-gradient(140deg,#423a6a,#181a2b)",
+  "linear-gradient(140deg,#39406b,#22243a)",
+  "linear-gradient(140deg,#514a80,#1b1d2e)",
+  "linear-gradient(140deg,#2f3352,#14162a)",
+  "linear-gradient(140deg,#6058a0,#262a4c)"
+];
+const TOKENS = [
+  {name:"Truetest", sym:"TTEST", sol:"4.20 SOL", supply:"1,000,000,000", dec:"6", date:"Jun 1, 2026", mint:"rymfdxYiYRwkKioVE3qTpitKkq8aVtyioV1q18eKG1G", tx:"3C7FedeU…P2xZE2hn", pool:"5MUA8TsT8A5kBa52S7ih7sHZd6S833mBxPCkRRpp9jUF", pos:"FELgAT9UwJkJeL8r9mrjiBqQLWEnNA2x5uszmnY8cEDe", nft:"—", mc:"$18.4K", fees:"1.24 SOL", pnl:"+6.10"},
+  {name:"Christian", sym:"CTEST", sol:"3.00 SOL", supply:"1,000,000,000", dec:"6", date:"Jun 1, 2026", mint:"CLyicJhZbW3n8pQrTqLMs2VyXe4sbFDnjx2ZaQvKk9Ut", tx:"9Lm2QrAe…sbFDnjx2", pool:"7QpLm4Rt2wVaN8xKd9sHZb6S833mBxPCkRRpp2nUy", pos:"9XkTa2LmQwEr7uYb5nMd3sHZd6S833mBxPCkRRpz", nft:"—", mc:"$12.9K", fees:"0.86 SOL", pnl:"+2.44"},
+  {name:"Coinlytest", sym:"COINT", sol:"2.50 SOL", supply:"1,000,000,000", dec:"9", date:"May 21, 2026", mint:"4LP2qUytHs7mXe3nVbKd8sZaQwRtYuIoPlMnBvCxL9Cnk", tx:"4LP2qUyt…XL9Cnks4", pool:"3RtYu7Io9PlMnBvCxZaQwEr4sHZd6S833mBxPCkR", pos:"6VbNm2QwErTyUi8oPlKjHgFdSa3zXcVbNm4QwEr", nft:"—", mc:"$9.1K", fees:"0.42 SOL", pnl:"-0.88"},
+  {name:"Testtest", sym:"TST", sol:"1.80 SOL", supply:"1,000,000,000", dec:"6", date:"May 13, 2026", mint:"5BsubKw7QeRtYu2iOpLkJhGfDsAz3xCvBnM6KTN", tx:"5BsubKw7…uNN56KTN", pool:"8KjHg4FdSa2zXcVbNm7QwErTyUi9oPlMnBvC", pos:"2ZxCvBn6MkJhGfDsA4qWeRtYu8iOpLkJhGfD", nft:"—", mc:"$6.4K", fees:"0.31 SOL", pnl:"+1.02"},
+  {name:"Testtoken", sym:"TEST", sol:"1.50 SOL", supply:"1,000,000,000", dec:"6", date:"May 11, 2026", mint:"4MmPUnqs9WeRtYu3iOpLkJhGfDsAz7xCvq5ws7K84", tx:"4MmPUnqs…q5ws7K84", pool:"9PlMn3BvCxZaQwEr6tYuIo2sHZd6S833mBxP", pos:"7GfDsAz4xCvBnM2kJhQwEr9tYuIoPlMnBvCx", nft:"—", mc:"$4.8K", fees:"0.18 SOL", pnl:"+0.35"},
+  {name:"Nightshift", sym:"NSHFT", sol:"6.00 SOL", supply:"1,000,000,000", dec:"6", date:"May 04, 2026", mint:"8HgFdSa2zXcVbNm4QwErTyUi7oPlKjHgFdSa9Wq", tx:"8HgFdSa2…FdSa9Wq1", pool:"2QwErTyUi8oPlKjHgFdSa4zXcVbNm6MkJhGf", pos:"5MkJhGfDsAz9xCvBnM3QwErTyUi2oPlKjHgF", nft:"—", mc:"$21.7K", fees:"2.06 SOL", pnl:"+8.91"},
+  {name:"Halfmoon", sym:"HALF", sol:"2.20 SOL", supply:"500,000,000", dec:"6", date:"Apr 28, 2026", mint:"3KjHgFdSa7zXcVbNm9QwErTyUi4oPlMnBvCx2Zq", tx:"3KjHgFdS…BvCx2Zq7", pool:"6TyUi2oPlMnBvCxZaQwEr8sHZd4S833mBxPC", pos:"4BvCxZaQ2wErTyUi6oPlMnKjHgFdSa8zXcVb", nft:"—", mc:"$7.3K", fees:"0.54 SOL", pnl:"-1.15"},
+  {name:"Ghostline", sym:"GHST", sol:"5.40 SOL", supply:"1,000,000,000", dec:"6", date:"Apr 19, 2026", mint:"7ZxCvBnM4kJhGfDsAz2qWeRtYu6iOpLkJhG8Fd", tx:"7ZxCvBnM…JhG8Fd42", pool:"5OpLkJhG8FdSa3zXcVbNm7QwErTyUi4oPlMn", pos:"8WeRtYu6iOpLkJhGfDsAz2xCvBnM4kJhGfDs", nft:"—", mc:"$15.2K", fees:"1.61 SOL", pnl:"+4.77"}
+].map((t,i)=>({...t, tile: TILES[i % TILES.length]}));
+
+const B58 = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz123456789";
+function key(seed){let s=seed*9301+49297,o="";for(let i=0;i<44;i++){s=(s*9301+49297)%233280;o+=B58[Math.floor(s/233280*B58.length)];}return o;}
+function short(seed){const k=key(seed);return k.slice(0,5)+"…"+k.slice(-4);}
+function bal(seed){const v=((seed*7919)%1000)/1000*0.9;return v;}
+
+class Component extends DCLogic {
+  state = {route:"dashboard", lpTab:"default", tokenView:"grid", sel:null, wtype:null, wtab:"all",
+    group:"primary", pickerOpen:false, newGroupName:"", newGroupSize:"10",
+    groupList:[
+      {id:"primary",label:"Primary",size:25,funded:25,sol:"2.4180"},
+      {id:"warm",label:"Warm set",size:25,funded:14,sol:"0.9340"},
+      {id:"cold",label:"Cold set",size:25,funded:6,sol:"0.2160"},
+      {id:"snipe",label:"Snipe ring",size:12,funded:12,sol:"1.1050"}],
+    skew:20, slippage:200, poolPct:100, revoke:true, lock:true, auto:false,
+    range:"30d", picked:{}, counts:{slave:"10", funding:"1", fee:"1"}};
+
+  set(k,v){ this.setState({[k]:v}); }
+
+  renderVals(){
+    const st = this.state;
+    const track = e => { const el=e.currentTarget, r=el.getBoundingClientRect();
+      el.style.setProperty("--mx",(e.clientX-r.left)+"px"); el.style.setProperty("--my",(e.clientY-r.top)+"px"); };
+    const untrack = e => { const el=e.currentTarget; el.style.setProperty("--mx","-999px"); el.style.setProperty("--my","-999px"); };
+    const stop = e => e.stopPropagation();
+
+    const navDefs = [["dashboard","Dashboard"],["launchpad","Launchpad"],["tokens","Tokens"],["wallets","Wallets"],["command","Command center"],["settings","Settings"]];
+    const nav = navDefs.map(([id,label])=>({id,label,active:st.route===id,idle:st.route!==id,go:()=>this.setState({route:id,sel:null})}));
+
+    // dashboard
+    const stats = [
+      {label:"Tokens launched", value:"12", unit:"", note:"3 in the last 30 days"},
+      {label:"Wallets", value:"50", unit:"", note:"5 funding · 40 slave · 5 fee"},
+      {label:"SOL across wallets", value:"84.12", unit:"SOL", note:"31 funded · 19 empty"},
+      {label:"Open positions", value:"3", unit:"", note:"Meteora DLMM"},
+      {label:"Fees accrued", value:"4.82", unit:"SOL", note:"1.24 unclaimed"}
+    ];
+    const ranges = ["7d","30d","All"].map(l=>({label:l,active:st.range===l,idle:st.range!==l,go:()=>this.set("range",l)}));
+    const series = {"7d":[8,11,9,14,12,17,16,19,18,21,20,24],"30d":[2,5,4,9,7,12,10,16,14,15,19,18,22,21,26],"All":[1,3,2,6,5,4,9,8,13,11,17,15,20,18,23,22,27,26,31]}[st.range]||[];
+    const w=780,h=132,mx=Math.max(...series),mn=Math.min(...series);
+    const pts = series.map((v,i)=>[i/(series.length-1)*w, h-8-((v-mn)/((mx-mn)||1))*(h-22)]);
+    const line = pts.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1)).join(" ");
+    const area = line+" L"+w+" "+h+" L0 "+h+" Z";
+    const pnlChart = React.createElement("svg",{viewBox:"0 0 "+w+" "+h,preserveAspectRatio:"none",style:{width:"100%",height:h+"px",display:"block"}},
+      React.createElement("defs",null,
+        React.createElement("linearGradient",{id:"pnlg",x1:"0",y1:"0",x2:"0",y2:"1"},
+          React.createElement("stop",{offset:"0%",stopColor:"#9184d9",stopOpacity:.28}),
+          React.createElement("stop",{offset:"100%",stopColor:"#9184d9",stopOpacity:0}))),
+      [0,1,2,3].map(i=>React.createElement("line",{key:i,x1:0,x2:w,y1:h/4*i+6,y2:h/4*i+6,stroke:"rgba(233,233,237,.06)",strokeWidth:1})),
+      React.createElement("path",{d:area,fill:"url(#pnlg)"}),
+      React.createElement("path",{d:line,fill:"none",stroke:"#b5abfc",strokeWidth:1.6,vectorEffect:"non-scaling-stroke"}),
+      React.createElement("circle",{cx:pts[pts.length-1][0]-2,cy:pts[pts.length-1][1],r:3,fill:"#e9e9ed"}));
+    const pnlSplit = [
+      {label:"Realized", value:"+22.81 SOL", color:"#b5abfc"},
+      {label:"Unrealized", value:"-4.37 SOL", color:"rgba(233,233,237,.72)"},
+      {label:"Fees claimed", value:"3.58 SOL", color:"rgba(233,233,237,.72)"}
+    ];
+    const walletTypes = [
+      {label:"Funding", count:"5", pct:"10%", sol:"79.40"},
+      {label:"Slave", count:"40", pct:"80%", sol:"4.16"},
+      {label:"Fee", count:"5", pct:"10%", sol:"0.56"}
+    ];
+    const recent = TOKENS.slice(0,5).map(t=>({name:t.name,sym:t.sym,tile:t.tile,date:t.date,liq:t.sol,fees:t.fees,
+      pnl:(t.pnl[0]==="-"?"":"+")+t.pnl.replace("+","")+" SOL", pnlColor:t.pnl[0]==="-"?"rgba(233,233,237,.55)":"#b5abfc"}));
+
+    // launchpad
+    const lpTabs = ["default","advanced"].map(id=>({label:id,active:st.lpTab===id,idle:st.lpTab!==id,go:()=>this.set("lpTab",id)}));
+    const adv = st.lpTab==="advanced";
+    const estimate = [
+      {k:"SOL price", v:"$96.63", color:"#e9e9ed"},
+      {k:"Est. market cap", v:"—", color:"rgba(233,233,237,.4)"},
+      {k:"Token price", v:"—", color:"rgba(233,233,237,.4)"},
+      {k:"Pool supply", v:adv?(st.poolPct+"% of total"):"—", color:adv?"#d2cefd":"rgba(233,233,237,.4)"},
+      {k:"Cost", v:"≈ 0.0341 SOL", color:"#e9e9ed"}
+    ];
+    const preflight = [
+      {text:"Funding wallet not selected", color:"#796cbf"},
+      {text:"Metadata upload ready", color:"#b5abfc"},
+      {text:"Pool config resolved", color:"#b5abfc"}
+    ];
+
+    // tokens
+    const tokenViews = [["grid","Grid"],["rail","Rail"]].map(([id,label])=>({label,active:st.tokenView===id,idle:st.tokenView!==id,go:()=>this.set("tokenView",id)}));
+    const tokens = TOKENS.map((t,i)=>({...t, open:()=>this.set("sel",i)}));
+    const s = st.sel==null?null:TOKENS[st.sel];
+
+    // wallets
+    const WT = [
+      {id:"funding",label:"Funding wallets",count:"5",sol:"79.40",funded:"5 / 5",desc:"Hold treasury SOL and pay for launches and distributions."},
+      {id:"slave",label:"Slave wallets",count:"40",sol:"4.16",funded:"26 / 40",desc:"Bundle buyers. Funded per job, rotated between launches."},
+      {id:"fee",label:"Fee wallets",count:"5",sol:"0.56",funded:"3 / 5",desc:"Receive creator fees and pool claim payouts."}
+    ];
+    const walletCards = WT.map(w=>({...w,
+      border: st.wtype===w.id?"rgba(145,132,217,.42)":"rgba(233,233,237,.09)",
+      caret: st.wtype===w.id?"rotate(180deg)":"rotate(0deg)",
+      createCount: st.counts[w.id],
+      setCount: e=>this.setState({counts:{...st.counts,[w.id]:e.target.value}}),
+      toggle: ()=>this.setState({wtype: st.wtype===w.id?null:w.id, wtab:"all"})}));
+    const openW = WT.find(w=>w.id===st.wtype);
+    const wtabs = [["all","All"],["active","Active balance"],["empty","Empty"]].map(([id,label])=>({label,active:st.wtab===id,idle:st.wtab!==id,go:()=>this.set("wtab",id)}));
+    let walletRows = [];
+    if(openW){
+      const n = openW.id==="slave"?12:5;
+      walletRows = Array.from({length:n},(_,i)=>{
+        const v = openW.id==="funding" ? [24.12,18.44,31.07,5.77,0.0][i%5] : bal(i+ (openW.id==="fee"?90:7));
+        return {n:String(i+1).padStart(2,"0"), key:key(i+(openW.id==="fee"?90:openW.id==="funding"?40:7)).slice(0,34)+"…",
+          label: openW.id.charAt(0).toUpperCase()+openW.id.slice(1)+" "+String(i+1).padStart(2,"0"),
+          sol: v.toFixed(4), color: v>0?"rgba(233,233,237,.85)":"rgba(233,233,237,.58)", active: v>0};
+      }).filter(r=> st.wtab==="all" ? true : st.wtab==="active" ? r.active : !r.active);
+    }
+
+    // command center
+    const GROUPS = st.groupList;
+    const active = GROUPS.find(g=>g.id===st.group) || GROUPS[0];
+    const groupCards = GROUPS.map(g=>({...g, active: st.group===g.id,
+      border: st.group===g.id?"rgba(145,132,217,.45)":"rgba(233,233,237,.10)",
+      color: st.group===g.id?"#d2cefd":"rgba(233,233,237,.90)",
+      pick:()=>this.setState({group:g.id, pickerOpen:false})}));
+    let off=0; for(let i=0;i<st.group.length;i++) off=(off*31+st.group.charCodeAt(i))%500;
+    off = (off + (st.balSeed||0)) % 500;
+    const bundleRows = Array.from({length:active.size},(_,i)=>{
+      const id = st.group+"-"+i, on = !!st.picked[id], v = bal(i+off);
+      return {n:String(i+1), key:short(i+off), sol:v.toFixed(4),
+        color: v>0.02?"rgba(233,233,237,.80)":"rgba(233,233,237,.28)",
+        boxBorder: on?"#9184d9":"rgba(233,233,237,.18)", boxFill: on?"#9184d9":"transparent",
+        toggle: ()=>this.setState({picked:{...st.picked,[id]:!on}})};
+    });
+    const cc = st.ccCoin==null ? null : TOKENS[st.ccCoin];
+    const nSel = Object.keys(st.picked).filter(k=>st.picked[k] && k.startsWith(st.group)).length;
+    const held = bundleRows.filter((r,i)=>st.picked[st.group+"-"+i]).reduce((a,r)=>a+parseFloat(r.sol),0);
+    const overhead = nSel*0.00204;
+    const reserve = [
+      {k:"Rent for empty wallets", v:(nSel*0.00089).toFixed(4)+" SOL", color:"rgba(233,233,237,.78)", labelColor:"rgba(233,233,237,.55)"},
+      {k:"Token accounts to create", v:(nSel*0.00104).toFixed(4)+" SOL", color:"rgba(233,233,237,.78)", labelColor:"rgba(233,233,237,.55)"},
+      {k:"Signatures", v:(nSel*0.00001).toFixed(4)+" SOL", color:"rgba(233,233,237,.78)", labelColor:"rgba(233,233,237,.55)"},
+      {k:"Total overhead", v:overhead.toFixed(4)+" SOL", color:"#d2cefd", labelColor:"#b5abfc"},
+      {k:"Remaining tradeable", v:Math.max(0,2-overhead).toFixed(4)+" SOL", color:"#d2cefd", labelColor:"#b5abfc"}
+    ];
+    const wsteps = 14, ww=420, wh=88;
+    const walkPts = Array.from({length:wsteps},(_,i)=>[i/(wsteps-1)*ww, wh-6-Math.pow(i/(wsteps-1),1.55)*(wh-18)*(0.4+st.slippage/1000*0.6)]);
+    const walkChart = React.createElement("svg",{viewBox:"0 0 "+ww+" "+wh,preserveAspectRatio:"none",style:{width:"100%",height:wh+"px",display:"block"}},
+      walkPts.map((p,i)=>React.createElement("rect",{key:i,x:p[0]-ww/wsteps/2+3,y:p[1],width:ww/wsteps-6,height:wh-p[1]-4,rx:2,
+        fill:"rgba(145,132,217,"+(0.14+i/wsteps*0.4).toFixed(2)+")"})),
+      React.createElement("line",{x1:0,x2:ww,y1:wh-4,y2:wh-4,stroke:"rgba(233,233,237,.10)",strokeWidth:1}));
+
+    const settingGroups = [
+      {title:"Network", rows:[
+        {k:"RPC endpoint", note:"Private Helius node", v:"mainnet-helius", color:"rgba(233,233,237,.82)"},
+        {k:"Commitment", note:"Confirmation level for reads", v:"confirmed", color:"rgba(233,233,237,.82)"},
+        {k:"Websocket", note:"Live balance streaming", v:"On", color:"#d2cefd"}]},
+      {title:"Execution", rows:[
+        {k:"Priority fee", note:"Micro-lamports per compute unit", v:"25,000", color:"rgba(233,233,237,.82)"},
+        {k:"Jito tip", note:"Per bundle", v:"0.001 SOL", color:"rgba(233,233,237,.82)"},
+        {k:"Max retries", note:"Per leg before the job fails", v:"3", color:"rgba(233,233,237,.82)"}]},
+      {title:"Session", rows:[
+        {k:"Auto-lock", note:"Locks the keystore when idle", v:"15 min", color:"rgba(233,233,237,.82)"},
+        {k:"Derivation path", note:"HD seed path for new wallets", v:"m/44'/501'/0'", color:"rgba(233,233,237,.82)"},
+        {k:"Key export", note:"Requires the session passphrase", v:"Allowed", color:"rgba(233,233,237,.82)"}]},
+      {title:"Danger zone", rows:[
+        {k:"Rotate keystore", note:"Re-derives every slave wallet", v:"Run", color:"#b5abfc"},
+        {k:"Purge empty wallets", note:"Removes 19 zero-balance wallets", v:"Run", color:"#b5abfc"},
+        {k:"Clear local cache", note:"Balances, metadata and job history", v:"Run", color:"#b5abfc"}]}
+    ];
+
+    return {
+      track, untrack, stop, nav,
+      isDash: st.route==="dashboard", isLaunch: st.route==="launchpad", isTokens: st.route==="tokens",
+      isWallets: st.route==="wallets", isCommand: st.route==="command", isSettings: st.route==="settings",
+      goTokens: ()=>this.set("route","tokens"), goCommand: ()=>this.setState({route:"command",sel:null}),
+      goWallets: ()=>this.setState({route:"wallets", pickerOpen:false}),
+      toggleGroupList: ()=>this.set("groupListOpen", st.groupListOpen !== true),
+      groupListOpen: st.groupListOpen === true,
+      groupListCaret: st.groupListOpen === true ? "rotate(0deg)" : "rotate(-90deg)",
+      groupListLabel: st.groupListOpen === true ? "Hide groups" : "Show groups",
+      groupListStyle: st.groupListOpen === true ? "max-height:1600px;opacity:1" : "max-height:0px;opacity:0",
+      ccPickOpen: st.ccPickOpen === true,
+      openCoinPick: ()=>this.set("ccPickOpen",true),
+      closeCoinPick: ()=>this.set("ccPickOpen",false),
+      ccCoinList: TOKENS.map((t,i)=>({name:t.name, sym:t.sym, tile:t.tile, sol:t.sol,
+        nameColor: st.ccCoin===i ? "#d2cefd" : "rgba(233,233,237,.88)",
+        mintShort: t.mint.slice(0,4)+"…"+t.mint.slice(-4),
+        pick:()=>this.setState({ccCoin:i, ccPickOpen:false})})),
+      loadCoin: ()=>this.setState({ccCoin: st.ccCoin==null ? 0 : st.ccCoin, ccPickOpen:false}),
+      clearCoin: ()=>this.setState({ccCoin:null}),
+      hasCoin: st.ccCoin!=null,
+      coinName: cc?cc.name:"", coinSym: cc?cc.sym:"", coinTile: cc?cc.tile:"transparent", coinMint: cc?cc.mint:"",
+      coinFacts: cc?[{k:"Liquidity",v:cc.sol},{k:"Supply",v:cc.supply},{k:"Decimals",v:cc.dec},{k:"Pool",v:cc.pool.slice(0,4)+"…"+cc.pool.slice(-4)},{k:"Launched",v:cc.date}]:[],
+      stats, ranges, pnlChart, pnlSplit, walletTypes, recent,
+      lpTabs, isAdvanced: adv, estimate, preflight,
+      poolPct: st.poolPct, poolPctLabel: st.poolPct+"%", setPoolPct: e=>this.set("poolPct",+e.target.value),
+      revokeTrack: st.revoke?"rgba(145,132,217,.55)":"rgba(233,233,237,.10)", revokeX: st.revoke?"17px":"2px", toggleRevoke:()=>this.set("revoke",!st.revoke),
+      lockTrack: st.lock?"rgba(145,132,217,.55)":"rgba(233,233,237,.10)", lockX: st.lock?"17px":"2px", toggleLock:()=>this.set("lock",!st.lock),
+      autoTrack: st.auto?"rgba(145,132,217,.55)":"rgba(233,233,237,.10)", autoX: st.auto?"17px":"2px", toggleAuto:()=>this.set("auto",!st.auto),
+      tokenViews, isGridView: st.tokenView==="grid", isRailView: st.tokenView==="rail", tokens,
+      tokenOpen: s!=null, closeToken: ()=>this.set("sel",null),
+      selName: s?s.name:"", selTile: s?s.tile:"", selMeta: s?(s.sym+" · launched "+s.date):"",
+      selStats: s?[{k:"Launched with",v:s.sol,color:"#d2cefd"},{k:"Market cap",v:s.mc,color:"rgba(233,233,237,.85)"},
+        {k:"Fees accrued",v:s.fees,color:"rgba(233,233,237,.85)"},{k:"PnL",v:s.pnl+" SOL",color:s.pnl[0]==="-"?"rgba(233,233,237,.6)":"#b5abfc"}]:[],
+      selToken: s?[{k:"Mint address",v:s.mint},{k:"Launch TX",v:s.tx},{k:"Supply",v:s.supply},{k:"Decimals",v:s.dec}]:[],
+      selPool: s?[{k:"Pool address",v:s.pool},{k:"Position address",v:s.pos},{k:"Position NFT mint",v:s.nft}]:[],
+      walletCards, walletOpen: !!openW, openLabel: openW?openW.label:"", walletTabs: wtabs, walletRows,
+      walletPages: openW && openW.id==="slave" ? "4" : "1", closeWallet: ()=>this.set("wtype",null),
+      bundleRows, groupCards,
+      activeGroupLabel: active.label, activeGroupCount: active.funded+"/"+active.size,
+      groupCountLabel: GROUPS.length+" groups · "+GROUPS.reduce((a,g)=>a+g.size,0)+" wallets assigned",
+      pickerOpen: st.pickerOpen, openPicker: ()=>this.set("pickerOpen",true), closePicker: ()=>this.set("pickerOpen",false),
+      newGroupName: st.newGroupName, setNewName: e=>this.set("newGroupName",e.target.value),
+      newGroupSize: st.newGroupSize, setNewSize: e=>this.set("newGroupSize",e.target.value),
+      createGroup: ()=>{
+        const name = (st.newGroupName||"").trim() || ("Group "+(st.groupList.length+1));
+        const size = Math.max(1, parseInt(st.newGroupSize,10)||10);
+        const id = "g"+Date.now();
+        this.setState({groupList:[...st.groupList,{id,label:name,size,funded:0,sol:"0.0000"}],
+          group:id, pickerOpen:false, newGroupName:"", newGroupSize:"10"});
+      },
+      bundleOpen: st.bundleOpen !== false,
+      bundleBodyStyle: st.bundleOpen === false ? "max-height:0px;opacity:0" : "max-height:4200px;opacity:1",
+      refreshColor: st.refreshing ? "#d2cefd" : "rgba(233,233,237,.62)",
+      refreshAnim: st.refreshing ? "omSpin .7s linear infinite" : "none",
+      refreshBalances: ()=>{ this.setState({refreshing:true, balSeed:(st.balSeed||0)+7}); clearTimeout(this._rt); this._rt=setTimeout(()=>this.setState({refreshing:false}),900); },
+      bundleSummary: st.bundleOpen === false ? "Collapsed" : "Wallets · distribute · execute · monitor",
+      bundleCaret: st.bundleOpen === false ? "rotate(-90deg)" : "rotate(0deg)",
+      toggleBundle: ()=>this.setState({bundleOpen: st.bundleOpen === false}),
+      allBorder: nSel===active.size ? "#9184d9" : "rgba(233,233,237,.26)",
+      allFill: nSel===active.size ? "#9184d9" : "transparent",
+      allMark: nSel===active.size,
+      toggleAllRows: ()=>{const p={...st.picked};const on = nSel!==active.size;bundleRows.forEach((r,i)=>p[st.group+"-"+i]=on);this.setState({picked:p});},
+      selCountLabel: nSel+" of "+active.size+" selected · holding "+held.toFixed(4)+" SOL",
+      selCountShort: nSel+" selected wallets",
+      selectAll: ()=>{const p={...st.picked};bundleRows.forEach((r,i)=>p[st.group+"-"+i]=true);this.setState({picked:p});},
+      selectNone: ()=>{const p={...st.picked};bundleRows.forEach((r,i)=>p[st.group+"-"+i]=false);this.setState({picked:p});},
+      skew: st.skew, skewLabel: st.skew+"%", setSkew: e=>this.set("skew",+e.target.value),
+      slippage: st.slippage, slipLabel: st.slippage+" bps", setSlip: e=>this.set("slippage",+e.target.value),
+      reserve, walkChart,
+      distMeta: nSel+" wallets · "+Math.ceil(nSel/5)+" transactions",
+      fireMeta: nSel+" funded · "+Math.ceil(nSel/5)+" bundles · tip 0.001 SOL",
+      settingGroups
+    };
+  }
+}
+
+</script>
+</body>
+</html>

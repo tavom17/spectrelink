@@ -1,89 +1,59 @@
-export default function Settings() {
+'use client'
+
+/**
+ * Settings — the account block reads the live session; every other group is
+ * placeholder (lib/placeholders) until a settings endpoint exists.
+ */
+
+import { useAuth } from '@/lib/auth'
+import { PreviewTag } from '@/components/ui'
+import { SETTING_GROUPS, type SettingRow } from '@/lib/placeholders'
+
+function Row({ r, last }: { r: SettingRow; last: boolean }) {
   return (
-    <div style={{ padding: '40px 48px' }}>
-      <div style={{ marginBottom: '40px' }}>
-        <div style={{
-          fontFamily: "'Share Tech Mono', monospace",
-          fontSize: '10px',
-          letterSpacing: '0.15em',
-          color: 'var(--faint)',
-          textTransform: 'uppercase',
-          marginBottom: '12px',
-        }}>
-          Account configuration and platform preferences
-        </div>
-        <h1 style={{
-          fontFamily: "'Bebas Neue', sans-serif",
-          fontSize: '48px',
-          letterSpacing: '0.06em',
-          color: 'var(--white)',
-          lineHeight: 1,
-          margin: 0,
-        }}>
-          SETTINGS
-        </h1>
+    <div className="row-flex" style={{ justifyContent: 'space-between', gap: 20, padding: '14px 0', flexWrap: 'nowrap', borderBottom: last ? 0 : '1px solid rgba(233,233,237,.05)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}>
+        <span style={{ fontSize: 13, color: 'var(--ink-1)' }}>{r.k}</span>
+        <span className="hint">{r.note}</span>
+      </div>
+      {r.action
+        ? <button type="button" className="btn btn-sm" disabled title="Not wired to the API yet">{r.v}</button>
+        : <span className="mono" style={{ fontSize: 11.5, color: 'var(--ink-1)', whiteSpace: 'nowrap' }}>{r.v}</span>}
+    </div>
+  )
+}
+
+export default function Settings() {
+  const { user } = useAuth()
+
+  const account: SettingRow[] = [
+    { k: 'Signed in as', note: 'Account email', v: user?.user_email ?? '—' },
+    { k: 'Session', note: 'Refreshed automatically while active', v: 'Active' },
+  ]
+
+  return (
+    <div>
+      <div className="page-head">
+        <div className="page-kicker">Network, execution and session</div>
+        <PreviewTag />
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(3, 1fr)',
-        gap: '1px',
-        background: 'var(--glass-border)',
-        border: '1px solid var(--glass-border)',
-        marginBottom: '32px',
-      }}>
-        {[
-          { label: 'RPC ENDPOINT', value: 'HELIUS'  },
-          { label: 'NETWORK',      value: 'MAINNET' },
-          { label: 'SESSION',      value: 'ACTIVE'  },
-        ].map(stat => (
-          <div key={stat.label} style={{ background: 'var(--deep)', padding: '24px 28px' }}>
-            <div style={{
-              fontFamily: "'Share Tech Mono', monospace",
-              fontSize: '11px',
-              letterSpacing: '0.15em',
-              color: 'var(--faint)',
-              textTransform: 'uppercase',
-              marginBottom: '10px',
-            }}>
-              {stat.label}
-            </div>
-            <div style={{
-              fontFamily: "'Bebas Neue', sans-serif",
-              fontSize: '36px',
-              letterSpacing: '0.05em',
-              color: 'var(--white)',
-            }}>
-              {stat.value}
+      <div className="grid-auto" style={{ '--min': '330px', alignItems: 'start' } as React.CSSProperties}>
+        <div className="glass glow">
+          <div className="card-head"><span className="step-title">Account</span></div>
+          <div style={{ padding: '6px 20px 16px' }}>
+            {account.map((r, i) => <Row key={r.k} r={r} last={i === account.length - 1} />)}
+          </div>
+        </div>
+
+        {SETTING_GROUPS.map(g => (
+          <div key={g.title} className="glass glow">
+            <div className="card-head"><span className="step-title">{g.title}</span></div>
+            <div style={{ padding: '6px 20px 16px' }}>
+              {g.rows.map((r, i) => <Row key={r.k} r={r} last={i === g.rows.length - 1} />)}
             </div>
           </div>
         ))}
-      </div>
-
-      <div style={{
-        border: '1px solid var(--glass-border)',
-        background: 'var(--deep)',
-        padding: '28px',
-        marginBottom: '32px',
-      }}>
-        <p style={{
-          fontSize: '15px',
-          fontWeight: 400,
-          color: 'var(--dim)',
-          lineHeight: 1.8,
-          margin: 0,
-        }}>
-          Manage your account credentials, RPC configuration, wallet encryption settings,
-          and platform preferences. API key rotation and session management available here.
-        </p>
-      </div>
-
-      <div className="terminal" style={{ padding: '20px 24px' }}>
-        <span style={{ color: 'rgba(255,255,255,0.3)' }}>$ </span>
-        spectre-cli settings --status
-        <br />
-        <span style={{ color: 'rgba(240,240,240,0.3)' }}>Module not yet connected. Awaiting API integration.</span>
-        <span className="terminal-cursor" />
       </div>
     </div>
   )

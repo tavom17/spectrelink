@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
+import ArcanaMark from '@/components/ArcanaMark'
+import Footer from '@/components/Footer'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -27,92 +29,57 @@ export default function LoginPage() {
     }
   }
 
-  const inputStyle: React.CSSProperties = {
-    background: 'transparent',
-    border: '1px solid var(--glass-border)',
-    color: 'var(--white)',
-    padding: '10px 14px',
-    fontFamily: "'Share Tech Mono', monospace",
-    fontSize: '14px',
-    outline: 'none',
-    width: '100%',
-  }
-
-  const labelStyle: React.CSSProperties = {
-    fontFamily: "'Share Tech Mono', monospace",
-    fontSize: '11px',
-    color: 'var(--dim)',
-    letterSpacing: '0.08em',
-  }
-
   return (
-    <div style={{
-      minHeight: 'calc(100vh - 72px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-    }}>
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          border: '1px solid var(--glass-border)',
-          background: 'var(--glass)',
-          padding: '48px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '24px',
-          minWidth: '360px',
-        }}
-      >
-        <div className="section-label">SpectreLink Access</div>
+    <div className="auth">
+      <main className="auth-main">
+        <form onSubmit={handleSubmit} className="glass glass-accent glow auth-card stack" style={{ gap: 18 }}>
+          <div className="auth-brand"><ArcanaMark /></div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={labelStyle}>EMAIL</label>
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            disabled={loading}
-            style={inputStyle}
-          />
-        </div>
+          <div>
+            <h1 style={{ fontSize: 22 }}>Sign in</h1>
+            <p className="hint" style={{ marginTop: 6 }}>Launchpad, wallets and command center in one place.</p>
+          </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <label style={labelStyle}>PASSWORD</label>
-          <input
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            disabled={loading}
-            style={inputStyle}
-          />
-        </div>
+          <div className="field">
+            <label className="label" htmlFor="login-email">Email</label>
+            <input
+              id="login-email"
+              className="input"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
 
-        {error && (
-          <p style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: '12px', color: 'rgba(255,80,80,0.8)', margin: 0 }}>
-            {error}
+          <div className="field">
+            <label className="label" htmlFor="login-password">Password</label>
+            <input
+              id="login-password"
+              className="input"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              disabled={loading}
+            />
+          </div>
+
+          {error && <div className="alert" role="alert">{error}</div>}
+
+          <button type="submit" className="btn btn-accent btn-block" disabled={loading}>
+            {loading ? 'Authenticating…' : 'Enter →'}
+          </button>
+
+          <p className="hint" style={{ textAlign: 'center' }}>
+            No account? <Link href="/register">Register</Link>
           </p>
-        )}
-
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={loading}
-          style={{ width: '100%', justifyContent: 'center' }}
-        >
-          {loading ? 'Authenticating...' : 'Enter'}
-          {!loading && <span className="btn-arrow">→</span>}
-        </button>
-
-        <p style={{ fontFamily: "'Share Tech Mono', monospace", fontSize: '11px', color: 'var(--dim)', margin: 0, textAlign: 'center' }}>
-          No account?{' '}
-          <Link href="/register" style={{ color: 'var(--white)', textDecoration: 'none' }}>
-            Register
-          </Link>
-        </p>
-      </form>
+        </form>
+      </main>
+      <Footer />
     </div>
   )
 }

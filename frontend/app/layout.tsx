@@ -1,12 +1,12 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import Nav from '@/components/Nav'
-import Cursor from '@/components/Cursor'
 import Providers from '@/components/Providers'
+import Backdrop from '@/components/Backdrop'
+import GlowTracker from '@/components/GlowTracker'
 
 export const metadata: Metadata = {
-  title: 'SpectreLink',
-  description: 'Solana Off-Chain Orchestration Platform',
+  title: 'Arcana',
+  description: 'Token launches, wallets and a command center for Solana — powered by Spectre Link',
 }
 
 export default function RootLayout({
@@ -17,12 +17,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <Backdrop />
+        <GlowTracker />
         <Providers>
-          <Cursor />
-          <Nav />
-          <main className="pt-[72px]">
-            {children}
-          </main>
+          {children}
         </Providers>
       </body>
     </html>
