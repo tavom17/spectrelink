@@ -19,10 +19,9 @@ export interface walletAllocation {
 
 export interface distributionResult {
     allocations: walletAllocation[];
-    bundleCount: number;
 }
 
-// interfaces.ts — the shape
+// config.ts to alter hard coded values
 export interface reserveConfig {
     txHeadroom: number;          // e.g. 5 transactions' worth
     baseFeePerTx: bigint;        // 5_000n
