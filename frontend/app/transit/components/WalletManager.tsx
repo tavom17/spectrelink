@@ -3,20 +3,63 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '@/lib/auth'
-import { useApiFetch } from '@/lib/api'
-import { Sheet, SheetHead, Seg, PreviewTag, CopyButton, ChevronDown, CheckIcon } from '@/components/ui'
-import { WALLET_TYPE_HOLDINGS, BUNDLE_GROUPS, type PlaceholderGroup } from '@/lib/placeholders'
+import { useApiFetch, ApiError } from '@/lib/api'
+import { Sheet, SheetHead, Seg, CopyButton, ChevronDown, CheckIcon } from '@/components/ui'
+import { WALLET_TYPE_HOLDINGS } from '@/lib/placeholders'
 
+/** GET /api/wallets/listWallets — one row per wallet, [] when none */
 interface Wallet {
   public_key: string
   wallet_type: 'master' | 'slave' | 'funding' | 'fee'
   wallet_id: string
 }
 
+/** POST /api/wallets/slaveWallets returns an array of these; /fundingWallets returns one */
+interface CreatedWallet {
+  wallet_id: string
+  public_key: string
+}
+
+/** GET /api/wallets/bundleGroups — newest first, [] when none */
+interface BundleGroup {
+  group_id: string
+  group_name: string
+  created_at: string
+}
+
+/** POST /api/wallets/bundleGroups */
+interface CreatedBundleGroup {
+  groupID: string
+  label: string
+  publicKeys: string[]
+}
+
+/** GET /api/wallets/bundleGroups/:groupID/wallets — ordered by position */
+interface BundleGroupWallet {
+  position: number
+  wallet_id: string
+  public_key: string
+}
+
 type Filter = 'all' | Wallet['wallet_type']
 
 const TYPE_ORDER = ['master', 'funding', 'fee', 'slave'] as const
 const PAGE_SIZE = 10
+const MAX_SLAVES = 25
+const GROUP_SIZES = [5, 10, 15, 20, 25] as const
+const GROUP_LABEL_MAX = 64
+
+function truncate(pk: string) {
+  return `${pk.slice(0, 6)}…${pk.slice(-6)}`
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
+function errorStatus(err: unknown) {
+  return err instanceof ApiError ? err.status : 0
+}
 
 const TYPE_CARDS = [
   { id: 'funding', label: 'Funding wallets', desc: 'Hold treasury SOL and pay for launches and distributions.' },
@@ -56,11 +99,23 @@ export default function WalletManager() {
   const [withdrawError, setWithdrawError] = useState('')
   const [withdrawSuccess, setWithdrawSuccess] = useState(false)
 
-  // Bundle groups — placeholder until the groups endpoint exists
-  const [groups, setGroups] = useState<PlaceholderGroup[]>(BUNDLE_GROUPS)
+  // Bundle groups
+  const [groups, setGroups] = useState<BundleGroup[]>([])
+  const [loadingGroups, setLoadingGroups] = useState(true)
+  const [groupsError, setGroupsError] = useState('')
   const [groupsOpen, setGroupsOpen] = useState(false)
   const [newGroupName, setNewGroupName] = useState('')
-  const [newGroupSize, setNewGroupSize] = useState('10')
+  const [newGroupSize, setNewGroupSize] = useState<number>(10)
+  const [creatingGroup, setCreatingGroup] = useState(false)
+  const [groupNameError, setGroupNameError] = useState('')
+  const [groupFormError, setGroupFormError] = useState('')
+  const [createdGroup, setCreatedGroup] = useState<CreatedBundleGroup | null>(null)
+
+  // Bundle group detail sheet
+  const [openGroup, setOpenGroup] = useState<BundleGroup | null>(null)
+  const [groupWallets, setGroupWallets] = useState<BundleGroupWallet[] | null>(null)
+  const [groupWalletsError, setGroupWalletsError] = useState('')
+  const [groupNotFound, setGroupNotFound] = useState(false)
 
   const fetchWallets = useCallback(async () => {
     if (!accessToken) return
@@ -76,6 +131,31 @@ export default function WalletManager() {
 
   useEffect(() => { fetchWallets() }, [fetchWallets])
 
+  const fetchGroups = useCallback(async () => {
+    if (!accessToken) return
+    try {
+      const data = await apiFetch<BundleGroup[]>('/api/wallets/bundleGroups')
+      setGroups(data)
+      setGroupsError('')
+    } catch (err) {
+      setGroupsError(err instanceof Error ? err.message : 'Failed to load bundle groups')
+    } finally {
+      setLoadingGroups(false)
+    }
+  }, [accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => { fetchGroups() }, [fetchGroups])
+
+  /** Fetches one wallet's balance into `balances`, skipping keys already in flight. */
+  function loadBalance(publicKey: string) {
+    if (fetchingRef.current.has(publicKey)) return
+    fetchingRef.current.add(publicKey)
+    apiFetch<{ balance: number }>(`/api/wallets/balance?public_key=${encodeURIComponent(publicKey)}`)
+      .then(data => setBalances(prev => ({ ...prev, [publicKey]: typeof data.balance === 'number' ? data.balance : null })))
+      .catch(() => setBalances(prev => ({ ...prev, [publicKey]: null })))
+      .finally(() => fetchingRef.current.delete(publicKey))
+  }
+
   const sorted = [...wallets].sort(
     (a, b) =>
       TYPE_ORDER.indexOf(a.wallet_type as typeof TYPE_ORDER[number]) -
@@ -90,15 +170,30 @@ export default function WalletManager() {
   useEffect(() => {
     if (!accessToken || pageWallets.length === 0) return
     pageWallets.forEach(w => {
-      if (balances[w.public_key] !== undefined) return
-      if (fetchingRef.current.has(w.public_key)) return
-      fetchingRef.current.add(w.public_key)
-      apiFetch<{ balance: number }>(`/api/wallets/balance?public_key=${encodeURIComponent(w.public_key)}`)
-        .then(data => setBalances(prev => ({ ...prev, [w.public_key]: data.balance })))
-        .catch(() => setBalances(prev => ({ ...prev, [w.public_key]: null })))
-        .finally(() => fetchingRef.current.delete(w.public_key))
+      if (balances[w.public_key] === undefined) loadBalance(w.public_key)
     })
   }, [page, filter, wallets, accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load the open group's wallets, then their balances (one balance call per key)
+  useEffect(() => {
+    if (!openGroup || !accessToken) return
+    let cancelled = false
+    setGroupWallets(null)
+    setGroupWalletsError('')
+    setGroupNotFound(false)
+    apiFetch<BundleGroupWallet[]>(`/api/wallets/bundleGroups/${encodeURIComponent(openGroup.group_id)}/wallets`)
+      .then(data => {
+        if (cancelled) return
+        setGroupWallets(data)
+        data.forEach(w => { if (balances[w.public_key] === undefined) loadBalance(w.public_key) })
+      })
+      .catch(err => {
+        if (cancelled) return
+        if (errorStatus(err) === 404) setGroupNotFound(true)
+        else setGroupWalletsError(err instanceof Error ? err.message : 'Failed to load group wallets')
+      })
+    return () => { cancelled = true }
+  }, [openGroup?.group_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function changeFilter(next: Filter) {
     setFilter(next)
@@ -111,16 +206,18 @@ export default function WalletManager() {
     setError('')
     try {
       if (type === 'slave') {
-        await apiFetch('/api/wallets/slaveWallets', {
+        const created = await apiFetch<CreatedWallet[]>('/api/wallets/slaveWallets', {
           method: 'POST',
           body: JSON.stringify({ amountOfSlaves: slaveCount }),
         })
+        setWallets(prev => [...prev, ...created.map(w => ({ ...w, wallet_type: 'slave' as const }))])
       } else if (type === 'funding') {
-        await apiFetch('/api/wallets/fundingWallets', { method: 'POST', body: JSON.stringify({}) })
+        const created = await apiFetch<CreatedWallet>('/api/wallets/fundingWallets', { method: 'POST', body: JSON.stringify({}) })
+        setWallets(prev => [...prev, { ...created, wallet_type: 'funding' }])
       } else {
         await apiFetch('/api/wallets/feeWallets', { method: 'POST', body: JSON.stringify({}) })
+        await fetchWallets()
       }
-      await fetchWallets()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create wallet')
     } finally {
@@ -165,9 +262,7 @@ export default function WalletManager() {
       // Refresh balance for this wallet after success
       setBalances(prev => ({ ...prev, [withdrawWallet.public_key]: undefined }))
       fetchingRef.current.delete(withdrawWallet.public_key)
-      apiFetch<{ balance: number }>(`/api/wallets/balance?public_key=${encodeURIComponent(withdrawWallet.public_key)}`)
-        .then(data => setBalances(prev => ({ ...prev, [withdrawWallet.public_key]: data.balance })))
-        .catch(() => setBalances(prev => ({ ...prev, [withdrawWallet.public_key]: null })))
+      loadBalance(withdrawWallet.public_key)
     } catch (err) {
       setWithdrawError(err instanceof Error ? err.message : 'Withdrawal failed')
     } finally {
@@ -175,14 +270,43 @@ export default function WalletManager() {
     }
   }
 
-  /** Placeholder: adds a group locally. */
-  function createGroup() {
-    const label = newGroupName.trim() || `Group ${groups.length + 1}`
-    const size = Math.max(1, parseInt(newGroupSize, 10) || 10)
-    setGroups(prev => [...prev, { id: `g${Date.now()}`, label, size, funded: 0, sol: '0.0000' }])
-    setNewGroupName('')
-    setNewGroupSize('10')
-    setGroupsOpen(true)
+  async function createGroup(e: React.FormEvent) {
+    e.preventDefault()
+    if (creatingGroup) return
+    const label = newGroupName.trim()
+    if (label.length < 1 || label.length > GROUP_LABEL_MAX) {
+      setGroupNameError(`Group name must be 1–${GROUP_LABEL_MAX} characters.`)
+      return
+    }
+    setCreatingGroup(true)
+    setGroupNameError('')
+    setGroupFormError('')
+    try {
+      const created = await apiFetch<CreatedBundleGroup>('/api/wallets/bundleGroups', {
+        method: 'POST',
+        body: JSON.stringify({ amountOfSlaves: newGroupSize, label }),
+      })
+      // The create response has no created_at; the list is newest-first, so prepend with the client time
+      setGroups(prev => [{ group_id: created.groupID, group_name: created.label, created_at: new Date().toISOString() }, ...prev])
+      setCreatedGroup(created)
+      setNewGroupName('')
+      setGroupsOpen(true)
+      // The group's slave wallets are new registry rows too
+      fetchWallets()
+    } catch (err) {
+      const status = errorStatus(err)
+      const message = err instanceof Error ? err.message : ''
+      if (status === 409) setGroupNameError('A bundle group with that name already exists.')
+      else if (status === 400) setGroupFormError(message || 'Invalid bundle group request.')
+      else if (status === 401) setGroupFormError(message || 'Session expired. Please log in again.')
+      else setGroupFormError('Something went wrong creating the bundle group. Please try again.')
+    } finally {
+      setCreatingGroup(false)
+    }
+  }
+
+  function closeGroup() {
+    setOpenGroup(null)
   }
 
   const counts = {
@@ -246,9 +370,9 @@ export default function WalletManager() {
                   <input
                     type="number"
                     min={1}
-                    max={20}
+                    max={MAX_SLAVES}
                     value={slaveCount}
-                    onChange={e => setSlaveCount(Math.max(1, Math.min(20, Number(e.target.value))))}
+                    onChange={e => setSlaveCount(Math.max(1, Math.min(MAX_SLAVES, Number(e.target.value))))}
                     className="input mono"
                     aria-label="Number of slave wallets to create"
                     style={{ width: 64, padding: '8px 10px', fontSize: 12 }}
@@ -262,38 +386,79 @@ export default function WalletManager() {
                 >
                   {creating === t.id ? 'Creating…' : 'Create →'}
                 </button>
-                {t.id === 'slave' && <span className="hint" style={{ fontSize: 11 }}>up to 20 at once</span>}
+                {t.id === 'slave' && <span className="hint" style={{ fontSize: 11 }}>up to {MAX_SLAVES} at once</span>}
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* ── bundle groups (placeholder) ──────────────────────────── */}
+      {/* ── bundle groups ────────────────────────────────────────── */}
       <div className="glass glow" style={{ marginTop: 14, '--glow-size': '400px' } as React.CSSProperties}>
         <div className="card-head">
           <span className="step-title">Bundle groups</span>
-          <div className="row-flex">
-            <span className="meta">{groups.length} groups · {groups.reduce((a, g) => a + g.size, 0)} wallets assigned</span>
-            <PreviewTag />
-          </div>
+          <span className="meta">{loadingGroups ? 'Loading…' : `${groups.length} groups`}</span>
         </div>
         <div style={{ padding: '18px 20px 20px' }}>
-          <div style={{ padding: '17px 18px', borderRadius: 13, border: '1px dashed rgba(145,132,217,.34)', background: 'rgba(66,58,106,.16)' }}>
+          <form
+            onSubmit={createGroup}
+            noValidate
+            style={{ padding: '17px 18px', borderRadius: 13, border: '1px dashed rgba(145,132,217,.34)', background: 'rgba(66,58,106,.16)' }}
+          >
             <div className="kicker kicker-accent">Create a group</div>
             <div className="row-flex" style={{ alignItems: 'flex-end', gap: 12, marginTop: 14 }}>
               <div className="field" style={{ flex: '1 1 190px' }}>
                 <label className="label" htmlFor="wm-group-name">Group name</label>
-                <input id="wm-group-name" className="input" placeholder="e.g. Launch set B" value={newGroupName} onChange={e => setNewGroupName(e.target.value)} />
+                <input
+                  id="wm-group-name"
+                  className="input"
+                  placeholder="e.g. Launch set B"
+                  maxLength={GROUP_LABEL_MAX}
+                  value={newGroupName}
+                  onChange={e => { setNewGroupName(e.target.value); setGroupNameError('') }}
+                  disabled={creatingGroup}
+                  aria-invalid={!!groupNameError}
+                  aria-describedby={groupNameError ? 'wm-group-name-err' : undefined}
+                />
               </div>
               <div className="field" style={{ width: 120 }}>
                 <label className="label" htmlFor="wm-group-size">Wallets</label>
-                <input id="wm-group-size" className="input mono" inputMode="numeric" value={newGroupSize} onChange={e => setNewGroupSize(e.target.value.replace(/[^0-9]/g, ''))} />
+                <select
+                  id="wm-group-size"
+                  className="input mono"
+                  value={newGroupSize}
+                  onChange={e => setNewGroupSize(Number(e.target.value))}
+                  disabled={creatingGroup}
+                >
+                  {GROUP_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
               </div>
-              <button type="button" className="btn btn-accent" onClick={createGroup}>Create group →</button>
+              <button type="submit" className="btn btn-accent" disabled={creatingGroup}>
+                {creatingGroup ? 'Creating…' : 'Create group →'}
+              </button>
             </div>
-            <div className="hint" style={{ marginTop: 11 }}>Pulls the next unassigned slave wallets from the registry.</div>
-          </div>
+            {groupNameError && <div id="wm-group-name-err" className="alert-inline" style={{ marginTop: 9 }}>{groupNameError}</div>}
+            {groupFormError && <div className="alert" style={{ marginTop: 12 }}>{groupFormError}</div>}
+            <div className="hint" style={{ marginTop: 11 }}>Derives {newGroupSize} new slave wallets and assigns them to the group.</div>
+
+            {createdGroup && (
+              <div style={{ marginTop: 16, paddingTop: 15, borderTop: '1px solid rgba(233,233,237,.07)' }}>
+                <div className="row-flex" style={{ justifyContent: 'space-between' }}>
+                  <span className="kicker">Created “{createdGroup.label}” · {createdGroup.publicKeys.length} wallets</span>
+                  <button type="button" className="btn btn-xs" onClick={() => setCreatedGroup(null)}>Dismiss</button>
+                </div>
+                <div className="stack" style={{ gap: 4, marginTop: 10, maxHeight: 220, overflowY: 'auto' }}>
+                  {createdGroup.publicKeys.map((pk, i) => (
+                    <div key={pk} className="row-flex" style={{ gap: 8, flexWrap: 'nowrap' }}>
+                      <span className="t-cell-mono" style={{ color: 'var(--ink-4)', width: 22 }}>{String(i).padStart(2, '0')}</span>
+                      <span className="t-cell-mono" style={{ color: 'var(--ink-1)' }} title={pk}>{truncate(pk)}</span>
+                      <CopyButton text={pk} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </form>
 
           <button type="button" className="btn btn-sm" style={{ marginTop: 14 }} onClick={() => setGroupsOpen(o => !o)} aria-expanded={groupsOpen}>
             <ChevronDown size={11} style={{ transition: 'transform .3s var(--ease)', transform: groupsOpen ? 'none' : 'rotate(-90deg)' }} />
@@ -301,18 +466,31 @@ export default function WalletManager() {
           </button>
 
           <div style={{ overflow: 'hidden', transition: 'max-height .45s var(--ease), opacity .3s ease', maxHeight: groupsOpen ? 1600 : 0, opacity: groupsOpen ? 1 : 0 }}>
-            <div className="grid-fill" style={{ '--min': '190px', gap: 12, paddingTop: 16 } as React.CSSProperties}>
-              {groups.map(g => (
-                <div key={g.id} className="glass glow glow-bright" style={{ padding: '15px 16px', borderRadius: 13, '--glow-size': '200px' } as React.CSSProperties}>
-                  <div style={{ fontSize: 13.5 }}>{g.label}</div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 13 }}>
-                    <span className="value-lg">{g.size}</span>
-                    <span className="hint" style={{ fontSize: 11 }}>wallets</span>
+            {groupsError ? (
+              <div className="alert" style={{ marginTop: 16 }}>{groupsError}</div>
+            ) : loadingGroups ? (
+              <div className="empty">Loading bundle groups…</div>
+            ) : groups.length === 0 ? (
+              <div className="empty">No bundle groups yet. Create one above.</div>
+            ) : (
+              <div className="grid-fill" style={{ '--min': '190px', gap: 12, paddingTop: 16, maxHeight: 1560, overflowY: 'auto' } as React.CSSProperties}>
+                {groups.map(g => (
+                  <div
+                    key={g.group_id}
+                    className="glass glow glow-bright lift"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setOpenGroup(g)}
+                    onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenGroup(g) } }}
+                    title="View group wallets"
+                    style={{ padding: '15px 16px', borderRadius: 13, cursor: 'pointer', '--glow-size': '200px' } as React.CSSProperties}
+                  >
+                    <div style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.group_name}</div>
+                    <div className="meta" style={{ marginTop: 9 }}>Created {formatDate(g.created_at)}</div>
                   </div>
-                  <div className="meta" style={{ marginTop: 9 }}>{g.funded} funded · {g.sol} SOL</div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -376,6 +554,46 @@ export default function WalletManager() {
           </>
         )}
       </div>
+
+      {/* ── bundle group detail ──────────────────────────────────── */}
+      {openGroup && (
+        <Sheet onClose={closeGroup} width={560} labelledBy="bg-title">
+          <SheetHead
+            id="bg-title"
+            title={openGroup.group_name}
+            sub={`Created ${formatDate(openGroup.created_at)}${groupWallets ? ` · ${groupWallets.length} wallets` : ''}`}
+            onClose={closeGroup}
+          />
+          {groupNotFound ? (
+            <div className="empty">Bundle group not found.</div>
+          ) : groupWalletsError ? (
+            <div className="sheet-body"><div className="alert">{groupWalletsError}</div></div>
+          ) : groupWallets === null ? (
+            <div className="empty">Loading wallets…</div>
+          ) : (
+            <div>
+              <div className="t-head" style={{ gridTemplateColumns: '40px 1fr 130px', padding: '10px 26px' }}>
+                <span>Pos</span><span>Public key</span><span className="t-right">Balance</span>
+              </div>
+              {groupWallets.map(w => {
+                const bal = balances[w.public_key]
+                const balStr = bal === undefined ? '—' : bal === null ? 'err' : `${bal.toFixed(4)} SOL`
+                const balColor = bal === undefined || bal === null ? 'var(--ink-5)' : bal === 0 ? 'var(--ink-3)' : 'var(--ink-1)'
+                return (
+                  <div key={w.wallet_id} className="t-row glow glow-sm" style={{ gridTemplateColumns: '40px 1fr 130px', padding: '12px 26px' }}>
+                    <span className="t-cell-mono" style={{ color: 'var(--ink-4)' }}>{String(w.position).padStart(2, '0')}</span>
+                    <div className="row-flex" style={{ gap: 8, flexWrap: 'nowrap', minWidth: 0 }}>
+                      <span className="t-cell-mono" style={{ color: 'var(--ink-1)' }} title={w.public_key}>{truncate(w.public_key)}</span>
+                      <CopyButton text={w.public_key} />
+                    </div>
+                    <span className="t-cell-mono t-right" style={{ color: balColor }}>{balStr}</span>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Sheet>
+      )}
 
       {/* ── withdraw ─────────────────────────────────────────────── */}
       {withdrawWallet && (

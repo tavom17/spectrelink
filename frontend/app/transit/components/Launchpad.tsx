@@ -10,7 +10,6 @@ interface Wallet {
   wallet_id: string
   public_key: string
   wallet_type: 'master' | 'slave' | 'funding' | 'fee'
-  label: string | null
 }
 
 interface PoolConfigEntry {
@@ -638,8 +637,8 @@ export default function Launchpad() {
             <div className="empty">No {pickerOpen} wallets found. Create one in Wallets.</div>
           ) : (
             <div>
-              <div className="t-head" style={{ gridTemplateColumns: '22px 26px 1fr 90px', padding: '10px 26px' }}>
-                <span /><span /><span>Address</span><span>Label</span>
+              <div className="t-head" style={{ gridTemplateColumns: '22px 26px 1fr', padding: '10px 26px' }}>
+                <span /><span /><span>Address</span>
               </div>
               {pickerWallets.map(w => {
                 const isSelected = w.wallet_id === pickerSelected
@@ -648,12 +647,11 @@ export default function Launchpad() {
                     key={w.wallet_id}
                     className="t-row clickable glow glow-sm"
                     onClick={() => handlePickerSelect(w.wallet_id)}
-                    style={{ gridTemplateColumns: '22px 26px 1fr 90px', padding: '12px 26px', background: isSelected ? 'rgba(145,132,217,.08)' : undefined }}
+                    style={{ gridTemplateColumns: '22px 26px 1fr', padding: '12px 26px', background: isSelected ? 'rgba(145,132,217,.08)' : undefined }}
                   >
                     <RadioDot selected={isSelected} />
                     <CopyButton text={w.public_key} />
                     <span className="t-cell-mono" style={{ color: isSelected ? 'var(--accent-300)' : 'var(--ink-1)' }}>{truncate(w.public_key)}</span>
-                    <span className="t-cell-mono" style={{ color: 'var(--ink-3)' }}>{w.label ?? '—'}</span>
                   </div>
                 )
               })}

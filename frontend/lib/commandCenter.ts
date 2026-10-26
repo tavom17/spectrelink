@@ -1,17 +1,18 @@
 'use client'
 
 /**
- * Command centre data layer — presentation only.
+ * Command centre data layer.
  *
- * The panel is a front-end build: every read below comes from local fixtures
- * so the layout, states and derived numbers can be reviewed without a backend.
- * The reserve math, skew split and price walk are the real formulas, run
- * against fixture balances.
+ * Bundle groups, their wallets, funding wallets and SOL balances are live
+ * reads through the gateway ("live reads" below). Token data, distribute,
+ * buy and retry still come from local fixtures until those endpoints exist.
+ * The reserve math, skew split and price walk are the real formulas.
  *
- * To wire this up later, replace the bodies in the "fixture reads" section
- * with calls to the endpoints named above each one. Nothing else in the panel
- * needs to change — it only ever touches these functions.
+ * The panel only ever touches these functions, so wiring the rest means
+ * replacing the bodies in "fixture reads".
  */
+
+import type { ApiFetch } from './api'
 
 /* ------------------------------------------------------------------ types */
 
@@ -41,14 +42,14 @@ export interface GroupMember {
 export interface BundleGroup {
   group_id: string
   name: string
-  capacity: number             // 25 for a jito bundle roster
-  members: GroupMember[]
+  created_at: string           // ISO
+  members: GroupMember[] | null  // null until the group's wallets have been read
 }
 
 export interface FundingWallet {
   wallet_id: string
   public_key: string
-  lamports: number
+  lamports: number | null      // null when the balance read failed
 }
 
 export type LegStatus = 'pending' | 'sent' | 'confirmed' | 'failed' | 'blocked'
@@ -190,14 +191,90 @@ export function pct(fraction: number, digits = 2): string {
 }
 
 
+/* ------------------------------------------------------------- live reads */
+/*
+ * These go through the gateway with the caller's apiFetch (lib/api), which
+ * attaches the bearer token and handles 401 → refresh. Errors are ApiError.
+ *   loadGroups          GET  /api/wallets/bundleGroups
+ *   loadGroupMembers    GET  /api/wallets/bundleGroups/:groupID/wallets
+ *   loadFundingWallets  GET  /api/wallets/listWallets        (wallet_type=funding)
+ *   loadBalances        GET  /api/wallets/balance?public_key= (one call per key)
+ */
+
+interface ApiWallet {
+  public_key: string
+  wallet_type: 'master' | 'funding' | 'slave' | 'fee'
+  wallet_id: string
+}
+
+interface ApiBundleGroup {
+  group_id: string
+  group_name: string
+  created_at: string
+}
+
+interface ApiGroupWallet {
+  position: number             // 0-based
+  wallet_id: string
+  public_key: string
+}
+
+export async function loadGroups(apiFetch: ApiFetch): Promise<BundleGroup[]> {
+  const rows = await apiFetch<ApiBundleGroup[]>('/api/wallets/bundleGroups')
+  return rows.map(g => ({ group_id: g.group_id, name: g.group_name, created_at: g.created_at, members: null }))
+}
+
+/** Members come back unfunded; hydrate them with loadBalances. A 404 means the group is gone. */
+export async function loadGroupMembers(apiFetch: ApiFetch, groupId: string): Promise<GroupMember[]> {
+  const rows = await apiFetch<ApiGroupWallet[]>(`/api/wallets/bundleGroups/${encodeURIComponent(groupId)}/wallets`)
+  return rows.map(w => ({
+    wallet_id: w.wallet_id,
+    public_key: w.public_key,
+    index: w.position + 1,
+    lamports: 0,
+    ata_exists: false,
+  }))
+}
+
+/** SOL balance in lamports, or null if the read failed. */
+async function loadLamports(apiFetch: ApiFetch, publicKey: string): Promise<number | null> {
+  try {
+    const data = await apiFetch<{ balance: number }>(`/api/wallets/balance?public_key=${encodeURIComponent(publicKey)}`)
+    return typeof data.balance === 'number' ? Math.round(data.balance * LAMPORTS_PER_SOL) : null
+  } catch {
+    return null
+  }
+}
+
+export async function loadFundingWallets(apiFetch: ApiFetch): Promise<FundingWallet[]> {
+  const wallets = await apiFetch<ApiWallet[]>('/api/wallets/listWallets')
+  const funding = wallets.filter(w => w.wallet_type === 'funding')
+  const lamports = await Promise.all(funding.map(w => loadLamports(apiFetch, w.public_key)))
+  return funding.map((w, i) => ({ wallet_id: w.wallet_id, public_key: w.public_key, lamports: lamports[i] }))
+}
+
+export interface BalanceEntry { lamports: number; ata_exists: boolean }
+
+/**
+ * Balances for the roster. The balance route takes a single key, so this
+ * fans out one call per wallet; keys whose read failed are left out.
+ * The route reports SOL only, so ata_exists is always false and the reserve
+ * math assumes every token account still has to be created.
+ */
+export async function loadBalances(apiFetch: ApiFetch, publicKeys: string[]): Promise<Record<string, BalanceEntry>> {
+  const lamports = await Promise.all(publicKeys.map(k => loadLamports(apiFetch, k)))
+  const out: Record<string, BalanceEntry> = {}
+  publicKeys.forEach((k, i) => {
+    const l = lamports[i]
+    if (l !== null) out[k] = { lamports: l, ata_exists: false }
+  })
+  return out
+}
+
 /* ---------------------------------------------------------- fixture reads */
 /*
  * Endpoints these stand in for, once a backend exists:
  *   loadToken           GET  /api/command-center/token?mint=
- *   loadGroups          GET  /api/bundles/groups
- *   createGroup         POST /api/bundles/groups            { name }
- *   loadFundingWallets  GET  /api/wallets/listWallets        (wallet_type=funding)
- *   loadBalances        POST /api/wallets/balances           { public_keys, mint }
  *   distribute          POST /api/bundles/distribute         { funding_wallet_id, total_lamports, skew_pct, targets }
  *   simulateBuy         POST /api/bundles/buy/simulate       { mint, pool_address, slippage_bps, tip_lamports, targets }
  *   executeBuy          POST /api/bundles/buy                (same body)
@@ -216,28 +293,6 @@ export function loadToken(mint: string): Promise<TokenSnapshot> {
 /** Stands in for GET /api/liquidity/tokens, behind the "my tokens" button. */
 export function loadMyTokens(): Promise<TokenSnapshot[]> {
   return settle(fixtureMyTokens())
-}
-
-export function loadGroups(): Promise<BundleGroup[]> {
-  return settle(fixtureGroups())
-}
-
-export function createGroup(name: string): Promise<BundleGroup> {
-  return settle({ group_id: `g${Date.now().toString(36)}`, name, capacity: 25, members: [] }, 200)
-}
-
-export function loadFundingWallets(): Promise<FundingWallet[]> {
-  return settle(fixtureFunding())
-}
-
-export interface BalanceEntry { lamports: number; ata_exists: boolean }
-
-/**
- * One batched read for the whole roster — the panel never asks per wallet.
- * `seed` lets a post-distribute refresh come back with different numbers.
- */
-export function loadBalances(publicKeys: string[], seed = 0): Promise<Record<string, BalanceEntry>> {
-  return settle(fixtureBalances(publicKeys, seed), 260)
 }
 
 export interface Target { wallet_id: string; lamports: number }
@@ -311,42 +366,6 @@ function fixtureMyTokens(): TokenSnapshot[] {
     { ...base, mint_address: pseudoKey(2), name: 'Halfstep', symbol: 'HALF', pool_address: pseudoKey(98), pool_sol_reserves: 88.2, price_usd: 0.0000441, change_24h: -0.1284 },
     { ...base, mint_address: pseudoKey(3), name: 'Dead air', symbol: 'DEAD', pool_address: pseudoKey(97), pool_sol_reserves: 1204.9, price_usd: 0.00311, change_24h: 0.0042, user_owned: false },
   ]
-}
-
-function fixtureGroups(): BundleGroup[] {
-  const mk = (n: number, name: string, size: number): BundleGroup => ({
-    group_id: `g${n}`,
-    name,
-    capacity: 25,
-    members: Array.from({ length: size }, (_, i) => ({
-      wallet_id: `${n}-${i}`,
-      public_key: pseudoKey(n * 1000 + i),
-      index: i + 1,
-      lamports: 0,
-      ata_exists: false,
-    })),
-  })
-  return [mk(1, 'Primary', 25), mk(2, 'Warm set', 14), mk(3, 'Cold set', 6)]
-}
-
-function fixtureFunding(): FundingWallet[] {
-  return [
-    { wallet_id: 'f1', public_key: pseudoKey(7001), lamports: 84_120_000_000 },
-    { wallet_id: 'f2', public_key: pseudoKey(7002), lamports: 6_400_000_000 },
-  ]
-}
-
-function fixtureBalances(keys: string[], seed: number): Record<string, BalanceEntry> {
-  const out: Record<string, BalanceEntry> = {}
-  keys.forEach((k, i) => {
-    const j = i + seed
-    const empty = seed === 0 && i % 7 === 3
-    out[k] = {
-      lamports: empty ? 0 : Math.round((0.004 + (j % 11) * 0.031 + seed * 0.05) * LAMPORTS_PER_SOL),
-      ata_exists: j % 3 === 0,
-    }
-  })
-  return out
 }
 
 function fixtureJob(kind: Job['kind'], legCount: number, transfers: number): Job {

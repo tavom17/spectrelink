@@ -57,21 +57,6 @@ export const WALLET_TYPE_HOLDINGS: Record<'funding' | 'slave' | 'fee', { sol: st
   fee:     { sol: '0.56',  funded: '3 / 5' },
 }
 
-export interface PlaceholderGroup {
-  id: string
-  label: string
-  size: number
-  funded: number
-  sol: string
-}
-
-export const BUNDLE_GROUPS: PlaceholderGroup[] = [
-  { id: 'primary', label: 'Primary',    size: 25, funded: 25, sol: '2.4180' },
-  { id: 'warm',    label: 'Warm set',   size: 25, funded: 14, sol: '0.9340' },
-  { id: 'cold',    label: 'Cold set',   size: 25, funded: 6,  sol: '0.2160' },
-  { id: 'snipe',   label: 'Snipe ring', size: 12, funded: 12, sol: '1.1050' },
-]
-
 /* ----------------------------------------------------------------- settings */
 
 export interface SettingRow { k: string; note: string; v: string; action?: boolean }

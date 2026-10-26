@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useAuth } from '@/lib/auth'
+import { useApiFetch, ApiError } from '@/lib/api'
 import {
-  loadToken, loadMyTokens, loadGroups, createGroup, loadFundingWallets,
+  loadToken, loadMyTokens, loadGroups, loadGroupMembers, loadFundingWallets,
   loadBalances, distribute, simulateBuy, executeBuy, retryLeg,
   floorLamports, minimumBuyLamports, reserveMath, skewedSplit, priceWalk,
   distributeTxCount, bundleCount, sol, truncateAddress, usd, pct,
@@ -54,6 +56,9 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
   initialMint?: string
   onNavigate?: (tab: string) => void
 }) {
+  const { accessToken } = useAuth()
+  const { apiFetch } = useApiFetch()
+
   /* token */
   const [mintInput, setMintInput] = useState(initialMint)
   const [token, setToken] = useState<TokenSnapshot | null>(null)
@@ -64,12 +69,16 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
 
   /* groups + balances */
   const [groups, setGroups] = useState<BundleGroup[]>([])
+  const [loadingGroups, setLoadingGroups] = useState(true)
+  const [groupsError, setGroupsError] = useState('')
+  const [membersError, setMembersError] = useState<{ groupId: string; message: string } | null>(null)
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
   const [balances, setBalances] = useState<Record<string, BalanceEntry>>({})
+  const [balanceFailures, setBalanceFailures] = useState(0)
   const [syncedAt, setSyncedAt] = useState<number | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [syncing, setSyncing] = useState(false)
-  const syncSeed = useRef(0)
+  const loadedRef = useRef(false)
   const [showAllRows, setShowAllRows] = useState(false)
 
   /* ephemeral selection — never persisted, never touches group membership */
@@ -104,7 +113,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
 
   // Hydrate group members with the balances from the last batched read.
   const members: GroupMember[] = useMemo(() => {
-    if (!openGroup) return []
+    if (!openGroup?.members) return []
     return openGroup.members.map(m => {
       const b = balances[m.public_key]
       return b ? { ...m, lamports: b.lamports, ata_exists: b.ata_exists } : m
@@ -113,32 +122,56 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
 
   const selected = useMemo(() => members.filter(m => selectedIds.has(m.wallet_id)), [members, selectedIds])
 
-  /** One batched call for every wallet on screen. */
-  const syncBalances = useCallback(async (group: BundleGroup | null) => {
-    if (!group || group.members.length === 0) { setSyncedAt(Date.now()); return }
+  /** Reads the balance of every wallet in the roster. */
+  async function syncBalances(list: GroupMember[] | null | undefined) {
+    if (!list || list.length === 0) { setSyncedAt(Date.now()); return }
     setSyncing(true)
     try {
-      const next = await loadBalances(group.members.map(m => m.public_key), syncSeed.current)
+      const next = await loadBalances(apiFetch, list.map(m => m.public_key))
       setBalances(prev => ({ ...prev, ...next }))
+      setBalanceFailures(list.length - Object.keys(next).length)
       setSyncedAt(Date.now())
     } finally {
       setSyncing(false)
     }
-  }, [])
+  }
 
+  /** Reads a group's wallets once, then their balances. */
+  async function loadMembers(groupId: string) {
+    setMembersError(null)
+    try {
+      const list = await loadGroupMembers(apiFetch, groupId)
+      setGroups(prev => prev.map(g => (g.group_id === groupId ? { ...g, members: list } : g)))
+      await syncBalances(list)
+    } catch (err) {
+      const message = err instanceof ApiError && err.status === 404
+        ? 'Bundle group not found.'
+        : err instanceof Error ? err.message : 'Failed to load group wallets'
+      setMembersError({ groupId, message })
+    }
+  }
+
+  // Load once the token is available; later token refreshes must not reset the open group.
   useEffect(() => {
-    loadGroups().then(g => {
-      setGroups(g)
-      if (g.length) {
-        setOpenGroupId(g[0].group_id)
-        syncBalances(g[0])
-      }
-    })
-    loadFundingWallets().then(w => {
-      setFundingWallets(w)
-      if (w.length) setFundingId(w[0].wallet_id)
-    })
-  }, [syncBalances])
+    if (!accessToken || loadedRef.current) return
+    loadedRef.current = true
+    loadGroups(apiFetch)
+      .then(g => {
+        setGroups(g)
+        if (g.length) {
+          setOpenGroupId(g[0].group_id)
+          void loadMembers(g[0].group_id)
+        }
+      })
+      .catch(err => setGroupsError(err instanceof Error ? err.message : 'Failed to load bundle groups'))
+      .finally(() => setLoadingGroups(false))
+    loadFundingWallets(apiFetch)
+      .then(w => {
+        setFundingWallets(w)
+        if (w.length) setFundingId(w[0].wallet_id)
+      })
+      .catch(err => setActionError(err instanceof Error ? err.message : 'Failed to load funding wallets'))
+  }, [accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (initialMint) void handleLoad(initialMint)
@@ -178,16 +211,9 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
     setSimReady(false)
     if (next) {
       const g = groups.find(x => x.group_id === next)
-      if (g && g.members.some(m => balances[m.public_key] === undefined)) syncBalances(g)
+      if (g && !g.members) void loadMembers(g.group_id)
+      else if (g?.members?.some(m => balances[m.public_key] === undefined)) void syncBalances(g.members)
     }
-  }
-
-  async function handleNewGroup() {
-    const name = `Group ${groups.length + 1}`
-    const g = await createGroup(name)
-    setGroups(prev => [...prev, g])
-    setOpenGroupId(g.group_id)
-    setSelectedIds(new Set())
   }
 
   function selectable(m: GroupMember): boolean {
@@ -257,7 +283,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
 
   /** Per-group readout for the picker, from whatever balances have been read. */
   function groupStats(g: BundleGroup) {
-    const known = g.members.filter(m => balances[m.public_key] !== undefined)
+    const known = (g.members ?? []).filter(m => balances[m.public_key] !== undefined)
     if (known.length === 0) return null
     const hydrated = known.map(m => ({ ...m, ...balances[m.public_key] }))
     return {
@@ -276,8 +302,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
       const targets = selected.map((m, i) => ({ wallet_id: m.wallet_id, lamports: splits[i] ?? 0 }))
       setJob(await distribute(targets))
       // Distribute stands alone — refresh the roster so it shows the new amounts.
-      syncSeed.current += 1
-      await syncBalances(openGroup)
+      await syncBalances(openGroup?.members)
     } catch (err) {
       setActionError(err instanceof Error ? err.message : 'Distribute failed')
     } finally {
@@ -469,14 +494,14 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                     style={{ borderColor: 'rgba(145,132,217,.34)', background: 'rgba(145,132,217,.08)', letterSpacing: '.04em', textTransform: 'none', fontSize: 11 }}
                   >
                     <span style={{ color: 'var(--accent-300)' }}>{openGroup ? openGroup.name : 'Pick a group'}</span>
-                    {openGroup && <span style={{ color: 'var(--ink-3)' }}>{openGroup.members.length}/{openGroup.capacity}</span>}
+                    {openGroup?.members && <span style={{ color: 'var(--ink-3)' }}>{openGroup.members.length}</span>}
                     <ChevronDown />
                   </button>
                   <button
                     type="button"
                     className="icon-btn"
-                    onClick={() => syncBalances(openGroup)}
-                    disabled={syncing}
+                    onClick={() => syncBalances(openGroup?.members)}
+                    disabled={syncing || !openGroup?.members}
                     title="Refresh balances"
                     aria-label="Refresh balances"
                     style={{ color: syncing ? 'var(--accent-300)' : undefined }}
@@ -489,11 +514,24 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                 <Seg small options={MODES} value={mode} onChange={setMode} label="Selection mode" />
                 <span className="meta" style={{ color: 'var(--ink-4)' }}>
                   {syncing ? 'syncing balances…' : syncedAgo === null ? 'balances not synced' : `balances synced ${syncedAgo}s ago`}
+                  {!syncing && balanceFailures > 0 && <span style={{ color: 'var(--danger)' }}> · {balanceFailures} failed</span>}
                 </span>
               </div>
 
-              {!openGroup ? (
-                <div className="empty" style={{ borderTop: '1px solid var(--line-soft)' }}>Pick a bundle group to load its wallets.</div>
+              {groupsError ? (
+                <div style={{ padding: '16px 20px', borderTop: '1px solid var(--line-soft)' }}><div className="alert">{groupsError}</div></div>
+              ) : !openGroup ? (
+                <div className="empty" style={{ borderTop: '1px solid var(--line-soft)' }}>
+                  {loadingGroups
+                    ? 'Loading bundle groups…'
+                    : groups.length === 0
+                      ? 'No bundle groups yet. Create one in Wallets.'
+                      : 'Pick a bundle group to load its wallets.'}
+                </div>
+              ) : membersError?.groupId === openGroup.group_id ? (
+                <div className="empty" style={{ borderTop: '1px solid var(--line-soft)', color: 'var(--danger)' }}>{membersError.message}</div>
+              ) : !openGroup.members ? (
+                <div className="empty" style={{ borderTop: '1px solid var(--line-soft)' }}>Loading wallets…</div>
               ) : (
                 <>
                   <div className="t-head" style={{ gridTemplateColumns: rosterCols, padding: '10px 20px', borderTop: '1px solid var(--line-soft)' }}>
@@ -579,7 +617,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                         {fundingWallets.length === 0 && <option value="">No funding wallets</option>}
                         {fundingWallets.map(w => (
                           <option key={w.wallet_id} value={w.wallet_id}>
-                            {truncateAddress(w.public_key, 6, 6)} · {sol(w.lamports, 3)} SOL
+                            {truncateAddress(w.public_key, 6, 6)} · {w.lamports === null ? '—' : sol(w.lamports, 3)} SOL
                           </option>
                         ))}
                       </select>
@@ -761,7 +799,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
           <SheetHead
             id="cc-groups-title"
             title="Select a bundle group"
-            sub={`${groups.length} groups · ${groups.reduce((a, g) => a + g.members.length, 0)} wallets assigned`}
+            sub={`${groups.length} groups`}
             onClose={() => setGroupPickerOpen(false)}
           />
           <div className="grid-fill" style={{ '--min': '190px', gap: 12, padding: '20px 26px' } as React.CSSProperties}>
@@ -781,8 +819,9 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                     {active && <span className="dot" style={{ background: 'var(--accent-400)' }} />}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 13 }}>
-                    <span className="value-lg">{g.members.length}</span>
-                    <span className="hint" style={{ fontSize: 11 }}>/ {g.capacity} wallets</span>
+                    {g.members
+                      ? <><span className="value-lg">{g.members.length}</span><span className="hint" style={{ fontSize: 11 }}>wallets</span></>
+                      : <span className="hint" style={{ fontSize: 11 }}>Created {new Date(g.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>}
                   </div>
                   <div className="meta" style={{ marginTop: 9 }}>
                     {stats ? `${stats.funded} funded · ${sol(stats.lamports)} SOL` : 'Balances not synced'}
@@ -792,7 +831,8 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
             })}
             <button
               type="button"
-              onClick={() => { void handleNewGroup(); setGroupPickerOpen(false) }}
+              onClick={() => { setGroupPickerOpen(false); onNavigate?.('bundler') }}
+              title="Bundle groups are created in Wallets"
               style={{ padding: '15px 16px', borderRadius: 13, border: '1px dashed rgba(145,132,217,.34)', background: 'rgba(66,58,106,.16)', color: 'var(--accent-400)', cursor: 'pointer', font: 'inherit', fontSize: 13, minHeight: 104 }}
             >
               + New group
