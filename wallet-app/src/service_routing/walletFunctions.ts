@@ -12,18 +12,22 @@ import { request } from "node:http";
 //this is a "protected" api call through fastify, will need valid jwt and authentication required
 export async function walletEndpoints(fastify: FastifyInstance){
 
-    //grabs all user wallets for wallet manager, request only requires the user_id which will be the foreign key within the database for tb_wallets
+   //grabs all user wallets for wallet manager, request only requires the user_id which will be the foreign key within the database for tb_wallets
       fastify.get("/listWallets", async (request, reply) => {
-      const { user_ID } = request.query as { user_ID: string }        
+      const { user_ID } = request.query as { user_ID: string }
+
+        if(!user_ID)
+            return reply.status(400).send({ error: "user_ID is required" })
+
         try {
             const results = await listWallets(pool,user_ID);
 
-            if(!results || results.rowCount === 0)
-                return reply.status(200).send(`No wallet results for user_ID : ${user_ID}`)
-
+            //empty array is a valid answer (user has no wallets yet), not an error — frontend handles the empty state
             return reply.status(200).send(results.rows)
+
         } catch (error) {
-            reply.status(500).send(["Internal service error"])
+            request.log.error(error);
+            return reply.status(500).send({ error: "Failed to retrieve wallets" })
         }
       })
 

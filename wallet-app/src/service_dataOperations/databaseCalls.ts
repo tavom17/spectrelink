@@ -53,18 +53,15 @@ export async function slaveWalletSave(client: Pool | PoolClient, slave: walletCr
 }
 
 
-export async function fundingWalletSave(client: Pool | PoolClient, user_ID: string, wallet: walletCreations){
-   
-  
-    const result = await client.query(
-                `INSERT INTO tb_wallets (user_id, wallet_index, derivation_path, public_key, wallet_type)
-                 VALUES ($1, $2, $3, $4, $5)`,
-                [user_ID, wallet.index, wallet.derivationPath, wallet.publicKey, 'funding']
-            )
-        
-        
+export async function fundingWalletSave(client: Pool | PoolClient, user_ID: string, wallet: walletCreations): Promise<savedWallet> {
 
-        return result.rows;
+    const result = await client.query<savedWallet>(
+        `INSERT INTO tb_wallets (user_id, wallet_index, derivation_path, public_key, wallet_type)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING wallet_id, public_key`,
+        [user_ID, wallet.index, wallet.derivationPath, wallet.publicKey, 'funding']
+    )
+    return result.rows[0];
 }
 
 

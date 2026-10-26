@@ -57,7 +57,7 @@ export async function createSlaveWallets(user_ID: string,encryptedMnemonic: stri
 export async function createFundingWallet(user_ID: string,encryptedMnemonic: string, index: number): Promise<walletCreations>{
 
     const decryptedMnemonic = decrypt(encryptedMnemonic, process.env.ENCRYPTION_KEY!, user_ID);
-    const derivationPath = `m/44/501/1/${index}`;
+    const derivationPath = `m/44'/501'/1'/${index}'`;
     const wallet = await deriveKeyPair(decryptedMnemonic, derivationPath);
 
     const fundingWallet = {publicKey: wallet.publicKey,index: index, derivationPath:derivationPath}

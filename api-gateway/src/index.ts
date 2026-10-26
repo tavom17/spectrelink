@@ -4,7 +4,7 @@ import redis from "./redis"
 import { loginRoute } from "./routes/auth/login"
 import { register } from "./routes/auth/registration"
 import authenticate from "./middleware/auth"
-import { walletForward } from "./routes/api/walletRouter"
+import { walletBundleForward, walletForward } from "./routes/api/walletRouter"
 import { launcherForwarder } from "./routes/api/coinLaunchRouter"
 import cookie from "@fastify/cookie"
 import { refreshToken } from "./routes/auth/refresh"
@@ -31,6 +31,7 @@ fastify.register(refreshToken, { prefix: "/auth" })
 fastify.register(async (protectedApp) => {
     protectedApp.addHook('preHandler', authenticate)
     protectedApp.register(walletForward, {prefix: "/wallets"})
+    protectedApp.register(walletBundleForward, {prefix: "/wallets"})
     protectedApp.register(launcherForwarder, {prefix:"/coins" })
     protectedApp.register(liquidityForwarder, { prefix: "/liquidity" })
 
