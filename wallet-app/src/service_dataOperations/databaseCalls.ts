@@ -1,5 +1,6 @@
-import { walletCreations, walletList,savedWallet } from "../interfaces";
+import { walletCreations, walletList,savedWallet, bundleGroupList, bundleGroupWallets } from "../interfaces";
 import { Pool, PoolClient } from "pg";
+import pool from "./databaseConnectivity";
 
 //rules for db call functions
 //Query logic only
@@ -161,4 +162,31 @@ export async function bundleGroupSave(client: Pool | PoolClient, user_ID: string
            ]
        );
        return result.rows;
+   }
+
+   export async function listBundles(client: Pool | PoolClient, user_ID: string ){
+
+      const result = await client.query<bundleGroupList>(
+        `SELECT group_id, group_name, created_at
+         FROM tb_bundle_groups
+         WHERE user_id = $1
+         ORDER BY created_at DESC`,
+        [user_ID]
+    );
+    return result.rows;
+   }
+
+
+
+   export async function retrieveBundleGroupWallets(client: Pool | PoolClient, user_ID: string, group_ID: string){
+    
+    const result = await client.query<bundleGroupWallets>(
+        `SELECT m.position, m.wallet_id, w.public_key
+        FROM tb_bundle_group_members m
+        JOIN tb_bundle_groups g ON g.group_id = m.group_id
+        JOIN tb_wallets w       ON w.wallet_id = m.wallet_id
+        WHERE g.group_id = $1 AND g.user_id = $2
+        ORDER BY m.position;`,[group_ID,user_ID]);
+
+    return result.rows;
    }

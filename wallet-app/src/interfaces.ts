@@ -26,3 +26,18 @@ export interface savedWallet {
     wallet_id: string;
     public_key: string;
 };
+
+
+//for listing bundle groups cuh
+export interface bundleGroupList {
+    group_id: string;
+    group_name: string;
+    created_at: Date;
+    // wallet_count: number;   // most likely will use
+}
+
+export interface bundleGroupWallets { 
+    position: number; 
+    wallet_id: string; 
+    public_key: string 
+}

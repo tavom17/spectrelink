@@ -2,9 +2,10 @@ import { FastifyInstance } from "fastify";
 import * as wallet from "../service_functionality/wallet";
 import pool from "../service_dataOperations/databaseConnectivity";
 import { decrypt} from "../service_functionality/crypto"
-import { bundleGroupMemberSave, bundleGroupSave, fundingWalletSave, listPublicKey, listWallets, slaveWalletSave, validateForKeyPair } from "../service_dataOperations/databaseCalls";
+import { bundleGroupMemberSave, bundleGroupSave, fundingWalletSave, listBundles, listPublicKey, listWallets, retrieveBundleGroupWallets, slaveWalletSave, validateForKeyPair } from "../service_dataOperations/databaseCalls";
 import { getSeedPhrase,getLatestIndex } from "../service_dataOperations/databaseCalls";
 import { DatabaseError } from "pg";
+import { request } from "node:http";
 
 
 //fuction that basically acts as a do all for wallet functions hence the name, caters for all wallet functions leading to only one import in index file
@@ -212,11 +213,51 @@ fastify.post("/createBundleGroups", async(request,reply) =>{
 
 
 
+//pull all bundle groups, not specific
+fastify.get("/listBundleGroups", async(request,reply)=>{
+const {user_ID} = request.query as {user_ID: string}
 
-// fastify.get("/listBundleGroups", async(request,reply)=>{
+ if(!user_ID)
+        return reply.status(400).send("user_ID is required");
 
-// })
+    try {
+        //single read — pool, no transaction, no lock
+        const bundles = await listBundles(pool, user_ID);
 
+        //empty array is a valid answer (user has no groups yet), not an error
+        return reply.status(200).send(bundles);
+
+    } catch (error) {
+        request.log.error(error);
+        return reply.status(500).send("Failed to retrieve bundle groups");
+    }
+
+})
+
+
+fastify.get("/getBundleGroupWallets", async(request,reply)=>{
+    const {user_ID, group_ID} = request.query as {user_ID: string, group_ID: string}
+    
+    if(!user_ID)
+        return reply.status(400).send("user_ID is required");
+    if(!group_ID)
+        return reply.status(400).send("bundle group_ID required")
+
+    try {
+        const results = await retrieveBundleGroupWallets(pool, user_ID, group_ID);
+
+        //different than list bundle groups, if no result here, that means the group_ID
+        //doesnt match the user_ID
+        if(results.length === 0)
+        return reply.status(404).send("Bundle group not found");
+
+        return reply.status(200).send(results);
+    } catch (error) {
+        request.log.error(error);
+        return reply.status(500).send(`Failed to retrieve wallet information for user: ${user_ID} and group_ID: ${group_ID}`)
+    }
+
+})
 
 
 }
