@@ -98,6 +98,20 @@ fastify.post("/withdraw", async (request, reply) => {
     return reply.status(response.status).send(data)
 })
 
+fastify.post("/groupBalance", async (request, reply) => {
+    //pick the field explicitly — never spread the client body
+    const { publicKeys } = request.body as { publicKeys: string[] }
+
+    const response = await fetch(`${process.env.WALLET_APP_URL}/internal/groupBalance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicKeys })
+    })
+
+    const data = await parseResponse(response);
+    return reply.status(response.status).send(data)
+})
+
 }
 
 
@@ -141,5 +155,8 @@ fastify.get("/bundleGroups/:groupID/wallets", async (request, reply) => {
     const data = await parseResponse(response);
     return reply.status(response.status).send(data)
 })
+
+
+
 
 }

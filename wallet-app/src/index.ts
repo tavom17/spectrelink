@@ -4,6 +4,7 @@ import redis from "./redis"
 import { register } from "./service_routing/registration"
 import { walletEndpoints,bundleGroupEndpoints } from "./service_routing/walletFunctions"
 import { solanaRoutes } from "./service_routing/solanaRoute"
+import { transactionEndpoints } from "./service_routing/transactionHandler"
 
 const fastify = Fastify({ logger: true })
 
@@ -15,6 +16,8 @@ fastify.register(register,{prefix: "/internal"})
 fastify.register(walletEndpoints,{prefix: "/internal"})
 fastify.register(solanaRoutes,{prefix: "/internal"})
 fastify.register(bundleGroupEndpoints,{prefix: "/internal"})
+fastify.register(transactionEndpoints, { prefix: "/internal" })
+
 
 const start = async () => {
   try {

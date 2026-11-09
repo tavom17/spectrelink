@@ -41,3 +41,10 @@ export interface bundleGroupWallets {
     wallet_id: string; 
     public_key: string 
 }
+
+export type signingErrorCode = "DESERIALIZE_FAILED" | "SIGNER_NOT_IN_TRANSACTION" | "ALREADY_SIGNED";
+
+export interface signerRow {
+    public_key: string;
+    derivation_path: string;
+}

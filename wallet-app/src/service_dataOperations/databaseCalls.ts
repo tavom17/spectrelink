@@ -1,4 +1,4 @@
-import { walletCreations, walletList,savedWallet, bundleGroupList, bundleGroupWallets } from "../interfaces";
+import { walletCreations, walletList,savedWallet, bundleGroupList, bundleGroupWallets, signerRow } from "../interfaces";
 import { Pool, PoolClient } from "pg";
 import pool from "./databaseConnectivity";
 
@@ -187,3 +187,15 @@ export async function bundleGroupSave(client: Pool | PoolClient, user_ID: string
 
     return result.rows;
    }
+
+
+   //signers owned by this user — ownership check is the user_id filter
+export async function lookupSigners(client: Pool | PoolClient, user_ID: string, pubKeys: string[]): Promise<signerRow[]> {
+
+    const result = await client.query<signerRow>(
+        `SELECT public_key, derivation_path FROM tb_wallets
+         WHERE user_id = $1 AND public_key = ANY($2::text[])`,
+        [user_ID, pubKeys]
+    );
+    return result.rows;
+}
