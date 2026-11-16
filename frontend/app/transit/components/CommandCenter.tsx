@@ -2,27 +2,40 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '@/lib/auth'
-import { useApiFetch, ApiError } from '@/lib/api'
+import { useApiFetch, ApiError, apiErrorMessage } from '@/lib/api'
+import { useWalletBalances, solToLamports, formatSol, lamportsToSolString, type LoadOptions } from '@/lib/balances'
 import {
   loadToken, loadMyTokens, loadGroups, loadGroupMembers, loadFundingWallets,
-  loadBalances, distribute, simulateBuy, executeBuy, retryLeg,
-  floorLamports, minimumBuyLamports, reserveMath, skewedSplit, priceWalk,
-  distributeTxCount, bundleCount, sol, truncateAddress, usd, pct,
+  distributeToGroup, simulateBuy, executeBuy, retryLeg,
+  floorLamports, minimumBuyLamports, priceWalk,
+  bundleCount, sol, truncateAddress, usd, pct, lamportsToNumber,
   LAMPORTS_PER_SOL, BUNDLE_TIP_LAMPORTS,
   type TokenSnapshot, type BundleGroup, type GroupMember, type FundingWallet,
-  type Job, type BalanceEntry,
+  type Job, type SplitMode, type DistributeResult,
 } from '@/lib/commandCenter'
 import { Sheet, SheetHead, Seg, Range, Check, TokenTile, CopyButton, ChevronDown, RefreshIcon, PreviewTag } from '@/components/ui'
 
 const ROSTER_PAGE = 10
 
-/** Roster checkbox availability depends on what the selection is being used for. */
-type Mode = 'distribute' | 'buy'
+const SPLIT_MODES = [
+  { id: 'even', label: 'Even' },
+  { id: 'random', label: 'Random' },
+] as const satisfies readonly { id: SplitMode; label: string }[]
 
-const MODES = [
-  { id: 'distribute', label: 'Distribute' },
-  { id: 'buy', label: 'Buy' },
-] as const satisfies readonly { id: Mode; label: string }[]
+const SOLSCAN = 'https://solscan.io'
+
+/** Exactly what the user confirmed; the request is built from this, not from live form state. */
+interface DistributeRequest {
+  groupId: string
+  groupName: string
+  walletCount: number
+  fundingPublicKey: string
+  lamports: string
+  splitMode: SplitMode
+}
+
+/** `uncertain`: no usable response, so the transfers may or may not have landed. */
+interface DistributeError { message: string; uncertain: boolean }
 
 function StatusIcon({ status }: { status: Job['legs'][number]['status'] }) {
   if (status === 'confirmed') return (
@@ -73,24 +86,27 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
   const [groupsError, setGroupsError] = useState('')
   const [membersError, setMembersError] = useState<{ groupId: string; message: string } | null>(null)
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
-  const [balances, setBalances] = useState<Record<string, BalanceEntry>>({})
-  const [balanceFailures, setBalanceFailures] = useState(0)
-  const [syncedAt, setSyncedAt] = useState<number | null>(null)
+  const { balances, failed: balanceFailed, loading: syncing, load: loadBalances } = useWalletBalances()
+  /** Time of the last successful balance read, per group. */
+  const [syncedAt, setSyncedAt] = useState<Record<string, number>>({})
   const [now, setNow] = useState(() => Date.now())
-  const [syncing, setSyncing] = useState(false)
   const loadedRef = useRef(false)
   const [showAllRows, setShowAllRows] = useState(false)
 
-  /* ephemeral selection — never persisted, never touches group membership */
+  /* ephemeral buy selection — never persisted, never touches group membership */
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [mode, setMode] = useState<Mode>('distribute')
 
-  /* step 1 */
+  /* step 1 — distribute (real SOL, every wallet in the group) */
   const [fundingWallets, setFundingWallets] = useState<FundingWallet[]>([])
   const [fundingId, setFundingId] = useState('')
-  const [totalSol, setTotalSol] = useState('2')
-  const [skew, setSkew] = useState(20)
+  const [totalSol, setTotalSol] = useState('')
+  const [splitMode, setSplitMode] = useState<SplitMode>('even')
+  const [pendingDistribute, setPendingDistribute] = useState<DistributeRequest | null>(null)
   const [distributing, setDistributing] = useState(false)
+  // Synchronous guard: state updates land a render late, a ref blocks a double click.
+  const distributingRef = useRef(false)
+  const [distributeError, setDistributeError] = useState<DistributeError | null>(null)
+  const [distributeResult, setDistributeResult] = useState<{ request: DistributeRequest; result: DistributeResult } | null>(null)
 
   /* step 2 */
   const [slippageBps, setSlippageBps] = useState(200)
@@ -116,33 +132,39 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
     if (!openGroup?.members) return []
     return openGroup.members.map(m => {
       const b = balances[m.public_key]
-      return b ? { ...m, lamports: b.lamports, ata_exists: b.ata_exists } : m
+      return b ? { ...m, lamports: lamportsToNumber(b.lamports) } : m
     })
   }, [openGroup, balances])
 
   const selected = useMemo(() => members.filter(m => selectedIds.has(m.wallet_id)), [members, selectedIds])
 
-  /** Reads the balance of every wallet in the roster. */
-  async function syncBalances(list: GroupMember[] | null | undefined) {
-    if (!list || list.length === 0) { setSyncedAt(Date.now()); return }
-    setSyncing(true)
-    try {
-      const next = await loadBalances(apiFetch, list.map(m => m.public_key))
-      setBalances(prev => ({ ...prev, ...next }))
-      setBalanceFailures(list.length - Object.keys(next).length)
-      setSyncedAt(Date.now())
-    } finally {
-      setSyncing(false)
-    }
+  /**
+   * Reads balances for `list` in one groupBalance request. Keys already in
+   * flight are skipped; `force` re-reads keys that already have a balance.
+   */
+  async function syncBalances(groupId: string, list: GroupMember[], opts: LoadOptions, extraKeys: string[] = []) {
+    const outcome = await loadBalances([...list.map(m => m.public_key), ...extraKeys], opts)
+    if (outcome?.ok) setSyncedAt(prev => ({ ...prev, [groupId]: Date.now() }))
   }
 
-  /** Reads a group's wallets once, then their balances. */
+  /** Funding balance: the latest roster-cache read if there is one, else the read from page load. */
+  function fundingLamports(w: FundingWallet): number | null {
+    const b = balances[w.public_key]
+    return b ? lamportsToNumber(b.lamports) : w.lamports
+  }
+
+  /** Rows on screen before "N more wallets" is opened. */
+  function firstPage(list: GroupMember[]) {
+    return list.slice(0, ROSTER_PAGE)
+  }
+
+  /** Reads a group's wallets once, then the balances of the visible rows. */
   async function loadMembers(groupId: string) {
     setMembersError(null)
     try {
       const list = await loadGroupMembers(apiFetch, groupId)
       setGroups(prev => prev.map(g => (g.group_id === groupId ? { ...g, members: list } : g)))
-      await syncBalances(list)
+      await syncBalances(groupId, firstPage(list), { force: true })
     } catch (err) {
       const message = err instanceof ApiError && err.status === 404
         ? 'Bundle group not found.'
@@ -177,7 +199,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
     if (initialMint) void handleLoad(initialMint)
   }, [initialMint])
 
-  // Drives the "synced Ns ago" readout.
+  // Re-renders the "synced Ns ago" readout. Display only; it never fetches.
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
@@ -209,16 +231,28 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
     setSelectedIds(new Set())       // selection is per-roster and ephemeral
     setShowAllRows(false)
     setSimReady(false)
+    cancelPendingDistribute()       // a confirmation is for one specific group
     if (next) {
       const g = groups.find(x => x.group_id === next)
       if (g && !g.members) void loadMembers(g.group_id)
-      else if (g?.members?.some(m => balances[m.public_key] === undefined)) void syncBalances(g.members)
+      else if (g?.members) void syncBalances(g.group_id, firstPage(g.members), { force: true })
     }
   }
 
+  /** "N more wallets": reads only the newly shown rows that have no balance yet. */
+  function showMoreRows() {
+    setShowAllRows(true)
+    if (openGroup?.members) void syncBalances(openGroup.group_id, openGroup.members.slice(ROSTER_PAGE), {})
+  }
+
+  /** Manual refresh: every wallet in the selected group, one request. */
+  function refreshBalances() {
+    if (openGroup?.members?.length) void syncBalances(openGroup.group_id, openGroup.members, { force: true })
+  }
+
   function selectable(m: GroupMember): boolean {
-    // distribute funds any member; a buy needs the wallet to already clear its floor
-    return mode === 'distribute' || m.lamports >= minimumBuyLamports(m)
+    // the selection is for the buy, which needs the wallet to already clear its floor
+    return m.lamports >= minimumBuyLamports(m)
   }
 
   function toggle(id: string) {
@@ -240,7 +274,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
     setSimReady(false)
   }
 
-  // Drop selections that the current mode no longer allows.
+  // Drop selections whose wallet no longer clears the buy floor.
   useEffect(() => {
     setSelectedIds(prev => {
       const next = new Set([...prev].filter(id => {
@@ -250,16 +284,10 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
       return next.size === prev.size ? prev : next
     })
     setSimReady(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, members])
+  }, [members])
 
   /* ------------------------------------------------------------- derived */
-  /* Everything below counts the SELECTED wallets, never the group size. */
-
-  const totalLamports = Math.round((parseFloat(totalSol) || 0) * LAMPORTS_PER_SOL)
-  const math = reserveMath(selected, totalLamports)
-  const distTxCount = distributeTxCount(selected.length)
-  const splits = skewedSplit(math.tradeableLamports, selected.length, skew)
+  /* The buy figures count the SELECTED wallets; distribute always targets the whole group. */
 
   const fundedSelected = selected.filter(m => m.lamports >= minimumBuyLamports(m))
   const unfundedSelected = selected.length - fundedSelected.length
@@ -279,13 +307,15 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
   const allSelectable = members.filter(selectable)
   const allSelected = allSelectable.length > 0 && allSelectable.every(m => selectedIds.has(m.wallet_id))
 
-  const syncedAgo = syncedAt ? Math.max(0, Math.round((now - syncedAt) / 1000)) : null
+  const openSyncedAt = openGroupId ? syncedAt[openGroupId] : undefined
+  const syncedAgo = openSyncedAt ? Math.max(0, Math.round((now - openSyncedAt) / 1000)) : null
+  const balanceFailures = members.filter(m => balanceFailed[m.public_key]).length
 
   /** Per-group readout for the picker, from whatever balances have been read. */
   function groupStats(g: BundleGroup) {
     const known = (g.members ?? []).filter(m => balances[m.public_key] !== undefined)
     if (known.length === 0) return null
-    const hydrated = known.map(m => ({ ...m, ...balances[m.public_key] }))
+    const hydrated = known.map(m => ({ ...m, lamports: lamportsToNumber(balances[m.public_key].lamports) }))
     return {
       funded: hydrated.filter(m => m.lamports >= minimumBuyLamports(m)).length,
       lamports: hydrated.reduce((s, m) => s + m.lamports, 0),
@@ -294,18 +324,76 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
 
   /* ------------------------------------------------------------- actions */
 
-  async function handleDistribute() {
-    if (!selected.length || !fundingId) return
+  /** Drops an open confirmation (inputs or group changed). Never while a request is in flight. */
+  function cancelPendingDistribute() {
+    if (!distributingRef.current) setPendingDistribute(null)
+  }
+
+  /** Step one of two: validate, then show the confirmation. Nothing is sent here. */
+  function reviewDistribute() {
+    if (distributingRef.current) return
+    setDistributeError(null)
+    const group = openGroup
+    if (!group?.members?.length) { setDistributeError({ message: 'Pick a bundle group with wallets first.', uncertain: false }); return }
+    const funding = fundingWallets.find(w => w.wallet_id === fundingId)
+    if (!funding) { setDistributeError({ message: 'Pick a funding wallet.', uncertain: false }); return }
+    const parsed = solToLamports(totalSol)
+    if ('error' in parsed) { setDistributeError({ message: parsed.error, uncertain: false }); return }
+    setPendingDistribute({
+      groupId: group.group_id,
+      groupName: group.name,
+      walletCount: group.members.length,
+      fundingPublicKey: funding.public_key,
+      lamports: parsed.lamports,
+      splitMode,
+    })
+  }
+
+  /** Maps a failed request to what the form shows. */
+  function distributeFailure(err: unknown, req: DistributeRequest): DistributeError {
+    if (err instanceof ApiError) {
+      // BAD_REQUEST / INSUFFICIENT_BUDGET / INSUFFICIENT_FUNDS: the server's message, inline
+      if (err.status === 400) return { message: apiErrorMessage(err) ?? 'The distribution was rejected.', uncertain: false }
+      if (err.status === 404) {
+        setMembersError({ groupId: req.groupId, message: 'Bundle group not found.' })
+        return { message: 'Bundle group not found.', uncertain: false }
+      }
+      // apiFetch already tried a token refresh and logged out if that failed
+      if (err.status === 401) return { message: err.message, uncertain: false }
+      // the proxy gave up waiting; the server may still be sending
+      if (err.status === 504) return { message: 'The server took too long to answer.', uncertain: true }
+      return { message: 'Distribution failed on the server. Your inputs are unchanged.', uncertain: false }
+    }
+    // Network error or unreadable 2xx: the request may have reached the server.
+    return { message: 'No usable response from the server.', uncertain: true }
+  }
+
+  /** Step two: the only path that sends SOL. */
+  async function confirmDistribute() {
+    const req = pendingDistribute
+    if (!req || distributingRef.current) return
+    distributingRef.current = true
     setDistributing(true)
-    setActionError('')
+    setDistributeError(null)
     try {
-      const targets = selected.map((m, i) => ({ wallet_id: m.wallet_id, lamports: splits[i] ?? 0 }))
-      setJob(await distribute(targets))
-      // Distribute stands alone — refresh the roster so it shows the new amounts.
-      await syncBalances(openGroup?.members)
+      const result = await distributeToGroup(apiFetch, req.groupId, {
+        fundingPublicKey: req.fundingPublicKey,
+        grandTotal: req.lamports,
+        splitMode: req.splitMode,
+      })
+      setDistributeResult({ request: req, result })
+      setPendingDistribute(null)
+      // Funds moved (200 or 207): re-read the whole group and the funding wallet in one request.
+      // Not awaited, so the Distribute button frees up while the read runs.
+      const group = groups.find(g => g.group_id === req.groupId)
+      if (group?.members?.length) {
+        void syncBalances(group.group_id, group.members, { fresh: true }, [req.fundingPublicKey])
+      }
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Distribute failed')
+      setPendingDistribute(null)
+      setDistributeError(distributeFailure(err, req))
     } finally {
+      distributingRef.current = false
       setDistributing(false)
     }
   }
@@ -500,8 +588,8 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                   <button
                     type="button"
                     className="icon-btn"
-                    onClick={() => syncBalances(openGroup?.members)}
-                    disabled={syncing || !openGroup?.members}
+                    onClick={refreshBalances}
+                    disabled={syncing || !openGroup?.members?.length}
                     title="Refresh balances"
                     aria-label="Refresh balances"
                     style={{ color: syncing ? 'var(--accent-300)' : undefined }}
@@ -511,7 +599,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                 </div>
               </div>
               <div className="row-flex" style={{ justifyContent: 'space-between', padding: '0 20px 12px' }}>
-                <Seg small options={MODES} value={mode} onChange={setMode} label="Selection mode" />
+                <span className="meta" style={{ color: 'var(--ink-4)' }}>Select funded wallets for the buy</span>
                 <span className="meta" style={{ color: 'var(--ink-4)' }}>
                   {syncing ? 'syncing balances…' : syncedAgo === null ? 'balances not synced' : `balances synced ${syncedAgo}s ago`}
                   {!syncing && balanceFailures > 0 && <span style={{ color: 'var(--danger)' }}> · {balanceFailures} failed</span>}
@@ -566,9 +654,15 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                         <Check checked={isSelected} disabled={disabled} onChange={() => toggle(m.wallet_id)} />
                         <span className="t-cell-mono" style={{ color: 'var(--ink-4)' }}>{m.index}</span>
                         <span className="t-cell-mono" style={{ color: isSelected ? 'var(--text)' : 'var(--ink-2)' }}>{truncateAddress(m.public_key, 5, 4)}</span>
-                        <span className="t-cell-mono t-right" style={{ color: m.lamports === 0 ? 'var(--ink-5)' : 'var(--ink-1)' }}>
-                          {sol(m.lamports)}
-                        </span>
+                        {balances[m.public_key] ? (
+                          <span className="t-cell-mono t-right" style={{ color: m.lamports === 0 ? 'var(--ink-5)' : 'var(--ink-1)' }}>
+                            {sol(m.lamports)}
+                          </span>
+                        ) : (
+                          <span className="t-cell-mono t-right" style={{ color: balanceFailed[m.public_key] ? 'var(--danger)' : 'var(--ink-5)' }}>
+                            {balanceFailed[m.public_key] ? 'err' : '—'}
+                          </span>
+                        )}
                       </div>
                     )
                   })}
@@ -578,7 +672,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                       <span /><span />
                       <span>
                         {hiddenCount > 0 ? (
-                          <button type="button" className="btn-link" onClick={() => setShowAllRows(true)}>{hiddenCount} more wallets</button>
+                          <button type="button" className="btn-link" onClick={showMoreRows}>{hiddenCount} more wallets</button>
                         ) : showAllRows && members.length > ROSTER_PAGE ? (
                           <button type="button" className="btn-link dim" onClick={() => setShowAllRows(false)}>Show fewer</button>
                         ) : <span className="meta">Group total</span>}
@@ -613,13 +707,23 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                   <div className="grid-auto" style={{ '--min': '190px' } as React.CSSProperties}>
                     <div className="field">
                       <label className="label" htmlFor="cc-funding">Funding wallet</label>
-                      <select id="cc-funding" className="input mono" value={fundingId} onChange={e => setFundingId(e.target.value)} style={{ fontSize: 12 }}>
+                      <select
+                        id="cc-funding"
+                        className="input mono"
+                        value={fundingId}
+                        onChange={e => { setFundingId(e.target.value); setDistributeError(null); cancelPendingDistribute() }}
+                        disabled={distributing}
+                        style={{ fontSize: 12 }}
+                      >
                         {fundingWallets.length === 0 && <option value="">No funding wallets</option>}
-                        {fundingWallets.map(w => (
-                          <option key={w.wallet_id} value={w.wallet_id}>
-                            {truncateAddress(w.public_key, 6, 6)} · {w.lamports === null ? '—' : sol(w.lamports, 3)} SOL
-                          </option>
-                        ))}
+                        {fundingWallets.map(w => {
+                          const lamports = fundingLamports(w)
+                          return (
+                            <option key={w.wallet_id} value={w.wallet_id}>
+                              {truncateAddress(w.public_key, 6, 6)} · {lamports === null ? '—' : sol(lamports, 3)} SOL
+                            </option>
+                          )
+                        })}
                       </select>
                     </div>
                     <div className="field">
@@ -628,47 +732,92 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                         id="cc-total"
                         className="input mono"
                         value={totalSol}
-                        onChange={e => setTotalSol(e.target.value.replace(/[^0-9.]/g, ''))}
+                        onChange={e => { setTotalSol(e.target.value); setDistributeError(null); cancelPendingDistribute() }}
+                        onKeyDown={e => { if (e.key === 'Enter') reviewDistribute() }}
+                        disabled={distributing}
                         inputMode="decimal"
+                        placeholder="0.08"
+                        aria-invalid={!!distributeError && !distributeError.uncertain}
+                        aria-describedby={distributeError ? 'cc-distribute-error' : undefined}
                         style={{ fontSize: 12 }}
                       />
                     </div>
                   </div>
 
                   <div className="field" style={{ marginTop: 20 }}>
-                    <label className="label" htmlFor="cc-skew">
-                      Skew <span className="label-value mono">{skew}%</span>
-                    </label>
-                    <Range id="cc-skew" min={0} max={60} value={skew} onChange={setSkew} />
-                    <div className="hint" style={{ fontSize: 11 }}>0% sends every wallet the same amount · 60% spreads them widest</div>
+                    <span className="label">Split</span>
+                    <Seg
+                      small
+                      options={SPLIT_MODES}
+                      value={splitMode}
+                      onChange={v => { if (!distributing) { setSplitMode(v); cancelPendingDistribute() } }}
+                      label="Split mode"
+                    />
+                    <div className="hint" style={{ fontSize: 11 }}>
+                      Even gives every wallet the same amount · Random varies the amounts. Each wallet keeps a reserve for rent and fees.
+                    </div>
                   </div>
 
-                  <div className="callout" style={{ marginTop: 18 }}>
-                    <div className="kicker kicker-accent" style={{ letterSpacing: '.16em' }}>
-                      Reserve math · {math.wallets} selected {math.wallets === 1 ? 'wallet' : 'wallets'}
-                    </div>
+                  {distributeError && (
+                    distributeError.uncertain ? (
+                      <div id="cc-distribute-error" className="alert" role="alert" style={{ marginTop: 16 }}>
+                        {distributeError.message} The outcome is unknown: the transfers may have gone through.
+                        Before trying again, refresh balances and check the funding wallet on{' '}
+                        <SolscanLink kind="account" id={fundingWallets.find(w => w.wallet_id === fundingId)?.public_key}>Solscan</SolscanLink>.
+                      </div>
+                    ) : (
+                      <div id="cc-distribute-error" className="alert-inline" role="alert" style={{ marginTop: 14 }}>{distributeError.message}</div>
+                    )
+                  )}
+                </div>
+
+                {pendingDistribute ? (
+                  <div className="callout" style={{ margin: '0 20px 18px' }} aria-live="polite">
+                    <div className="kicker kicker-accent" style={{ letterSpacing: '.16em' }}>Confirm · sends real SOL</div>
                     <div className="stack" style={{ gap: 9, marginTop: 13 }}>
-                      <Line k="Rent for empty wallets" v={`${sol(selected.filter(m => m.lamports === 0).length * 890_880)} SOL`} />
-                      <Line k="Token accounts to create" v={`${sol(selected.filter(m => !m.ata_exists).length * 2_039_280)} SOL`} />
-                      <Line k="Signatures" v={`${sol(selected.length * 10_000)} SOL`} />
-                      <Line k="Total overhead" v={`${sol(math.overheadLamports)} SOL`} strong />
-                      <Line k="Remaining tradeable" v={`${sol(math.tradeableLamports)} SOL`} strong />
+                      <Line k="Bundle group" v={pendingDistribute.groupName} />
+                      <Line k="Wallets" v={`${pendingDistribute.walletCount} (every wallet in the group)`} />
+                      <Line k="From" v={truncateAddress(pendingDistribute.fundingPublicKey, 6, 6)} />
+                      <Line k="Split" v={pendingDistribute.splitMode === 'even' ? 'Even' : 'Random'} />
+                      <Line k="Total" v={`${lamportsToSolString(pendingDistribute.lamports)} SOL`} strong />
+                    </div>
+                    {distributing && (
+                      <div className="hint" style={{ fontSize: 11, marginTop: 13 }}>
+                        Sending and waiting for on-chain confirmation. This can take several seconds; keep this tab open to see the result.
+                      </div>
+                    )}
+                    <div className="row-flex" style={{ justifyContent: 'flex-end', gap: 7, marginTop: 15 }}>
+                      <button type="button" className="btn" disabled={distributing} onClick={() => setPendingDistribute(null)}>Cancel</button>
+                      <button type="button" className="btn btn-accent" disabled={distributing} onClick={confirmDistribute}>
+                        {distributing ? 'Distributing…' : 'Confirm and send'}
+                      </button>
                     </div>
                   </div>
-                </div>
-                <div className="card-foot">
-                  <span className="meta">
-                    {selected.length} {selected.length === 1 ? 'wallet' : 'wallets'} · {distTxCount} {distTxCount === 1 ? 'transaction' : 'transactions'}
-                  </span>
-                  <button
-                    type="button"
-                    className="btn btn-accent"
-                    disabled={distributing || selected.length === 0 || !fundingId || totalLamports <= 0}
-                    onClick={handleDistribute}
-                  >
-                    {distributing ? 'Distributing…' : 'Distribute'}
-                  </button>
-                </div>
+                ) : (
+                  <div className="card-foot">
+                    <span className="meta">
+                      {openGroup?.members
+                        ? `Sends to all ${openGroup.members.length} ${openGroup.members.length === 1 ? 'wallet' : 'wallets'} in ${openGroup.name}`
+                        : 'Pick a bundle group'}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-accent"
+                      disabled={distributing || !openGroup?.members?.length || !fundingId}
+                      onClick={reviewDistribute}
+                    >
+                      Distribute
+                    </button>
+                  </div>
+                )}
+
+                {distributeResult && (
+                  <DistributeResultView
+                    request={distributeResult.request}
+                    result={distributeResult.result}
+                    onDismiss={() => setDistributeResult(null)}
+                  />
+                )}
               </div>
 
               {/* 2 execute buy */}
@@ -690,7 +839,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                     <div className="hint" style={{ padding: '22px 0' }}>Load a token to preview the walk.</div>
                   ) : walk.length === 0 ? (
                     <div className="hint" style={{ padding: '22px 0' }}>
-                      Select funded wallets to preview the walk{mode === 'distribute' ? ' — switch the roster to Buy to see only funded wallets.' : '.'}
+                      Select funded wallets in the roster to preview the walk.
                     </div>
                   ) : (
                     <>
@@ -851,6 +1000,108 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
 }
 
 /* ------------------------------------------------------------ subviews */
+
+function SolscanLink({ kind, id, children }: { kind: 'tx' | 'account'; id?: string; children: React.ReactNode }) {
+  if (!id) return <>{children}</>
+  return (
+    <a href={`${SOLSCAN}/${kind}/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', textUnderlineOffset: 2 }}>
+      {children}
+    </a>
+  )
+}
+
+/** "#1–#18" for a contiguous run, else "#2, #5, #9" (positions are 0-based, shown 1-based like the roster). */
+function positionsLabel(positions: number[]): string {
+  const p = [...positions].sort((a, b) => a - b)
+  if (p.length === 0) return 'no wallets'
+  const contiguous = p.every((v, i) => i === 0 || v === p[i - 1] + 1)
+  if (contiguous) return p.length === 1 ? `#${p[0] + 1}` : `#${p[0] + 1}–#${p[p.length - 1] + 1}`
+  return p.map(v => `#${v + 1}`).join(', ')
+}
+
+function DistributeResultView({ request, result, onDismiss }: {
+  request: DistributeRequest
+  result: DistributeResult
+  onDismiss: () => void
+}) {
+  // Match by position, never by array index.
+  const txByPosition = new Map<number, DistributeResult['transactions'][number]>()
+  result.transactions.forEach(tx => tx.positions.forEach(p => txByPosition.set(p, tx)))
+
+  const failedTxs = result.transactions.filter(tx => tx.status === 'failed')
+  const partial = failedTxs.length > 0
+  const allocations = [...result.allocations].sort((a, b) => a.position - b.position)
+  const funded = allocations.filter(a => txByPosition.get(a.position)?.status === 'confirmed')
+  const fundedLamports = funded.reduce((sum, a) => sum + BigInt(a.transferAmount), BigInt(0)).toString()
+  const failedWithoutSignature = failedTxs.some(tx => !tx.signature)
+  const cols = '40px 1fr auto 62px'
+
+  return (
+    <div style={{ borderTop: '1px solid var(--line-soft)' }} aria-live="polite">
+      <div className="card-head" style={{ borderBottom: 0, paddingBottom: 8 }}>
+        <div className="row-flex" style={{ gap: 9 }}>
+          <span className="section-title" style={{ fontSize: 13.5 }}>Result · {request.groupName}</span>
+          <span className={partial ? 'tag tag-danger' : 'tag tag-accent'}>{partial ? 'Partial' : 'Confirmed'}</span>
+        </div>
+        <button type="button" className="btn btn-xs" onClick={onDismiss}>Dismiss</button>
+      </div>
+      <div className="meta" style={{ padding: '0 20px 12px' }}>
+        Funded {funded.length} of {allocations.length} wallets · {formatSol(fundedLamports, 6)} SOL confirmed · base reserve {formatSol(result.baseReserve, 6)} SOL per wallet
+      </div>
+
+      {partial && (
+        <div className="alert" role="alert" style={{ margin: '0 20px 14px' }}>
+          {failedTxs.length} of {result.transactions.length} {result.transactions.length === 1 ? 'transaction' : 'transactions'} failed, so the wallets marked “failed” below were not funded.
+          Re-running Distribute sends to <strong>every</strong> wallet in the group again, including the ones already funded.
+          Check the failed transaction on Solscan first: a “failed” result can occasionally mean confirmation timed out but the transfer actually landed.
+          {failedWithoutSignature && (
+            <> The response has no signature for {failedTxs.length === 1 ? 'it' : 'some of them'}; check the funding wallet&apos;s history on{' '}
+              <SolscanLink kind="account" id={request.fundingPublicKey}>Solscan</SolscanLink> instead.</>
+          )}
+        </div>
+      )}
+
+      {result.transactions.map((tx, i) => (
+        <div key={i} style={{ padding: '10px 20px', borderBottom: '1px solid rgba(233,233,237,.05)' }}>
+          <div className="row-flex" style={{ gap: 10, flexWrap: 'nowrap' }}>
+            <StatusIcon status={tx.status} />
+            <span className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
+              Tx {i + 1} · {tx.positions.length} {tx.positions.length === 1 ? 'transfer' : 'transfers'} · {positionsLabel(tx.positions)}
+            </span>
+            <span className="mono" style={{ fontSize: 11, marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+              {tx.signature
+                ? <SolscanLink kind="tx" id={tx.signature}>{truncateAddress(tx.signature, 8, 8)}</SolscanLink>
+                : <span style={{ color: 'var(--ink-5)' }}>no signature</span>}
+            </span>
+          </div>
+          {tx.status === 'failed' && (
+            <div className="mono" style={{ fontSize: 11, color: 'var(--danger)', marginTop: 6, paddingLeft: 23, wordBreak: 'break-word' }}>
+              {tx.error ?? 'Failed'}
+            </div>
+          )}
+        </div>
+      ))}
+
+      <div className="t-head" style={{ gridTemplateColumns: cols, padding: '10px 20px' }}>
+        <span>#</span><span>Wallet</span><span className="t-right">SOL</span><span className="t-right">Status</span>
+      </div>
+      {allocations.map(a => {
+        const tx = txByPosition.get(a.position)
+        const ok = tx?.status === 'confirmed'
+        return (
+          <div key={a.position} className="t-row" style={{ gridTemplateColumns: cols, padding: '9px 20px' }} title={tx?.status === 'failed' ? tx.error : undefined}>
+            <span className="t-cell-mono" style={{ color: 'var(--ink-4)' }}>{a.position + 1}</span>
+            <span className="t-cell-mono" style={{ color: 'var(--ink-2)' }}>{truncateAddress(a.publicKey, 5, 4)}</span>
+            <span className="t-cell-mono t-right" style={{ color: ok ? 'var(--ink-1)' : 'var(--ink-4)' }}>{formatSol(a.transferAmount, 6)}</span>
+            <span className="t-cell-mono t-right" style={{ color: ok ? 'var(--accent-400)' : 'var(--danger)' }}>
+              {ok ? 'funded' : tx ? 'failed' : '—'}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 function Line({ k, v, strong }: { k: string; v: string; strong?: boolean }) {
   return (

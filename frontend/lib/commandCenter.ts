@@ -3,16 +3,17 @@
 /**
  * Command centre data layer.
  *
- * Bundle groups, their wallets, funding wallets and SOL balances are live
- * reads through the gateway ("live reads" below). Token data, distribute,
- * buy and retry still come from local fixtures until those endpoints exist.
- * The reserve math, skew split and price walk are the real formulas.
+ * Bundle groups, their wallets, funding wallets, SOL balances and distribute
+ * go through the gateway ("live calls" below). Token data, buy and retry
+ * still come from local fixtures until those endpoints exist.
+ * The buy floor and price walk are the real formulas.
  *
  * The panel only ever touches these functions, so wiring the rest means
  * replacing the bodies in "fixture reads".
  */
 
 import type { ApiFetch } from './api'
+import { fetchGroupBalances, type WalletBalance } from './balances'
 
 /* ------------------------------------------------------------------ types */
 
@@ -63,9 +64,10 @@ export interface JobLeg {
   blocked_by: number | null
 }
 
+/** A buy job (still fixture-backed). Distribute results are DistributeResult. */
 export interface Job {
   job_id: string
-  kind: 'distribute' | 'buy'
+  kind: 'buy'
   legs: JobLeg[]
 }
 
@@ -84,9 +86,8 @@ export const TX_FEE_LAMPORTS = 10_000
 export const BUNDLE_TIP_LAMPORTS = 1_000_000
 /** Smallest trade we will let a wallet fire once its floor is covered. */
 export const MIN_TRADE_LAMPORTS = 1_000_000
-/** Jito bundles cap at 5 transactions; a distribute leg fits 21 transfers. */
+/** Jito bundles cap at 5 transactions. */
 export const MAX_TX_PER_BUNDLE = 5
-export const TRANSFERS_PER_TX = 21
 
 export const LAMPORTS_PER_SOL = 1_000_000_000
 
@@ -109,47 +110,8 @@ export function canBuy(w: GroupMember): boolean {
   return w.lamports >= minimumBuyLamports(w)
 }
 
-export interface ReserveMath {
-  wallets: number
-  overheadLamports: number
-  tradeableLamports: number
-}
-
-/** Reserve math over the selected wallets only, never the whole group. */
-export function reserveMath(selected: GroupMember[], totalLamports: number): ReserveMath {
-  const overheadLamports = selected.reduce((sum, w) => sum + floorLamports(w), 0)
-  return {
-    wallets: selected.length,
-    overheadLamports,
-    tradeableLamports: Math.max(0, totalLamports - overheadLamports),
-  }
-}
-
-export function distributeTxCount(walletCount: number): number {
-  return Math.ceil(walletCount / TRANSFERS_PER_TX) || 0
-}
-
 export function bundleCount(txCount: number): number {
   return Math.ceil(txCount / MAX_TX_PER_BUNDLE) || 0
-}
-
-/**
- * Split `totalLamports` across `count` wallets with a linear skew: 0% is flat,
- * 60% means the last wallet receives 60% more than the mean and the first 60%
- * less. Remainder lands on the first wallet so the parts sum exactly.
- */
-export function skewedSplit(totalLamports: number, count: number, skewPct: number): number[] {
-  if (count <= 0) return []
-  if (count === 1) return [totalLamports]
-  const skew = skewPct / 100
-  const mean = totalLamports / count
-  const parts = Array.from({ length: count }, (_, i) => {
-    const t = (i / (count - 1)) * 2 - 1   // -1 → +1
-    return Math.floor(mean * (1 + skew * t))
-  })
-  const drift = totalLamports - parts.reduce((a, b) => a + b, 0)
-  parts[0] += drift
-  return parts
 }
 
 /**
@@ -191,14 +153,18 @@ export function pct(fraction: number, digits = 2): string {
 }
 
 
-/* ------------------------------------------------------------- live reads */
+/* ------------------------------------------------------------- live calls */
 /*
  * These go through the gateway with the caller's apiFetch (lib/api), which
  * attaches the bearer token and handles 401 → refresh. Errors are ApiError.
  *   loadGroups          GET  /api/wallets/bundleGroups
  *   loadGroupMembers    GET  /api/wallets/bundleGroups/:groupID/wallets
  *   loadFundingWallets  GET  /api/wallets/listWallets        (wallet_type=funding)
- *   loadBalances        GET  /api/wallets/balance?public_key= (one call per key)
+ *                       POST /api/wallets/groupBalance       (one request for all of them)
+ *   distributeToGroup   POST /api/liquidity/bundleGroups/:groupID/distribute
+ * Roster balances are read through useWalletBalances (lib/balances).
+ * groupBalance reports SOL only, so ata_exists is always false and the reserve
+ * math assumes every token account still has to be created.
  */
 
 interface ApiWallet {
@@ -224,7 +190,7 @@ export async function loadGroups(apiFetch: ApiFetch): Promise<BundleGroup[]> {
   return rows.map(g => ({ group_id: g.group_id, name: g.group_name, created_at: g.created_at, members: null }))
 }
 
-/** Members come back unfunded; hydrate them with loadBalances. A 404 means the group is gone. */
+/** Members come back unfunded; hydrate them from useWalletBalances. A 404 means the group is gone. */
 export async function loadGroupMembers(apiFetch: ApiFetch, groupId: string): Promise<GroupMember[]> {
   const rows = await apiFetch<ApiGroupWallet[]>(`/api/wallets/bundleGroups/${encodeURIComponent(groupId)}/wallets`)
   return rows.map(w => ({
@@ -236,47 +202,78 @@ export async function loadGroupMembers(apiFetch: ApiFetch, groupId: string): Pro
   }))
 }
 
-/** SOL balance in lamports, or null if the read failed. */
-async function loadLamports(apiFetch: ApiFetch, publicKey: string): Promise<number | null> {
-  try {
-    const data = await apiFetch<{ balance: number }>(`/api/wallets/balance?public_key=${encodeURIComponent(publicKey)}`)
-    return typeof data.balance === 'number' ? Math.round(data.balance * LAMPORTS_PER_SOL) : null
-  } catch {
-    return null
-  }
-}
-
+/**
+ * Funding wallets with balances from one groupBalance request (every funding
+ * wallet is an option in the funding select). lamports is null when the read
+ * failed or the key came back missing.
+ */
 export async function loadFundingWallets(apiFetch: ApiFetch): Promise<FundingWallet[]> {
   const wallets = await apiFetch<ApiWallet[]>('/api/wallets/listWallets')
   const funding = wallets.filter(w => w.wallet_type === 'funding')
-  const lamports = await Promise.all(funding.map(w => loadLamports(apiFetch, w.public_key)))
-  return funding.map((w, i) => ({ wallet_id: w.wallet_id, public_key: w.public_key, lamports: lamports[i] }))
+  const { balances } = funding.length
+    ? await fetchGroupBalances(apiFetch, funding.map(w => w.public_key))
+    : { balances: {} as Record<string, WalletBalance> }
+  return funding.map(w => {
+    const b = balances[w.public_key]
+    return { wallet_id: w.wallet_id, public_key: w.public_key, lamports: b ? lamportsToNumber(b.lamports) : null }
+  })
 }
 
-export interface BalanceEntry { lamports: number; ata_exists: boolean }
+export type SplitMode = 'even' | 'random'
+
+export interface DistributeAllocation {
+  position: number             // 0-based, same as the roster's position (shown as #position+1)
+  publicKey: string
+  transferAmount: string       // lamports
+}
+
+export interface DistributeTx {
+  status: 'confirmed' | 'failed'
+  signature?: string
+  positions: number[]
+  error?: string
+}
+
+/** 200 = every transaction confirmed; 207 = at least one failed. Amounts are lamport strings. */
+export interface DistributeResult {
+  baseReserve: string
+  allocations: DistributeAllocation[]
+  transactions: DistributeTx[]
+}
 
 /**
- * Balances for the roster. The balance route takes a single key, so this
- * fans out one call per wallet; keys whose read failed are left out.
- * The route reports SOL only, so ata_exists is always false and the reserve
- * math assumes every token account still has to be created.
+ * Sends real SOL from the funding wallet to EVERY wallet in the group. Waits
+ * for on-chain confirmation, so it can take several seconds. The gateway adds
+ * the user from the bearer token; the body never carries a user id.
  */
-export async function loadBalances(apiFetch: ApiFetch, publicKeys: string[]): Promise<Record<string, BalanceEntry>> {
-  const lamports = await Promise.all(publicKeys.map(k => loadLamports(apiFetch, k)))
-  const out: Record<string, BalanceEntry> = {}
-  publicKeys.forEach((k, i) => {
-    const l = lamports[i]
-    if (l !== null) out[k] = { lamports: l, ata_exists: false }
+export async function distributeToGroup(
+  apiFetch: ApiFetch,
+  groupId: string,
+  body: { fundingPublicKey: string; grandTotal: string; splitMode: SplitMode },
+): Promise<DistributeResult> {
+  const data = await apiFetch<DistributeResult>(`/api/liquidity/bundleGroups/${encodeURIComponent(groupId)}/distribute`, {
+    method: 'POST',
+    body: JSON.stringify({ fundingPublicKey: body.fundingPublicKey, grandTotal: body.grandTotal, splitMode: body.splitMode }),
   })
-  return out
+  if (!data || !Array.isArray(data.allocations) || !Array.isArray(data.transactions)) {
+    throw new Error('Unexpected distribute response')
+  }
+  return data
+}
+
+/**
+ * Lamports string → number for the buy-floor math. Exact below 2^53 lamports
+ * (~9M SOL), far above any wallet this panel handles.
+ */
+export function lamportsToNumber(lamports: string): number {
+  return Number(lamports)
 }
 
 /* ---------------------------------------------------------- fixture reads */
 /*
  * Endpoints these stand in for, once a backend exists:
  *   loadToken           GET  /api/command-center/token?mint=
- *   distribute          POST /api/bundles/distribute         { funding_wallet_id, total_lamports, skew_pct, targets }
- *   simulateBuy         POST /api/bundles/buy/simulate       { mint, pool_address, slippage_bps, tip_lamports, targets }
+ *   simulateBuy        POST /api/bundles/buy/simulate       { mint, pool_address, slippage_bps, tip_lamports, targets }
  *   executeBuy          POST /api/bundles/buy                (same body)
  *   retryLeg            POST /api/bundles/job/:jobId/retry   { leg }
  */
@@ -297,10 +294,6 @@ export function loadMyTokens(): Promise<TokenSnapshot[]> {
 
 export interface Target { wallet_id: string; lamports: number }
 
-export function distribute(targets: Target[]): Promise<Job> {
-  return settle(fixtureJob('distribute', distributeTxCount(targets.length), targets.length), 700)
-}
-
 export function simulateBuy(targets: Target[], tipLamports: number): Promise<BuySimulation> {
   const txCount = targets.length
   return settle(
@@ -310,7 +303,7 @@ export function simulateBuy(targets: Target[], tipLamports: number): Promise<Buy
 }
 
 export function executeBuy(targets: Target[]): Promise<Job> {
-  return settle(fixtureJob('buy', bundleCount(targets.length), targets.length), 800)
+  return settle(fixtureJob(bundleCount(targets.length), targets.length), 800)
 }
 
 export function retryLeg(job: Job, leg: number): Promise<Job> {
@@ -368,7 +361,8 @@ function fixtureMyTokens(): TokenSnapshot[] {
   ]
 }
 
-function fixtureJob(kind: Job['kind'], legCount: number, transfers: number): Job {
+function fixtureJob(legCount: number, transfers: number): Job {
+  const kind = 'buy' as const
   const legs = Math.max(1, legCount)
   const per = Math.max(1, Math.ceil(transfers / legs))
   const failAt = legs >= 3 ? 3 : 0

@@ -13,3 +13,8 @@ export const RESERVE_CONFIG: reserveConfig = {
 export const MAX_TRANSFERS_PER_TX = 18;
 export const DISTRIBUTION_PRIORITY_MICROLAMPORTS = 50_000;
 export const TOKEN_ACCOUNT_SIZE = 165;
+
+export const SWAP_SLIPPAGE_PERCENT = 2;
+export const BUY_PRIORITY_MICROLAMPORTS = 100_000;
+export const CU_SAFETY_MULTIPLIER = 1.2;
+export const SIMULATION_CU_LIMIT = 1_400_000;

@@ -2,10 +2,11 @@ import { FastifyInstance } from "fastify";
 import { PublicKey } from "@solana/web3.js";
 import { connection } from "../connection";
 import { computeBaseReserve, distributionLogic } from "../service_functionality/distributionMath";
-import { buildDistributionTransactions, getGroupWallets, signWithWalletApp, sendAndConfirm } from "../service_functionality/bundleFunctions";
+import { buildDistributionTransactions, getGroupWallets, signWithWalletApp, sendAndConfirm,compileWithComputeBudget, measureComputeUnits } from "../service_functionality/bundleFunctions";
 import { RESERVE_CONFIG, MAX_TRANSFERS_PER_TX, DISTRIBUTION_PRIORITY_MICROLAMPORTS, TOKEN_ACCOUNT_SIZE } from "../config";
 import { distributionTransfer, distributionTxResult, splitMode } from "../interfaces";
-
+import { buildBuyInstructions } from "../service_functionality/meteora";
+import { SWAP_SLIPPAGE_PERCENT, BUY_PRIORITY_MICROLAMPORTS, CU_SAFETY_MULTIPLIER, SIMULATION_CU_LIMIT } from "../config";
 
 export async function bundleEndpoints(fastify: FastifyInstance){
 
@@ -108,6 +109,73 @@ fastify.post("/distribute", async (request, reply) => {
 
         request.log.error(error);
         return reply.status(500).send({ error: "INTERNAL_ERROR", message: "Distribution failed" });
+    }
+})
+
+
+//single wallet buy — the building block the bundle loop will repeat
+fastify.post("/buy", async (request, reply) => {
+    const { user_ID, poolAddress, walletPublicKey } = request.body as {
+        user_ID: string, poolAddress: string, walletPublicKey: string
+    }
+
+    if(!user_ID || !poolAddress || !walletPublicKey)
+        return reply.status(400).send({ error: "BAD_REQUEST", message: "user_ID, poolAddress and walletPublicKey are required" });
+
+    try {
+        const [balance, systemRent, ataRent, latest] = await Promise.all([
+            connection.getBalance(new PublicKey(walletPublicKey)),
+            connection.getMinimumBalanceForRentExemption(0),
+            connection.getMinimumBalanceForRentExemption(TOKEN_ACCOUNT_SIZE),
+            connection.getLatestBlockhash('confirmed'),
+        ]);
+
+        //same reserve distribution set aside — spend only what's above it
+        const baseReserve = computeBaseReserve(BigInt(systemRent), BigInt(ataRent), RESERVE_CONFIG);
+        const amountIn = BigInt(balance) - baseReserve;
+
+        if(amountIn <= 0n)
+            return reply.status(400).send({
+                error: "INSUFFICIENT_FUNDS",
+                message: `Wallet has ${balance} lamports, reserve is ${baseReserve}`,
+            });
+
+        const { instructions, minimumOut, outputTokenMint } =
+            await buildBuyInstructions(walletPublicKey, poolAddress, amountIn, SWAP_SLIPPAGE_PERCENT);
+
+        //measure, then pay priority only on what we'll actually use (+20%)
+        const unitsConsumed = await measureComputeUnits(
+            connection, walletPublicKey, instructions, latest.blockhash, SIMULATION_CU_LIMIT, BUY_PRIORITY_MICROLAMPORTS
+        );
+        const unitLimit = Math.ceil(unitsConsumed * CU_SAFETY_MULTIPLIER);
+
+        const unsignedTx = compileWithComputeBudget(
+            walletPublicKey, instructions, latest.blockhash, unitLimit, BUY_PRIORITY_MICROLAMPORTS
+        );
+
+        const unsignedBytes = unsignedTx.serialize();
+        if(unsignedBytes.length > 1232)
+            throw new Error(`Buy transaction too large: ${unsignedBytes.length} bytes`);
+
+        const unsignedBase64 = Buffer.from(unsignedBytes).toString('base64');
+
+        //slave signs alone — fee payer AND authority
+        const signed = await signWithWalletApp(user_ID, [walletPublicKey], unsignedBase64);
+        const signature = await sendAndConfirm(connection, signed, latest.blockhash, latest.lastValidBlockHeight);
+
+        return reply.status(200).send({
+            signature,
+            amountIn: amountIn.toString(),
+            minimumOut,
+            outputTokenMint,
+            unitsConsumed,
+            unitLimit,
+        });
+
+    } catch (error) {
+        request.log.error(error);
+        //TEMP: error.message exposed for debugging tonight — revert to a generic message once buys work
+        return reply.status(500).send({ error: "BUY_FAILED", message: (error as Error).message });
     }
 })
 

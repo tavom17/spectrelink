@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '@/lib/auth'
 import { useApiFetch, ApiError } from '@/lib/api'
+import { useWalletBalances, lamportsToSolString, type WalletBalance } from '@/lib/balances'
 import { Sheet, SheetHead, Seg, CopyButton, ChevronDown, CheckIcon } from '@/components/ui'
 import { WALLET_TYPE_HOLDINGS } from '@/lib/placeholders'
 
@@ -61,6 +62,13 @@ function errorStatus(err: unknown) {
   return err instanceof ApiError ? err.status : 0
 }
 
+/** Balance cell: `sol` for display, `lamports` to tell a real zero apart. */
+function balanceCell(bal: WalletBalance | undefined, failed: boolean) {
+  if (bal) return { text: `${bal.sol.toFixed(4)} SOL`, color: bal.lamports === '0' ? 'var(--ink-3)' : 'var(--ink-1)' }
+  if (failed) return { text: 'err', color: 'var(--danger)' }
+  return { text: '—', color: 'var(--ink-5)' }
+}
+
 const TYPE_CARDS = [
   { id: 'funding', label: 'Funding wallets', desc: 'Hold treasury SOL and pay for launches and distributions.' },
   { id: 'slave',   label: 'Slave wallets',   desc: 'Bundle buyers. Funded per job, rotated between launches.' },
@@ -87,9 +95,8 @@ export default function WalletManager() {
   const [page, setPage] = useState(0)
   const [filter, setFilter] = useState<Filter>('all')
 
-  // balances: undefined = not fetched, null = error, number = SOL
-  const [balances, setBalances] = useState<Record<string, number | null | undefined>>({})
-  const fetchingRef = useRef<Set<string>>(new Set())
+  // Keyed by public key. Missing = not fetched yet; balanceFailed = last read failed.
+  const { balances, failed: balanceFailed, load: loadBalances } = useWalletBalances()
 
   // Withdraw modal
   const [withdrawWallet, setWithdrawWallet] = useState<Wallet | null>(null)
@@ -146,16 +153,6 @@ export default function WalletManager() {
 
   useEffect(() => { fetchGroups() }, [fetchGroups])
 
-  /** Fetches one wallet's balance into `balances`, skipping keys already in flight. */
-  function loadBalance(publicKey: string) {
-    if (fetchingRef.current.has(publicKey)) return
-    fetchingRef.current.add(publicKey)
-    apiFetch<{ balance: number }>(`/api/wallets/balance?public_key=${encodeURIComponent(publicKey)}`)
-      .then(data => setBalances(prev => ({ ...prev, [publicKey]: typeof data.balance === 'number' ? data.balance : null })))
-      .catch(() => setBalances(prev => ({ ...prev, [publicKey]: null })))
-      .finally(() => fetchingRef.current.delete(publicKey))
-  }
-
   const sorted = [...wallets].sort(
     (a, b) =>
       TYPE_ORDER.indexOf(a.wallet_type as typeof TYPE_ORDER[number]) -
@@ -166,15 +163,15 @@ export default function WalletManager() {
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
   const pageWallets = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE)
 
-  // Fetch balances only for wallets currently visible on this page
+  // Balances for the rows on this page only, in one groupBalance request.
+  // Runs on mount (page load / tab switch), page or filter change, and when the
+  // wallet list changes; rows that already have a balance are not re-read.
   useEffect(() => {
     if (!accessToken || pageWallets.length === 0) return
-    pageWallets.forEach(w => {
-      if (balances[w.public_key] === undefined) loadBalance(w.public_key)
-    })
-  }, [page, filter, wallets, accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
+    void loadBalances(pageWallets.map(w => w.public_key))
+  }, [page, filter, wallets]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load the open group's wallets, then their balances (one balance call per key)
+  // Load the open group's wallets, then all their balances in one request (the sheet renders every row)
   useEffect(() => {
     if (!openGroup || !accessToken) return
     let cancelled = false
@@ -185,7 +182,7 @@ export default function WalletManager() {
       .then(data => {
         if (cancelled) return
         setGroupWallets(data)
-        data.forEach(w => { if (balances[w.public_key] === undefined) loadBalance(w.public_key) })
+        if (data.length) void loadBalances(data.map(w => w.public_key), { force: true })
       })
       .catch(err => {
         if (cancelled) return
@@ -259,10 +256,11 @@ export default function WalletManager() {
         }),
       })
       setWithdrawSuccess(true)
-      // Refresh balance for this wallet after success
-      setBalances(prev => ({ ...prev, [withdrawWallet.public_key]: undefined }))
-      fetchingRef.current.delete(withdrawWallet.public_key)
-      loadBalance(withdrawWallet.public_key)
+      // Funds moved: re-read the source wallet, and the destination too if it is one of
+      // the user's own wallets, in one request.
+      const destination = withdrawRecipient.trim()
+      const ownDestination = wallets.some(w => w.public_key === destination)
+      void loadBalances([withdrawWallet.public_key, ...(ownDestination ? [destination] : [])], { fresh: true })
     } catch (err) {
       setWithdrawError(err instanceof Error ? err.message : 'Withdrawal failed')
     } finally {
@@ -519,9 +517,7 @@ export default function WalletManager() {
                   <span>#</span><span>Type</span><span>Public key</span><span className="t-right">Balance</span><span className="t-right">Action</span>
                 </div>
                 {pageWallets.map((w, i) => {
-                  const bal = balances[w.public_key]
-                  const balStr = bal === undefined ? '—' : bal === null ? 'err' : `${bal.toFixed(4)} SOL`
-                  const balColor = bal === undefined || bal === null ? 'var(--ink-5)' : bal === 0 ? 'var(--ink-3)' : 'var(--ink-1)'
+                  const { text: balStr, color: balColor } = balanceCell(balances[w.public_key], !!balanceFailed[w.public_key])
                   return (
                     <div key={w.public_key} className="t-row hover glow glow-sm" style={{ gridTemplateColumns: '34px 84px 1fr 130px 110px' }}>
                       <span className="t-cell-mono" style={{ color: 'var(--ink-4)' }}>{String(page * PAGE_SIZE + i + 1).padStart(2, '0')}</span>
@@ -576,9 +572,7 @@ export default function WalletManager() {
                 <span>Pos</span><span>Public key</span><span className="t-right">Balance</span>
               </div>
               {groupWallets.map(w => {
-                const bal = balances[w.public_key]
-                const balStr = bal === undefined ? '—' : bal === null ? 'err' : `${bal.toFixed(4)} SOL`
-                const balColor = bal === undefined || bal === null ? 'var(--ink-5)' : bal === 0 ? 'var(--ink-3)' : 'var(--ink-1)'
+                const { text: balStr, color: balColor } = balanceCell(balances[w.public_key], !!balanceFailed[w.public_key])
                 return (
                   <div key={w.wallet_id} className="t-row glow glow-sm" style={{ gridTemplateColumns: '40px 1fr 130px', padding: '12px 26px' }}>
                     <span className="t-cell-mono" style={{ color: 'var(--ink-4)' }}>{String(w.position).padStart(2, '0')}</span>
@@ -637,8 +631,8 @@ export default function WalletManager() {
                 <div className="field">
                   <label className="label" htmlFor="wd-amt">
                     Amount (SOL)
-                    {typeof currentBalance === 'number' && (
-                      <span className="label-value mono" style={{ color: 'var(--ink-3)' }}>Available: {currentBalance.toFixed(4)} SOL</span>
+                    {currentBalance && (
+                      <span className="label-value mono" style={{ color: 'var(--ink-3)' }}>Available: {currentBalance.sol.toFixed(4)} SOL</span>
                     )}
                   </label>
                   <div className="row-flex" style={{ gap: 8, flexWrap: 'nowrap' }}>
@@ -653,8 +647,8 @@ export default function WalletManager() {
                       onChange={e => setWithdrawAmount(e.target.value)}
                       disabled={withdrawing}
                     />
-                    {typeof currentBalance === 'number' && currentBalance > 0 && (
-                      <button type="button" className="btn" onClick={() => setWithdrawAmount(String(currentBalance))} disabled={withdrawing}>
+                    {currentBalance && currentBalance.lamports !== '0' && (
+                      <button type="button" className="btn" onClick={() => setWithdrawAmount(lamportsToSolString(currentBalance.lamports))} disabled={withdrawing}>
                         Max
                       </button>
                     )}

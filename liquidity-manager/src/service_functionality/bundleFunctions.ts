@@ -1,8 +1,10 @@
 import {
     Connection, PublicKey, SystemProgram, ComputeBudgetProgram,
-    TransactionMessage, VersionedTransaction
+    TransactionMessage, VersionedTransaction,TransactionInstruction
 } from "@solana/web3.js";
 import { distributionTransfer, unsignedDistributionTx, groupWallet } from "../interfaces";
+
+
 
 
 //chunk transfers into the fewest txs possible, funding wallet = fee payer + source
@@ -106,4 +108,56 @@ export async function sendAndConfirm(
         throw new Error(`Transaction ${signature} failed: ${JSON.stringify(result.value.err)}`);
 
     return signature;
+}
+
+
+//strip any compute budget ixs the SDK added — we set our own, duplicates fail
+function withoutComputeBudget(instructions: TransactionInstruction[]){
+    return instructions.filter(ix => !ix.programId.equals(ComputeBudgetProgram.programId));
+}
+
+//compile instructions into an UNSIGNED v0 tx with our compute budget in front
+export function compileWithComputeBudget(
+    payerPublicKey: string,
+    instructions: TransactionInstruction[],
+    blockhash: string,
+    unitLimit: number,
+    priorityMicroLamports: number
+): VersionedTransaction {
+    const message = new TransactionMessage({
+        payerKey: new PublicKey(payerPublicKey),
+        recentBlockhash: blockhash,
+        instructions: [
+            ComputeBudgetProgram.setComputeUnitLimit({ units: unitLimit }),
+            ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityMicroLamports }),
+            ...withoutComputeBudget(instructions),
+        ],
+    }).compileToV0Message();
+
+    return new VersionedTransaction(message);
+}
+
+//simulate at max limit, unsigned, to measure real CU usage
+export async function measureComputeUnits(
+    connection: Connection,
+    payerPublicKey: string,
+    instructions: TransactionInstruction[],
+    blockhash: string,
+    simulationLimit: number,
+    priorityMicroLamports: number
+): Promise<number> {
+    const tx = compileWithComputeBudget(payerPublicKey, instructions, blockhash, simulationLimit, priorityMicroLamports);
+
+    const simulation = await connection.simulateTransaction(tx, {
+        sigVerify: false,              //unsigned — wallet-app hasn't signed yet
+        replaceRecentBlockhash: true,
+    });
+
+    if(simulation.value.err)
+        throw new Error(`Simulation failed: ${JSON.stringify(simulation.value.err)} | ${simulation.value.logs?.slice(-5).join(" | ")}`);
+
+    if(!simulation.value.unitsConsumed)
+        throw new Error("Simulation returned no unitsConsumed");
+
+    return simulation.value.unitsConsumed;
 }
