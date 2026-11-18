@@ -80,23 +80,6 @@ fastify.get("/balance", async (request, reply) => {
 })
 
 
-fastify.post("/withdraw", async (request, reply) => {
-    const user_ID = request.user.user_id
-    //pick fields explicitly — never spread the client body (client could inject its own user_ID)
-    //TODO: confirm these field names when the withdraw route is rewritten in wallet-app
-    const { wallet_id, wallet_type, destination, amount } = request.body as {
-        wallet_id: string, wallet_type: string, destination: string, amount: string
-    }
-
-    const response = await fetch(`${process.env.WALLET_APP_URL}/internal/withdraw`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_ID, wallet_id, wallet_type, destination, amount })
-    })
-
-    const data = await parseResponse(response);
-    return reply.status(response.status).send(data)
-})
 
 fastify.post("/groupBalance", async (request, reply) => {
     //pick the field explicitly — never spread the client body

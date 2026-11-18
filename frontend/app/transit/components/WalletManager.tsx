@@ -4,9 +4,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useAuth } from '@/lib/auth'
 import { useApiFetch, ApiError } from '@/lib/api'
-import { useWalletBalances, lamportsToSolString, type WalletBalance } from '@/lib/balances'
-import { Sheet, SheetHead, Seg, CopyButton, ChevronDown, CheckIcon } from '@/components/ui'
+import { useWalletBalances, type WalletBalance } from '@/lib/balances'
+import { Sheet, SheetHead, Seg, CopyButton, ChevronDown } from '@/components/ui'
 import { WALLET_TYPE_HOLDINGS } from '@/lib/placeholders'
+import WithdrawPanel from './WithdrawPanel'
 
 /** GET /api/wallets/listWallets — one row per wallet, [] when none */
 interface Wallet {
@@ -98,13 +99,9 @@ export default function WalletManager() {
   // Keyed by public key. Missing = not fetched yet; balanceFailed = last read failed.
   const { balances, failed: balanceFailed, load: loadBalances } = useWalletBalances()
 
-  // Withdraw modal
+  // Withdraw sheet (one wallet). The form, confirmation and results live in WithdrawPanel.
   const [withdrawWallet, setWithdrawWallet] = useState<Wallet | null>(null)
-  const [withdrawRecipient, setWithdrawRecipient] = useState('')
-  const [withdrawAmount, setWithdrawAmount] = useState('')
   const [withdrawing, setWithdrawing] = useState(false)
-  const [withdrawError, setWithdrawError] = useState('')
-  const [withdrawSuccess, setWithdrawSuccess] = useState(false)
 
   // Bundle groups
   const [groups, setGroups] = useState<BundleGroup[]>([])
@@ -224,48 +221,18 @@ export default function WalletManager() {
 
   function openWithdraw(wallet: Wallet) {
     setWithdrawWallet(wallet)
-    setWithdrawRecipient('')
-    setWithdrawAmount('')
-    setWithdrawError('')
-    setWithdrawSuccess(false)
+    void loadBalances([wallet.public_key])
   }
 
   function closeWithdraw() {
     if (withdrawing) return
     setWithdrawWallet(null)
-    setWithdrawSuccess(false)
   }
 
-  async function handleWithdraw() {
-    if (!withdrawWallet) return
-    const amount = parseFloat(withdrawAmount)
-    if (!withdrawRecipient.trim() || isNaN(amount) || amount <= 0) {
-      setWithdrawError('Enter a valid recipient address and amount.')
-      return
-    }
-    setWithdrawing(true)
-    setWithdrawError('')
-    try {
-      await apiFetch('/api/wallets/withdraw', {
-        method: 'POST',
-        body: JSON.stringify({
-          wallet_id: withdrawWallet.wallet_id,
-          wallet_type: withdrawWallet.wallet_type,
-          destination: withdrawRecipient.trim(),
-          amount,
-        }),
-      })
-      setWithdrawSuccess(true)
-      // Funds moved: re-read the source wallet, and the destination too if it is one of
-      // the user's own wallets, in one request.
-      const destination = withdrawRecipient.trim()
-      const ownDestination = wallets.some(w => w.public_key === destination)
-      void loadBalances([withdrawWallet.public_key, ...(ownDestination ? [destination] : [])], { fresh: true })
-    } catch (err) {
-      setWithdrawError(err instanceof Error ? err.message : 'Withdrawal failed')
-    } finally {
-      setWithdrawing(false)
-    }
+  /** Funds moved (or may have): re-read the source, and the destination if it is one of the user's wallets, in one request. */
+  function afterWithdraw(sourceKeys: string[], destination: string) {
+    const ownDestination = wallets.some(w => w.public_key === destination)
+    void loadBalances([...sourceKeys, ...(ownDestination ? [destination] : [])], { fresh: true })
   }
 
   async function createGroup(e: React.FormEvent) {
@@ -312,8 +279,6 @@ export default function WalletManager() {
     funding: wallets.filter(w => w.wallet_type === 'funding').length,
     fee:     wallets.filter(w => w.wallet_type === 'fee').length,
   }
-
-  const currentBalance = withdrawWallet ? balances[withdrawWallet.public_key] : undefined
 
   return (
     <div>
@@ -592,7 +557,7 @@ export default function WalletManager() {
       {/* ── withdraw ─────────────────────────────────────────────── */}
       {withdrawWallet && (
         <Sheet onClose={closeWithdraw} width={500} labelledBy="wd-title">
-          <SheetHead id="wd-title" title="Withdraw SOL" sub={`${withdrawWallet.wallet_type} wallet`} onClose={closeWithdraw} />
+          <SheetHead id="wd-title" title="Withdraw SOL" sub={`From this ${withdrawWallet.wallet_type} wallet`} onClose={closeWithdraw} />
 
           <div className="sheet-section" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
             <div style={{ padding: 12, borderRadius: 12, background: 'var(--text)' }}>
@@ -604,68 +569,14 @@ export default function WalletManager() {
             </div>
           </div>
 
-          <div className="sheet-body">
-            {withdrawSuccess ? (
-              <div style={{ textAlign: 'center', padding: '8px 0' }}>
-                <div style={{ width: 40, height: 40, margin: '0 auto 14px', borderRadius: '50%', border: '1px solid var(--accent-line)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent-300)' }}>
-                  <CheckIcon size={16} />
-                </div>
-                <div style={{ fontSize: 14, marginBottom: 22 }}>Withdrawal submitted</div>
-                <button type="button" className="btn" onClick={closeWithdraw}>Close</button>
-              </div>
-            ) : (
-              <div className="stack" style={{ gap: 18 }}>
-                <div className="field">
-                  <label className="label" htmlFor="wd-to">Recipient address</label>
-                  <input
-                    id="wd-to"
-                    className="input mono"
-                    type="text"
-                    placeholder="Solana wallet address..."
-                    value={withdrawRecipient}
-                    onChange={e => setWithdrawRecipient(e.target.value)}
-                    disabled={withdrawing}
-                  />
-                </div>
-
-                <div className="field">
-                  <label className="label" htmlFor="wd-amt">
-                    Amount (SOL)
-                    {currentBalance && (
-                      <span className="label-value mono" style={{ color: 'var(--ink-3)' }}>Available: {currentBalance.sol.toFixed(4)} SOL</span>
-                    )}
-                  </label>
-                  <div className="row-flex" style={{ gap: 8, flexWrap: 'nowrap' }}>
-                    <input
-                      id="wd-amt"
-                      className="input mono"
-                      type="number"
-                      min="0"
-                      step="0.0001"
-                      placeholder="0.0000"
-                      value={withdrawAmount}
-                      onChange={e => setWithdrawAmount(e.target.value)}
-                      disabled={withdrawing}
-                    />
-                    {currentBalance && currentBalance.lamports !== '0' && (
-                      <button type="button" className="btn" onClick={() => setWithdrawAmount(lamportsToSolString(currentBalance.lamports))} disabled={withdrawing}>
-                        Max
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {withdrawError && <div className="alert">{withdrawError}</div>}
-
-                <div className="row-flex" style={{ justifyContent: 'flex-end' }}>
-                  <button type="button" className="btn" onClick={closeWithdraw} disabled={withdrawing}>Cancel</button>
-                  <button type="button" className="btn btn-accent" onClick={handleWithdraw} disabled={withdrawing}>
-                    {withdrawing ? 'Sending…' : 'Confirm →'}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <WithdrawPanel
+            key={withdrawWallet.public_key}
+            sources={[{ publicKey: withdrawWallet.public_key, label: withdrawWallet.wallet_type, lamports: balances[withdrawWallet.public_key]?.lamports }]}
+            quickPicks={wallets.filter(w => w.wallet_type === 'funding').map(w => ({ publicKey: w.public_key, label: 'your funding wallet' }))}
+            context={`(${withdrawWallet.wallet_type} wallet)`}
+            onFundsMoved={afterWithdraw}
+            onBusyChange={setWithdrawing}
+          />
         </Sheet>
       )}
     </div>

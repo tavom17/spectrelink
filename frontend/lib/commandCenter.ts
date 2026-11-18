@@ -3,13 +3,11 @@
 /**
  * Command centre data layer.
  *
- * Bundle groups, their wallets, funding wallets, SOL balances and distribute
- * go through the gateway ("live calls" below). Token data, buy and retry
- * still come from local fixtures until those endpoints exist.
- * The buy floor and price walk are the real formulas.
- *
- * The panel only ever touches these functions, so wiring the rest means
- * replacing the bodies in "fixture reads".
+ * Everything here goes through the gateway ("live calls" below): bundle
+ * groups, their wallets, funding wallets, SOL balances, the user's launched
+ * tokens, distribute, buy and the per-wallet reserve. The reserve is used
+ * only to grey out wallets with nothing available to trade; the server
+ * enforces it at buy time.
  */
 
 import type { ApiFetch } from './api'
@@ -17,19 +15,15 @@ import { fetchGroupBalances, type WalletBalance } from './balances'
 
 /* ------------------------------------------------------------------ types */
 
-export interface TokenSnapshot {
+/** A row from GET /api/liquidity/tokens (the fields this panel uses). */
+export interface LaunchedToken {
+  token_id: string
   mint_address: string
   name: string
   symbol: string
   image_uri: string | null
-  decimals: number
   pool_address: string
-  pool_type: string            // "DAMM v2"
-  pool_sol_reserves: number
-  pool_token_reserves: number
-  price_usd: number
-  change_24h: number           // fraction, e.g. -0.0412
-  user_owned: boolean          // renders the "Your launch" badge
+  launched_at: string
 }
 
 export interface GroupMember {
@@ -53,79 +47,24 @@ export interface FundingWallet {
   lamports: number | null      // null when the balance read failed
 }
 
-export type LegStatus = 'pending' | 'sent' | 'confirmed' | 'failed' | 'blocked'
-
-export interface JobLeg {
-  leg: number                  // 1-based
-  transfers: number
-  status: LegStatus
-  signature: string | null
-  error: string | null
-  blocked_by: number | null
-}
-
-/** A buy job (still fixture-backed). Distribute results are DistributeResult. */
-export interface Job {
-  job_id: string
-  kind: 'buy'
-  legs: JobLeg[]
-}
-
-export interface BuySimulation {
-  ok: boolean
-  legs: number
-  tip_lamports: number
-  reason: string | null
-}
-
 /* ------------------------------------------------------- reserve math */
-
-export const ACCOUNT_RENT_LAMPORTS = 890_880
-export const ATA_RENT_LAMPORTS = 2_039_280
-export const TX_FEE_LAMPORTS = 10_000
-export const BUNDLE_TIP_LAMPORTS = 1_000_000
-/** Smallest trade we will let a wallet fire once its floor is covered. */
-export const MIN_TRADE_LAMPORTS = 1_000_000
-/** Jito bundles cap at 5 transactions. */
-export const MAX_TX_PER_BUNDLE = 5
 
 export const LAMPORTS_PER_SOL = 1_000_000_000
 
 /**
- * Lamports a wallet cannot spend: its own rent if it is currently empty, the
- * token account it does not have yet, and one signature.
+ * GET /api/liquidity/reserve → { baseReserve: lamports string }: what every
+ * wallet keeps back for its own fees and rent. Same value for every wallet.
  */
-export function floorLamports(w: Pick<GroupMember, 'lamports' | 'ata_exists'>): number {
-  return (w.lamports === 0 ? ACCOUNT_RENT_LAMPORTS : 0)
-    + (w.ata_exists ? 0 : ATA_RENT_LAMPORTS)
-    + TX_FEE_LAMPORTS
+export async function loadBaseReserve(apiFetch: ApiFetch): Promise<string> {
+  const data = await apiFetch<{ baseReserve?: unknown }>('/api/liquidity/reserve')
+  const r = data?.baseReserve
+  if (typeof r !== 'string' || !/^\d+$/.test(r)) throw new Error('Unexpected reserve response')
+  return r
 }
 
-/** Balance a wallet needs before it can be included in a buy. */
-export function minimumBuyLamports(w: Pick<GroupMember, 'lamports' | 'ata_exists'>): number {
-  return floorLamports(w) + MIN_TRADE_LAMPORTS
-}
-
-export function canBuy(w: GroupMember): boolean {
-  return w.lamports >= minimumBuyLamports(w)
-}
-
-export function bundleCount(txCount: number): number {
-  return Math.ceil(txCount / MAX_TX_PER_BUNDLE) || 0
-}
-
-/**
- * Price after each wallet buys, as a constant-product walk:
- * price_i = price0 * ((R + cumulative_i) / R)^2
- */
-export function priceWalk(price0: number, solReserves: number, spendsSol: number[]): number[] {
-  if (solReserves <= 0) return spendsSol.map(() => price0)
-  let cum = 0
-  return spendsSol.map(spend => {
-    cum += spend
-    const ratio = (solReserves + cum) / solReserves
-    return price0 * ratio * ratio
-  })
+/** Lamports a wallet can spend on a buy: balance − baseReserve (may be ≤ 0). BigInt on lamport strings. */
+export function availableLamports(balanceLamports: string, baseReserve: string): bigint {
+  return BigInt(balanceLamports) - BigInt(baseReserve)
 }
 
 /* ------------------------------------------------------------ formatting */
@@ -140,18 +79,6 @@ export function truncateAddress(a: string, head = 4, tail = 4): string {
   return `${a.slice(0, head)}…${a.slice(-tail)}`
 }
 
-export function usd(n: number): string {
-  if (!isFinite(n)) return '—'
-  if (n === 0) return '$0.00'
-  if (n < 0.01) return `$${n.toPrecision(3)}`
-  return `$${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
-export function pct(fraction: number, digits = 2): string {
-  const v = fraction * 100
-  return `${v >= 0 ? '+' : ''}${v.toFixed(digits)}%`
-}
-
 
 /* ------------------------------------------------------------- live calls */
 /*
@@ -162,9 +89,11 @@ export function pct(fraction: number, digits = 2): string {
  *   loadFundingWallets  GET  /api/wallets/listWallets        (wallet_type=funding)
  *                       POST /api/wallets/groupBalance       (one request for all of them)
  *   distributeToGroup   POST /api/liquidity/bundleGroups/:groupID/distribute
+ *   loadMyTokens        GET  /api/liquidity/tokens
+ *   buyFromWallets      POST /api/liquidity/buy
+ *   loadBaseReserve     GET  /api/liquidity/reserve
  * Roster balances are read through useWalletBalances (lib/balances).
- * groupBalance reports SOL only, so ata_exists is always false and the reserve
- * math assumes every token account still has to be created.
+ * Withdraw lives in lib/withdraw.
  */
 
 interface ApiWallet {
@@ -269,118 +198,94 @@ export function lamportsToNumber(lamports: string): number {
   return Number(lamports)
 }
 
-/* ---------------------------------------------------------- fixture reads */
-/*
- * Endpoints these stand in for, once a backend exists:
- *   loadToken           GET  /api/command-center/token?mint=
- *   simulateBuy        POST /api/bundles/buy/simulate       { mint, pool_address, slippage_bps, tip_lamports, targets }
- *   executeBuy          POST /api/bundles/buy                (same body)
- *   retryLeg            POST /api/bundles/job/:jobId/retry   { leg }
+/** The user's launched tokens, newest first. Only rows with a pool are returned. */
+export async function loadMyTokens(apiFetch: ApiFetch): Promise<LaunchedToken[]> {
+  const rows = await apiFetch<unknown>('/api/liquidity/tokens')
+  if (!Array.isArray(rows)) throw new Error('Unexpected tokens response')
+  return rows.filter((t): t is LaunchedToken =>
+    !!t && typeof t.mint_address === 'string' && typeof t.pool_address === 'string' && t.pool_address.length > 0,
+  )
+}
+
+/* ------------------------------------------------------------------- buy */
+
+export type ExecutionMode = 'sequential' | 'bundle'
+export type BuyAmountMode = 'perWallet' | 'percent'
+
+/**
+ * The server accepts up to 25 wallets, but a sequential run takes several
+ * seconds per wallet and can outlast the proxy timeout. Kept at 10 until buys
+ * move to a background job.
  */
+export const MAX_BUY_WALLETS_PER_REQUEST = 10
 
-/** Fake network latency so loading states are visible while building. */
-function settle<T>(value: T, ms = 320): Promise<T> {
-  return new Promise(resolve => setTimeout(() => resolve(value), ms))
+export type BuyRequestBody = {
+  poolAddress: string
+  walletPublicKeys: string[]
+  executionMode: ExecutionMode
+} & (
+  | { amountMode: 'perWallet'; amounts: Record<string, string> }   // publicKey → lamports string
+  | { amountMode: 'percent'; percentBps: number }                  // integer, 1–10000
+)
+
+export interface WalletBuyResult {
+  publicKey: string
+  status: 'confirmed' | 'failed'
+  signature?: string
+  amountIn?: string            // lamports
+  minimumOut?: string
+  error?: string               // INSUFFICIENT_FUNDS | AMOUNT_EXCEEDS_AVAILABLE | … | SEND_FAILED | BUY_FAILED
+  message?: string
 }
 
-export function loadToken(mint: string): Promise<TokenSnapshot> {
-  return settle(fixtureToken(mint))
+/** 200 = every wallet bought; 207 = some or none did. `results` is per wallet. */
+export interface BuyResult {
+  executionMode: ExecutionMode
+  confirmed: number
+  failed: number
+  results: WalletBuyResult[]
 }
 
-/** Stands in for GET /api/liquidity/tokens, behind the "my tokens" button. */
-export function loadMyTokens(): Promise<TokenSnapshot[]> {
-  return settle(fixtureMyTokens())
+function isWalletBuyResult(v: unknown): v is WalletBuyResult {
+  const r = v as WalletBuyResult
+  return !!r && typeof r.publicKey === 'string' && (r.status === 'confirmed' || r.status === 'failed')
 }
 
-export interface Target { wallet_id: string; lamports: number }
-
-export function simulateBuy(targets: Target[], tipLamports: number): Promise<BuySimulation> {
-  const txCount = targets.length
-  return settle(
-    { ok: targets.length > 0, legs: bundleCount(txCount), tip_lamports: tipLamports, reason: targets.length ? null : 'No funded wallets selected' },
-    600,
-  )
-}
-
-export function executeBuy(targets: Target[]): Promise<Job> {
-  return settle(fixtureJob(bundleCount(targets.length), targets.length), 800)
-}
-
-export function retryLeg(job: Job, leg: number): Promise<Job> {
-  const legs = job.legs.map(l =>
-    l.leg < leg
-      ? l
-      : {
-          ...l,
-          status: 'confirmed' as LegStatus,
-          signature: pseudoKey(40_000 + l.leg) + pseudoKey(50_000 + l.leg),
-          error: null,
-          blocked_by: null,
-        },
-  )
-  return settle({ ...job, legs }, 500)
-}
-
-/* -------------------------------------------------------------- fixtures */
-
-/** Deterministic base58-looking key so addresses render realistically. */
-function pseudoKey(seed: number): string {
-  const alphabet = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-  let out = ''
-  let x = (seed * 2654435761) % 4294967296
-  for (let i = 0; i < 44; i++) {
-    x = (x * 1103515245 + 12345) % 4294967296
-    out += alphabet[x % alphabet.length]
+/**
+ * Buys from each wallet, one after another (sequential), waiting for
+ * on-chain confirmation of each. Sends real SOL and can take several seconds
+ * per wallet. The gateway adds the user from the bearer token; the body never
+ * carries a user id. 200 and 207 both resolve; other statuses throw ApiError.
+ */
+export async function buyFromWallets(apiFetch: ApiFetch, body: BuyRequestBody): Promise<BuyResult> {
+  const payload = body.amountMode === 'percent'
+    ? { poolAddress: body.poolAddress, walletPublicKeys: body.walletPublicKeys, executionMode: body.executionMode, amountMode: body.amountMode, percentBps: body.percentBps }
+    : { poolAddress: body.poolAddress, walletPublicKeys: body.walletPublicKeys, executionMode: body.executionMode, amountMode: body.amountMode, amounts: body.amounts }
+  const data = await apiFetch<BuyResult>('/api/liquidity/buy', { method: 'POST', body: JSON.stringify(payload) })
+  if (!data || !Array.isArray(data.results) || !data.results.every(isWalletBuyResult)) {
+    throw new Error('Unexpected buy response')
   }
-  return out
+  return data
 }
 
-function fixtureToken(mint: string): TokenSnapshot {
-  return {
-    mint_address: mint || pseudoKey(1),
-    name: 'Nocturne',
-    symbol: 'NCTN',
-    image_uri: null,
-    decimals: 6,
-    pool_address: pseudoKey(99),
-    pool_type: 'DAMM v2',
-    pool_sol_reserves: 412.64,
-    pool_token_reserves: 780_000_000,
-    price_usd: 0.000182,
-    change_24h: 0.0637,
-    user_owned: true,
-  }
+/**
+ * Percent the user typed → integer basis points, by string math only:
+ * "50" → 5000, "12.5" → 1250, "0.5" is rejected (minimum 1%). At most 2 decimals.
+ */
+export function percentToBps(input: string): { bps: number } | { error: string } {
+  const s = input.trim().replace(/%$/, '').trim()
+  if (!s) return { error: 'Enter a percentage.' }
+  if (!/^\d*\.?\d*$/.test(s) || !/\d/.test(s)) return { error: 'Enter a number from 1 to 100.' }
+  const [whole, frac = ''] = s.split('.')
+  if (frac.length > 2) return { error: 'At most 2 decimal places.' }
+  const bps = Number(whole || '0') * 100 + Number(frac.padEnd(2, '0'))
+  if (bps < 100 || bps > 10_000) return { error: 'Enter a percentage from 1 to 100.' }
+  return { bps }
 }
 
-function fixtureMyTokens(): TokenSnapshot[] {
-  const base = fixtureToken('')
-  return [
-    base,
-    { ...base, mint_address: pseudoKey(2), name: 'Halfstep', symbol: 'HALF', pool_address: pseudoKey(98), pool_sol_reserves: 88.2, price_usd: 0.0000441, change_24h: -0.1284 },
-    { ...base, mint_address: pseudoKey(3), name: 'Dead air', symbol: 'DEAD', pool_address: pseudoKey(97), pool_sol_reserves: 1204.9, price_usd: 0.00311, change_24h: 0.0042, user_owned: false },
-  ]
-}
-
-function fixtureJob(legCount: number, transfers: number): Job {
-  const kind = 'buy' as const
-  const legs = Math.max(1, legCount)
-  const per = Math.max(1, Math.ceil(transfers / legs))
-  const failAt = legs >= 3 ? 3 : 0
-  return {
-    job_id: `${kind}_${Date.now().toString(36)}`,
-    kind,
-    legs: Array.from({ length: legs }, (_, i) => {
-      const leg = i + 1
-      const failed = leg === failAt
-      const blocked = failAt > 0 && leg > failAt
-      return {
-        leg,
-        transfers: leg === legs ? transfers - per * (legs - 1) || per : per,
-        status: (failed ? 'failed' : blocked ? 'blocked' : 'confirmed') as LegStatus,
-        signature: failed || blocked ? null : pseudoKey(20_000 + leg) + pseudoKey(30_000 + leg),
-        error: failed ? 'Bundle not landed — tip account contention' : null,
-        blocked_by: blocked ? failAt : null,
-      }
-    }),
-  }
+/** Integer basis points → "12.5%" for display. */
+export function bpsLabel(bps: number): string {
+  const whole = Math.floor(bps / 100)
+  const frac = String(bps % 100).padStart(2, '0').replace(/0+$/, '')
+  return `${whole}${frac ? `.${frac}` : ''}%`
 }

@@ -1,6 +1,6 @@
 import { FastifyInstance } from "fastify"
 import { isAddress } from "@solana/kit"
-import { getWalletBalance, getWalletGroupBalance, withdrawSol } from "../service_functionality/solanaActions"
+import { getWalletBalance, getWalletGroupBalance } from "../service_functionality/solanaActions"
 //import { validateForKeyPair } from "../service_dataOperations/databaseCalls"
 //import pool from "../service_dataOperations/databaseConnectivity"
 
@@ -55,7 +55,5 @@ export async function solanaRoutes(fastify: FastifyInstance) {
   })
 
 
-  //NEED TO FIX, REWROTE GETKEYPAIR TO VALIDATEFORKEYPAIR — rework later (parked)
-  // fastify.post("/withdraw", ...)
 
 }

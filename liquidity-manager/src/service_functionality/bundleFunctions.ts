@@ -2,8 +2,10 @@ import {
     Connection, PublicKey, SystemProgram, ComputeBudgetProgram,
     TransactionMessage, VersionedTransaction,TransactionInstruction
 } from "@solana/web3.js";
-import { distributionTransfer, unsignedDistributionTx, groupWallet } from "../interfaces";
-
+import {buyAmountMode, buyErrorCode, distributionTransfer, unsignedDistributionTx, groupWallet } from "../interfaces";
+import { connection } from "../connection";
+import { buildBuyInstructions } from "./meteora";
+import { SWAP_SLIPPAGE_PERCENT, BUY_PRIORITY_MICROLAMPORTS, CU_SAFETY_MULTIPLIER, SIMULATION_CU_LIMIT } from "../config";
 
 
 
@@ -160,4 +162,83 @@ export async function measureComputeUnits(
         throw new Error("Simulation returned no unitsConsumed");
 
     return simulation.value.unitsConsumed;
+}
+
+//known per-wallet failure — code is safe to return, cause stays in the logs
+//expected = the user's input/balance (warn); unexpected = chain/service (error)
+export class BuyError extends Error {
+    constructor(public code: buyErrorCode, message: string, public expected: boolean, options?: { cause?: unknown }){
+        super(message, options);
+    }
+}
+
+
+//pure — how much this wallet spends, from what it can spare
+export function resolveBuyAmount(
+    available: bigint,
+    amountMode: buyAmountMode,
+    perWalletAmount: string | undefined,
+    percentBps: number | undefined
+): bigint {
+
+    if(available <= 0n)
+        throw new BuyError("INSUFFICIENT_FUNDS", "Wallet balance does not exceed its reserve", true);
+
+    if(amountMode === "percent"){
+        //multiply first, divide last — integer basis points, no floats
+        const amount = available * BigInt(percentBps!) / 10_000n;
+        if(amount <= 0n)
+            throw new BuyError("AMOUNT_TOO_SMALL", "Percentage of available balance rounds to 0 lamports", true);
+        return amount;
+    }
+
+    const requested = BigInt(perWalletAmount!);
+    if(requested > available)
+        throw new BuyError("AMOUNT_EXCEEDS_AVAILABLE", `Requested ${requested} lamports, ${available} available`, true);
+
+    return requested;
+}
+
+
+//one wallet, one buy: build → measure → compile → sign as the wallet → send
+//fresh blockhash per wallet — a long sequential run would outlive one blockhash
+//pool state re-fetched per wallet — each earlier buy moved the price
+export async function executeWalletBuy(user_ID: string, poolAddress: string, walletPublicKey: string, amountIn: bigint){
+
+    const latest = await connection.getLatestBlockhash('confirmed');
+
+    const { instructions, minimumOut, outputTokenMint } =
+        await buildBuyInstructions(walletPublicKey, poolAddress, amountIn, SWAP_SLIPPAGE_PERCENT);
+
+    let unitsConsumed: number;
+    try {
+        unitsConsumed = await measureComputeUnits(
+            connection, walletPublicKey, instructions, latest.blockhash, SIMULATION_CU_LIMIT, BUY_PRIORITY_MICROLAMPORTS
+        );
+    } catch (error) {
+        throw new BuyError("SIMULATION_FAILED", "Swap simulation failed (slippage or pool state)", false, { cause: error });
+    }
+
+    const unitLimit = Math.ceil(unitsConsumed * CU_SAFETY_MULTIPLIER);
+    const unsignedTx = compileWithComputeBudget(walletPublicKey, instructions, latest.blockhash, unitLimit, BUY_PRIORITY_MICROLAMPORTS);
+
+    const unsignedBytes = unsignedTx.serialize();
+    if(unsignedBytes.length > 1232)
+        throw new Error(`Buy transaction too large: ${unsignedBytes.length} bytes`);
+
+    let signed: string;
+    try {
+        signed = await signWithWalletApp(user_ID, [walletPublicKey], Buffer.from(unsignedBytes).toString('base64'));
+    } catch (error) {
+        throw new BuyError("SIGNING_FAILED", "Wallet could not sign the buy", false, { cause: error });
+    }
+
+    let signature: string;
+    try {
+        signature = await sendAndConfirm(connection, signed, latest.blockhash, latest.lastValidBlockHeight);
+    } catch (error) {
+        throw new BuyError("SEND_FAILED", "Buy was not confirmed — check the wallet before retrying", false, { cause: error });
+    }
+
+    return { signature, minimumOut, outputTokenMint, unitsConsumed, unitLimit };
 }

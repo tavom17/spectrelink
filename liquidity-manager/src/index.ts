@@ -3,6 +3,8 @@ import { tokenListRoutes } from "./service_routing/tokenList"
 import { exitRoutes } from "./service_routing/exitPosition"
 import pool from "./service_dataOperations/databaseConnectivity"
 import { bundleEndpoints } from "./service_routing/bundleRoute"
+import { withdrawEndpoints } from "./service_routing/withdrawRoute"
+
 
 const fastify = Fastify({ logger: true })
 
@@ -13,6 +15,7 @@ fastify.get("/health", async () => {
 fastify.register(tokenListRoutes, { prefix: "/liquidity" })
 fastify.register(exitRoutes, { prefix: "/liquidity" })
 fastify.register(bundleEndpoints, { prefix: "/liquidity" })
+fastify.register(withdrawEndpoints, { prefix: "/liquidity" })
 
 const start = async () => {
   try {
@@ -26,3 +29,4 @@ const start = async () => {
 }
 
 start()
+

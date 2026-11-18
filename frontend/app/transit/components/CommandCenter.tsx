@@ -5,15 +5,15 @@ import { useAuth } from '@/lib/auth'
 import { useApiFetch, ApiError, apiErrorMessage } from '@/lib/api'
 import { useWalletBalances, solToLamports, formatSol, lamportsToSolString, type LoadOptions } from '@/lib/balances'
 import {
-  loadToken, loadMyTokens, loadGroups, loadGroupMembers, loadFundingWallets,
-  distributeToGroup, simulateBuy, executeBuy, retryLeg,
-  floorLamports, minimumBuyLamports, priceWalk,
-  bundleCount, sol, truncateAddress, usd, pct, lamportsToNumber,
-  LAMPORTS_PER_SOL, BUNDLE_TIP_LAMPORTS,
-  type TokenSnapshot, type BundleGroup, type GroupMember, type FundingWallet,
-  type Job, type SplitMode, type DistributeResult,
+  loadMyTokens, loadGroups, loadGroupMembers, loadFundingWallets,
+  distributeToGroup, buyFromWallets, percentToBps, bpsLabel,
+  loadBaseReserve, availableLamports, sol, truncateAddress, lamportsToNumber,
+  MAX_BUY_WALLETS_PER_REQUEST,
+  type LaunchedToken, type BundleGroup, type GroupMember, type FundingWallet,
+  type SplitMode, type DistributeResult, type BuyAmountMode, type BuyResult, type BuyRequestBody,
 } from '@/lib/commandCenter'
-import { Sheet, SheetHead, Seg, Range, Check, TokenTile, CopyButton, ChevronDown, RefreshIcon, PreviewTag } from '@/components/ui'
+import { Sheet, SheetHead, Seg, Range, Check, TokenTile, CopyButton, ChevronDown, RefreshIcon, SolscanLink, StatusIcon, Line } from '@/components/ui'
+import WithdrawPanel from './WithdrawPanel'
 
 const ROSTER_PAGE = 10
 
@@ -22,7 +22,21 @@ const SPLIT_MODES = [
   { id: 'random', label: 'Random' },
 ] as const satisfies readonly { id: SplitMode; label: string }[]
 
-const SOLSCAN = 'https://solscan.io'
+/** What the roster checkboxes select wallets for. */
+type RosterPurpose = 'buy' | 'withdraw'
+
+const ROSTER_PURPOSES = [
+  { id: 'buy', label: 'Buy' },
+  { id: 'withdraw', label: 'Withdraw' },
+] as const satisfies readonly { id: RosterPurpose; label: string }[]
+
+const AMOUNT_MODES = [
+  { id: 'percent', label: '% of available' },
+  { id: 'perWallet', label: 'Per wallet' },
+] as const satisfies readonly { id: BuyAmountMode; label: string }[]
+
+/** Base58, 32–44 chars: the shape of a Solana address. */
+const SOLANA_ADDRESS = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
 
 /** Exactly what the user confirmed; the request is built from this, not from live form state. */
 interface DistributeRequest {
@@ -34,34 +48,19 @@ interface DistributeRequest {
   splitMode: SplitMode
 }
 
-/** `uncertain`: no usable response, so the transfers may or may not have landed. */
-interface DistributeError { message: string; uncertain: boolean }
-
-function StatusIcon({ status }: { status: Job['legs'][number]['status'] }) {
-  if (status === 'confirmed') return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--accent-400)', flexShrink: 0 }} aria-label="Confirmed">
-      <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" />
-      <path d="M4.6 7.2 L6.3 8.9 L9.4 5.3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-  if (status === 'failed') return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--danger)', flexShrink: 0 }} aria-label="Failed">
-      <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" />
-      <path d="M5 5 L9 9 M9 5 L5 9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
-    </svg>
-  )
-  if (status === 'blocked') return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--ink-5)', flexShrink: 0 }} aria-label="Blocked">
-      <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" strokeDasharray="2 2" />
-    </svg>
-  )
-  return (
-    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--ink-3)', flexShrink: 0 }} aria-label="Pending">
-      <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" />
-      <path d="M7 4 V7 L9 8.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-    </svg>
-  )
+/** Exactly what the user confirmed for a buy; sent as-is. */
+interface BuyRequest {
+  groupId: string
+  groupName: string
+  body: BuyRequestBody
+  /** Roster position (1-based) per wallet, for the result table. */
+  indexByKey: Record<string, number>
+  /** perWallet only: the sum of every wallet's amount, in lamports. */
+  totalLamports: string | null
 }
+
+/** `uncertain`: no usable response, so the transactions may or may not have landed. */
+interface ActionError { message: string; uncertain: boolean }
 
 /* -------------------------------------------------------------- component */
 
@@ -72,13 +71,13 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
   const { accessToken } = useAuth()
   const { apiFetch } = useApiFetch()
 
-  /* token */
-  const [mintInput, setMintInput] = useState(initialMint)
-  const [token, setToken] = useState<TokenSnapshot | null>(null)
-  const [loadingToken, setLoadingToken] = useState(false)
-  const [tokenError, setTokenError] = useState('')
-  const [myTokens, setMyTokens] = useState<TokenSnapshot[] | null>(null)
+  /* pool */
+  const [poolInput, setPoolInput] = useState('')
+  const [myTokens, setMyTokens] = useState<LaunchedToken[] | null>(null)
+  const [tokensError, setTokensError] = useState('')
   const [pickerOpen, setPickerOpen] = useState(false)
+  /** Set when ?mint= names a token that is not one of the user's launches. */
+  const [mintNotice, setMintNotice] = useState('')
 
   /* groups + balances */
   const [groups, setGroups] = useState<BundleGroup[]>([])
@@ -93,8 +92,13 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
   const loadedRef = useRef(false)
   const [showAllRows, setShowAllRows] = useState(false)
 
-  /* ephemeral buy selection — never persisted, never touches group membership */
+  /* ephemeral selection (for the buy, or for a withdraw) — never persisted, never touches group membership */
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [rosterPurpose, setRosterPurpose] = useState<RosterPurpose>('buy')
+
+  /** GET /api/liquidity/reserve: lamports every wallet keeps back for fees and rent. null until read. */
+  const [baseReserve, setBaseReserve] = useState<string | null>(null)
+  const [reserveError, setReserveError] = useState('')
 
   /* step 1 — distribute (real SOL, every wallet in the group) */
   const [fundingWallets, setFundingWallets] = useState<FundingWallet[]>([])
@@ -105,19 +109,21 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
   const [distributing, setDistributing] = useState(false)
   // Synchronous guard: state updates land a render late, a ref blocks a double click.
   const distributingRef = useRef(false)
-  const [distributeError, setDistributeError] = useState<DistributeError | null>(null)
+  const [distributeError, setDistributeError] = useState<ActionError | null>(null)
   const [distributeResult, setDistributeResult] = useState<{ request: DistributeRequest; result: DistributeResult } | null>(null)
+  const [fundingError, setFundingError] = useState('')
 
-  /* step 2 */
-  const [slippageBps, setSlippageBps] = useState(200)
-  const [simulating, setSimulating] = useState(false)
-  const [simReady, setSimReady] = useState(false)
-  const [firing, setFiring] = useState(false)
-
-  /* jobs */
-  const [job, setJob] = useState<Job | null>(null)
-  const [retrying, setRetrying] = useState<number | null>(null)
-  const [actionError, setActionError] = useState('')
+  /* step 2 — buy (real SOL, the selected wallets, one after another) */
+  const [amountMode, setAmountMode] = useState<BuyAmountMode>('percent')
+  const [percentInput, setPercentInput] = useState('')
+  /** SOL typed per wallet, keyed by public key. Kept when a wallet is deselected. */
+  const [perWalletSol, setPerWalletSol] = useState<Record<string, string>>({})
+  const [pendingBuy, setPendingBuy] = useState<BuyRequest | null>(null)
+  const [buying, setBuying] = useState(false)
+  // Same synchronous guard as distribute: one buy request at a time.
+  const buyingRef = useRef(false)
+  const [buyError, setBuyError] = useState<ActionError | null>(null)
+  const [buyResult, setBuyResult] = useState<{ request: BuyRequest; result: BuyResult } | null>(null)
 
   /* layout only */
   const [bundleOpen, setBundleOpen] = useState(true)
@@ -173,6 +179,24 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
     }
   }
 
+  async function fetchMyTokens() {
+    setTokensError('')
+    try {
+      setMyTokens(await loadMyTokens(apiFetch))
+    } catch (err) {
+      setTokensError(err instanceof ApiError ? apiErrorMessage(err) ?? 'Failed to load your tokens' : 'Failed to load your tokens')
+    }
+  }
+
+  async function fetchReserve() {
+    setReserveError('')
+    try {
+      setBaseReserve(await loadBaseReserve(apiFetch))
+    } catch (err) {
+      setReserveError(err instanceof ApiError ? apiErrorMessage(err) ?? 'Failed to load the wallet reserve' : 'Failed to load the wallet reserve')
+    }
+  }
+
   // Load once the token is available; later token refreshes must not reset the open group.
   useEffect(() => {
     if (!accessToken || loadedRef.current) return
@@ -192,12 +216,18 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
         setFundingWallets(w)
         if (w.length) setFundingId(w[0].wallet_id)
       })
-      .catch(err => setActionError(err instanceof Error ? err.message : 'Failed to load funding wallets'))
+      .catch(err => setFundingError(err instanceof Error ? err.message : 'Failed to load funding wallets'))
+    void fetchMyTokens()
+    void fetchReserve()
   }, [accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // "Open in command center" passes ?mint=; use that token's pool once the launches are known.
   useEffect(() => {
-    if (initialMint) void handleLoad(initialMint)
-  }, [initialMint])
+    if (!initialMint || !myTokens || buyingRef.current) return
+    const t = myTokens.find(x => x.mint_address === initialMint)
+    if (t) { setPoolInput(t.pool_address); setMintNotice('') }
+    else setMintNotice('The linked token is not one of your launches. Paste its pool address instead.')
+  }, [initialMint, myTokens])
 
   // Re-renders the "synced Ns ago" readout. Display only; it never fetches.
   useEffect(() => {
@@ -205,32 +235,11 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
     return () => clearInterval(t)
   }, [])
 
-  async function handleLoad(mint: string) {
-    const m = mint.trim()
-    if (!m) { setTokenError('Enter a mint address'); return }
-    setLoadingToken(true)
-    setTokenError('')
-    try {
-      setToken(await loadToken(m))
-      setPickerOpen(false)
-    } catch (err) {
-      setTokenError(err instanceof Error ? err.message : 'Could not load that token')
-    } finally {
-      setLoadingToken(false)
-    }
-  }
-
-  async function openPicker() {
-    setPickerOpen(true)
-    if (!myTokens) setMyTokens(await loadMyTokens())
-  }
-
   function openGroupChip(id: string) {
     const next = id === openGroupId ? null : id
     setOpenGroupId(next)
     setSelectedIds(new Set())       // selection is per-roster and ephemeral
     setShowAllRows(false)
-    setSimReady(false)
     cancelPendingDistribute()       // a confirmation is for one specific group
     if (next) {
       const g = groups.find(x => x.group_id === next)
@@ -250,9 +259,25 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
     if (openGroup?.members?.length) void syncBalances(openGroup.group_id, openGroup.members, { force: true })
   }
 
+  /** Buy-spendable lamports (balance − baseReserve), or null while the balance or the reserve is unknown. */
+  function available(m: GroupMember): bigint | null {
+    const b = balances[m.public_key]
+    return b && baseReserve !== null ? availableLamports(b.lamports, baseReserve) : null
+  }
+
   function selectable(m: GroupMember): boolean {
-    // the selection is for the buy, which needs the wallet to already clear its floor
-    return m.lamports >= minimumBuyLamports(m)
+    // a withdraw can take any wallet; the server skips the empty ones and says so
+    if (rosterPurpose === 'withdraw') return true
+    // a buy needs something left once the reserve is kept back
+    const a = available(m)
+    return a !== null && a > BigInt(0)
+  }
+
+  function changeRosterPurpose(next: RosterPurpose) {
+    if (next === rosterPurpose) return
+    setRosterPurpose(next)
+    setSelectedIds(new Set())       // a selection is for one action
+    setBuyError(null)
   }
 
   function toggle(id: string) {
@@ -261,20 +286,17 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
       if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
-    setSimReady(false)
   }
 
   function selectAll() {
     setSelectedIds(new Set(members.filter(selectable).map(m => m.wallet_id)))
-    setSimReady(false)
   }
 
   function selectNone() {
     setSelectedIds(new Set())
-    setSimReady(false)
   }
 
-  // Drop selections whose wallet no longer clears the buy floor.
+  // Drop selections whose wallet can no longer be selected (e.g. nothing left to buy with).
   useEffect(() => {
     setSelectedIds(prev => {
       const next = new Set([...prev].filter(id => {
@@ -283,21 +305,13 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
       }))
       return next.size === prev.size ? prev : next
     })
-    setSimReady(false)
-  }, [members])
+  }, [members, baseReserve, rosterPurpose]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A buy confirmation is for one exact set of wallets.
+  useEffect(() => { cancelPendingBuy() }, [selectedIds])
 
   /* ------------------------------------------------------------- derived */
-  /* The buy figures count the SELECTED wallets; distribute always targets the whole group. */
-
-  const fundedSelected = selected.filter(m => m.lamports >= minimumBuyLamports(m))
-  const unfundedSelected = selected.length - fundedSelected.length
-
-  const buySpends = fundedSelected.map(m => Math.max(0, m.lamports - floorLamports(m)) / LAMPORTS_PER_SOL)
-  const walk = token ? priceWalk(token.price_usd, token.pool_sol_reserves, buySpends) : []
-  const walkImpact = walk.length && token ? walk[walk.length - 1] / token.price_usd - 1 : 0
-
-  const buyTxCount = fundedSelected.length
-  const buyBundles = bundleCount(buyTxCount)
+  /* Buy figures count the SELECTED wallets; distribute always targets the whole group. */
 
   const groupTotalLamports = members.reduce((s, m) => s + m.lamports, 0)
   const selectedLamports = selected.reduce((s, m) => s + m.lamports, 0)
@@ -311,14 +325,45 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
   const syncedAgo = openSyncedAt ? Math.max(0, Math.round((now - openSyncedAt) / 1000)) : null
   const balanceFailures = members.filter(m => balanceFailed[m.public_key]).length
 
+  /* buy form — only a Buy-purpose selection counts */
+  const buySelected = rosterPurpose === 'buy' ? selected : []
+  const withdrawSelected = rosterPurpose === 'withdraw' ? selected : []
+  const poolAddress = poolInput.trim()
+  const poolValid = SOLANA_ADDRESS.test(poolAddress)
+  const poolToken = myTokens?.find(t => t.pool_address === poolAddress) ?? null
+  const overLimit = buySelected.length > MAX_BUY_WALLETS_PER_REQUEST
+  const percent = percentToBps(percentInput)
+  const perWallet = buySelected.map(m => {
+    const raw = perWalletSol[m.public_key] ?? ''
+    return { m, raw, parsed: solToLamports(raw) }
+  })
+  const perWalletLamports = perWallet.flatMap(p => ('lamports' in p.parsed ? [p.parsed.lamports] : []))
+  const perWalletReady = buySelected.length > 0 && perWalletLamports.length === buySelected.length
+  const perWalletTotal = perWalletLamports.reduce((s, l) => s + BigInt(l), BigInt(0)).toString()
+  const firstPerWalletError = perWallet.find(p => p.raw.trim() && 'error' in p.parsed)
+
+  /** Why Buy is disabled, or null when it can be reviewed. */
+  const buyBlocker: string | null =
+    !poolAddress ? 'Set a pool above'
+    : !poolValid ? 'Pool address is not a valid Solana address'
+    : !openGroup?.members ? 'Pick a bundle group'
+    : rosterPurpose !== 'buy' ? 'Switch the roster to Buy to select wallets'
+    : baseReserve === null ? (reserveError ? 'The wallet reserve could not be loaded' : 'Loading the wallet reserve…')
+    : buySelected.length === 0 ? 'Select wallets in the roster'
+    : overLimit ? `Select at most ${MAX_BUY_WALLETS_PER_REQUEST} wallets`
+    : amountMode === 'percent'
+      ? ('error' in percent ? (percentInput.trim() ? percent.error : 'Enter a percentage') : null)
+      : (!perWalletReady ? 'Enter a positive SOL amount for every selected wallet' : null)
+
   /** Per-group readout for the picker, from whatever balances have been read. */
   function groupStats(g: BundleGroup) {
     const known = (g.members ?? []).filter(m => balances[m.public_key] !== undefined)
     if (known.length === 0) return null
-    const hydrated = known.map(m => ({ ...m, lamports: lamportsToNumber(balances[m.public_key].lamports) }))
     return {
-      funded: hydrated.filter(m => m.lamports >= minimumBuyLamports(m)).length,
-      lamports: hydrated.reduce((s, m) => s + m.lamports, 0),
+      funded: baseReserve === null
+        ? null
+        : known.filter(m => availableLamports(balances[m.public_key].lamports, baseReserve) > BigInt(0)).length,
+      lamports: known.reduce((s, m) => s + lamportsToNumber(balances[m.public_key].lamports), 0),
     }
   }
 
@@ -350,7 +395,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
   }
 
   /** Maps a failed request to what the form shows. */
-  function distributeFailure(err: unknown, req: DistributeRequest): DistributeError {
+  function distributeFailure(err: unknown, req: DistributeRequest): ActionError {
     if (err instanceof ApiError) {
       // BAD_REQUEST / INSUFFICIENT_BUDGET / INSUFFICIENT_FUNDS: the server's message, inline
       if (err.status === 400) return { message: apiErrorMessage(err) ?? 'The distribution was rejected.', uncertain: false }
@@ -398,154 +443,202 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
     }
   }
 
-  async function handleSimulate() {
-    if (!fundedSelected.length) return
-    setSimulating(true)
-    setActionError('')
-    try {
-      const targets = fundedSelected.map((m, i) => ({
-        wallet_id: m.wallet_id,
-        lamports: Math.round(buySpends[i] * LAMPORTS_PER_SOL),
-      }))
-      const res = await simulateBuy(targets, BUNDLE_TIP_LAMPORTS)
-      if (res.ok) setSimReady(true)
-      else setActionError(res.reason ?? 'Simulation failed')
-    } finally {
-      setSimulating(false)
-    }
+  /* buy */
+
+  /** Drops an open buy confirmation (inputs changed). Never while a buy is in flight. */
+  function cancelPendingBuy() {
+    if (!buyingRef.current) setPendingBuy(null)
   }
 
-  async function handleFire() {
-    setFiring(true)
-    setActionError('')
+  function setPerWalletAmount(publicKey: string, value: string) {
+    setPerWalletSol(prev => ({ ...prev, [publicKey]: value }))
+    setBuyError(null)
+    cancelPendingBuy()
+  }
+
+  /** Step one of two: snapshot the request and show the confirmation. Nothing is sent here. */
+  function reviewBuy() {
+    if (buyingRef.current) return
+    setBuyError(null)
+    const group = openGroup
+    if (buyBlocker || !group) { setBuyError({ message: buyBlocker ?? 'Pick a bundle group.', uncertain: false }); return }
+
+    const walletPublicKeys = buySelected.map(m => m.public_key)
+    const indexByKey = Object.fromEntries(buySelected.map(m => [m.public_key, m.index]))
+    // Only one execution mode exists today; Bundle is shown but cannot be chosen.
+    const base = { poolAddress, walletPublicKeys, executionMode: 'sequential' as const }
+
+    let body: BuyRequestBody
+    let totalLamports: string | null = null
+    if (amountMode === 'percent') {
+      if (!('bps' in percent)) return
+      body = { ...base, amountMode: 'percent', percentBps: percent.bps }
+    } else {
+      const amounts: Record<string, string> = {}
+      for (const p of perWallet) {
+        if (!('lamports' in p.parsed)) return
+        amounts[p.m.public_key] = p.parsed.lamports
+      }
+      body = { ...base, amountMode: 'perWallet', amounts }
+      totalLamports = perWalletTotal
+    }
+    setPendingBuy({ groupId: group.group_id, groupName: group.name, body, indexByKey, totalLamports })
+  }
+
+  /** Maps a failed buy request to what the form shows. Form state is always kept. */
+  function buyFailure(err: unknown): ActionError {
+    if (err instanceof ApiError) {
+      // rejected before anything was sent: the server's message, inline
+      if (err.status === 400) return { message: apiErrorMessage(err) ?? 'The buy was rejected.', uncertain: false }
+      // Bundle is disabled in the UI, so this should not happen; show what the server says
+      if (err.status === 501) return { message: apiErrorMessage(err) ?? 'Bundle buys are not available yet. Use sequential.', uncertain: false }
+      // apiFetch already tried a token refresh and logged out if that failed
+      if (err.status === 401) return { message: err.message, uncertain: false }
+      // 502/504: the proxy lost the run part-way; buys before that point may have landed
+      if (err.status === 502 || err.status === 504) return { message: 'The buy failed on the server.', uncertain: true }
+      return { message: 'The buy failed on the server. Your inputs are unchanged.', uncertain: false }
+    }
+    // Network error or unreadable 2xx: the request may have reached the server.
+    return { message: 'The buy failed: no usable response from the server.', uncertain: true }
+  }
+
+  /** Step two: the only path that buys. */
+  async function confirmBuy() {
+    const req = pendingBuy
+    if (!req || buyingRef.current) return
+    buyingRef.current = true
+    setBuying(true)
+    setBuyError(null)
+    setBuyResult(null)
+    let refetch = false
     try {
-      const targets = fundedSelected.map((m, i) => ({
-        wallet_id: m.wallet_id,
-        lamports: Math.round(buySpends[i] * LAMPORTS_PER_SOL),
-      }))
-      setJob(await executeBuy(targets))
-      setSimReady(false)
+      const result = await buyFromWallets(apiFetch, req.body)
+      setBuyResult({ request: req, result })
+      refetch = true
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : 'Buy failed')
+      const failure = buyFailure(err)
+      setBuyError(failure)
+      refetch = failure.uncertain
     } finally {
-      setFiring(false)
+      buyingRef.current = false
+      setPendingBuy(null)
+      setBuying(false)
     }
+    // SOL moved (200 or 207), or may have: re-read the whole group. Not awaited.
+    const group = groups.find(g => g.group_id === req.groupId)
+    if (refetch && group?.members?.length) void syncBalances(group.group_id, group.members, { fresh: true })
   }
 
-  async function handleRetry(leg: number) {
-    if (!job) return
-    setRetrying(leg)
-    try {
-      setJob(await retryLeg(job, leg))
-    } finally {
-      setRetrying(null)
-    }
+  /* withdraw */
+
+  /**
+   * Funds moved (or may have): re-read the source wallets, and the destination
+   * if it is one of the user's wallets (a loaded group member or a funding
+   * wallet), in one request. Not awaited.
+   */
+  function afterWithdraw(sourceKeys: string[], destination: string) {
+    const own = fundingWallets.some(w => w.public_key === destination)
+      || groups.some(g => g.members?.some(m => m.public_key === destination))
+    void loadBalances([...sourceKeys, ...(own ? [destination] : [])], { fresh: true })
   }
 
   /* ----------------------------------------------------------- rendering */
 
   const rosterCols = '28px 34px 1fr auto'
+  const amountCols = '28px 1fr auto 112px'
+  const buyLocked = buying || !!pendingBuy
 
   return (
     <div>
       <div className="page-head">
-        <div className="page-kicker">Fund a bundle group, then fire a buy against one pool</div>
-        <PreviewTag />
+        <div className="page-kicker">Fund a bundle group, then buy from its wallets against one pool</div>
       </div>
 
-      {/* ── contract address ───────────────────────────────────────── */}
+      {/* ── pool ───────────────────────────────────────────────────── */}
       <div className="glass glow" style={{ padding: '18px 22px', '--glow-size': '360px' } as React.CSSProperties}>
-        <label className="kicker" htmlFor="cc-mint">Contract address</label>
+        <label className="kicker" htmlFor="cc-pool">Pool address</label>
         <div className="row-flex" style={{ gap: 11, marginTop: 12 }}>
           <input
-            id="cc-mint"
+            id="cc-pool"
             className="input mono"
-            value={mintInput}
-            onChange={e => { setMintInput(e.target.value); setTokenError('') }}
-            onKeyDown={e => { if (e.key === 'Enter') handleLoad(mintInput) }}
-            placeholder="Paste a mint address"
+            value={poolInput}
+            onChange={e => { setPoolInput(e.target.value); setMintNotice(''); setBuyError(null); cancelPendingBuy() }}
+            disabled={buying}
+            placeholder="Paste a DAMM v2 pool address, or pick one of your tokens"
             spellCheck={false}
+            aria-invalid={!!poolAddress && !poolValid}
             style={{ flex: '1 1 260px', width: 'auto' }}
           />
-          <button type="button" className="btn btn-accent" disabled={loadingToken} onClick={() => handleLoad(mintInput)}>
-            {loadingToken ? 'Loading…' : 'Load coin'}
-          </button>
-          <button type="button" className="btn" onClick={() => (pickerOpen ? setPickerOpen(false) : openPicker())} aria-expanded={pickerOpen}>
+          <button type="button" className="btn" disabled={buying} onClick={() => setPickerOpen(o => !o)} aria-expanded={pickerOpen}>
             My tokens
           </button>
+          {poolInput && (
+            <button type="button" className="btn btn-sm" disabled={buying} onClick={() => { setPoolInput(''); cancelPendingBuy() }}>
+              Clear
+            </button>
+          )}
         </div>
-        {tokenError && <div className="alert-inline" style={{ marginTop: 10 }}>{tokenError}</div>}
+        {poolAddress && !poolValid && <div className="alert-inline" style={{ marginTop: 10 }}>Not a valid Solana address.</div>}
+        {mintNotice && <div className="hint" style={{ marginTop: 10 }}>{mintNotice}</div>}
 
         {pickerOpen && (
           <div className="enter" style={{ marginTop: 14, borderRadius: 11, border: '1px solid rgba(233,233,237,.10)', background: 'rgba(16,18,32,.62)', overflow: 'hidden' }}>
             <div className="row-flex" style={{ justifyContent: 'space-between', padding: '10px 15px', borderBottom: '1px solid rgba(233,233,237,.07)' }}>
-              <span className="kicker">Select a coin</span>
+              <span className="kicker">Your launched tokens</span>
               <button type="button" className="btn-link dim" onClick={() => setPickerOpen(false)}>Close</button>
             </div>
             <div style={{ maxHeight: 250, overflowY: 'auto' }}>
-              {!myTokens ? (
+              {tokensError ? (
+                <div className="row-flex" style={{ justifyContent: 'space-between', padding: '12px 15px' }}>
+                  <span className="alert-inline">{tokensError}</span>
+                  <button type="button" className="btn btn-xs" onClick={() => void fetchMyTokens()}>Retry</button>
+                </div>
+              ) : !myTokens ? (
                 <div className="empty" style={{ padding: '12px 15px' }}>Loading your tokens…</div>
+              ) : myTokens.length === 0 ? (
+                <div className="empty" style={{ padding: '12px 15px' }}>No launched tokens with a pool yet. Paste a pool address instead.</div>
               ) : myTokens.map(t => (
                 <button
-                  key={t.mint_address}
+                  key={t.token_id ?? t.mint_address}
                   type="button"
-                  onClick={() => { setMintInput(t.mint_address); handleLoad(t.mint_address) }}
+                  onClick={() => { setPoolInput(t.pool_address); setMintNotice(''); setBuyError(null); cancelPendingBuy(); setPickerOpen(false) }}
                   className="t-row clickable"
                   style={{ gridTemplateColumns: '26px 1fr auto', width: '100%', padding: '10px 15px', background: 'transparent', border: 0, borderBottom: '1px solid var(--line-faint)', textAlign: 'left', color: 'inherit' }}
                 >
                   <TokenTile src={t.image_uri} symbol={t.symbol} size={26} />
                   <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.35, minWidth: 0 }}>
-                    <span style={{ fontSize: 12.5, color: token?.mint_address === t.mint_address ? 'var(--accent-300)' : 'var(--ink-1)' }}>{t.name}</span>
-                    <span className="meta" style={{ fontSize: 10 }}>{t.symbol} · {truncateAddress(t.mint_address)}</span>
+                    <span style={{ fontSize: 12.5, color: t.pool_address === poolAddress ? 'var(--accent-300)' : 'var(--ink-1)' }}>{t.name}</span>
+                    <span className="meta" style={{ fontSize: 10 }}>{t.symbol} · mint {truncateAddress(t.mint_address)}</span>
                   </span>
-                  <span className="t-cell-mono">{usd(t.price_usd)}</span>
+                  <span className="t-cell-mono" title={t.pool_address}>pool {truncateAddress(t.pool_address)}</span>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {token && (
-          <div className="enter" style={{ marginTop: 14, padding: '15px 17px', borderRadius: 12, border: '1px solid rgba(145,132,217,.30)', background: 'rgba(66,58,106,.20)' }}>
+        {poolToken ? (
+          <div className="enter" style={{ marginTop: 14, padding: '13px 15px', borderRadius: 12, border: '1px solid rgba(145,132,217,.30)', background: 'rgba(66,58,106,.20)' }}>
             <div className="row-flex" style={{ gap: 13 }}>
-              <TokenTile src={token.image_uri} symbol={token.symbol} size={40} radius={11} />
+              <TokenTile src={poolToken.image_uri} symbol={poolToken.symbol} size={36} radius={10} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: '1 1 200px', minWidth: 0 }}>
                 <div className="row-flex" style={{ gap: 9 }}>
-                  <span style={{ fontSize: 15 }}>{token.name}</span>
-                  <span className="tag tag-accent">{token.symbol}</span>
-                  {token.user_owned && <span className="tag tag-accent">Your launch</span>}
-                  <span className="tag">{token.pool_type}</span>
+                  <span style={{ fontSize: 14 }}>{poolToken.name}</span>
+                  <span className="tag tag-accent">{poolToken.symbol}</span>
+                  <span className="tag tag-accent">Your launch</span>
                 </div>
                 <div className="row-flex" style={{ gap: 8, flexWrap: 'nowrap' }}>
-                  <span className="meta" style={{ wordBreak: 'break-all' }}>{token.mint_address}</span>
-                  <CopyButton text={token.mint_address} />
+                  <span className="meta" style={{ wordBreak: 'break-all' }}>Pool {poolToken.pool_address}</span>
+                  <CopyButton text={poolToken.pool_address} />
                 </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <div className="mono" style={{ fontSize: 16 }}>{usd(token.price_usd)}</div>
-                <div className="mono" style={{ fontSize: 11, marginTop: 4, color: token.change_24h >= 0 ? 'var(--accent-400)' : 'var(--danger)' }}>
-                  {pct(token.change_24h)} <span style={{ color: 'var(--ink-4)' }}>24h</span>
-                </div>
-              </div>
-              <button type="button" className="btn btn-sm" onClick={() => { setToken(null); setSimReady(false); setPickerOpen(false) }}>
-                Clear
-              </button>
-            </div>
-            <div className="grid-auto" style={{ '--min': '120px', gap: 12, marginTop: 15, paddingTop: 14, borderTop: '1px solid rgba(233,233,237,.07)' } as React.CSSProperties}>
-              {[
-                { k: 'Pool SOL', v: `${token.pool_sol_reserves.toFixed(2)} SOL` },
-                { k: 'Pool tokens', v: new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(token.pool_token_reserves) },
-                { k: 'Decimals', v: String(token.decimals) },
-                { k: 'Pool', v: truncateAddress(token.pool_address) },
-              ].map(f => (
-                <div key={f.k} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <span className="kicker" style={{ fontSize: 9, letterSpacing: '.16em' }}>{f.k}</span>
-                  <span className="mono" style={{ fontSize: 12, color: 'var(--ink-1)' }}>{f.v}</span>
-                </div>
-              ))}
             </div>
           </div>
-        )}
+        ) : poolValid ? (
+          <div className="hint" style={{ marginTop: 10 }}>
+            Pasted pool, not one of your launches. Check it on <SolscanLink kind="account" id={poolAddress}>Solscan</SolscanLink> before buying.
+          </div>
+        ) : null}
       </div>
 
       {/* ── bundle ─────────────────────────────────────────────────── */}
@@ -563,7 +656,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
           <ChevronDown size={11} style={{ color: 'var(--ink-3)', transition: 'transform .35s var(--ease)', transform: bundleOpen ? 'none' : 'rotate(-90deg)' }} />
           <span className="mono" style={{ fontSize: 11, letterSpacing: '.24em', textTransform: 'uppercase', color: 'var(--accent-300)' }}>Bundle</span>
           <span className="meta" style={{ color: 'var(--ink-4)' }}>
-            {bundleOpen ? 'Wallets · distribute · execute · monitor' : `Collapsed · ${selected.length} selected`}
+            {bundleOpen ? 'Wallets · distribute · buy' : `Collapsed · ${selected.length} selected`}
           </span>
         </button>
 
@@ -599,7 +692,10 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                 </div>
               </div>
               <div className="row-flex" style={{ justifyContent: 'space-between', padding: '0 20px 12px' }}>
-                <span className="meta" style={{ color: 'var(--ink-4)' }}>Select funded wallets for the buy</span>
+                <div className="row-flex" style={{ gap: 8 }}>
+                  <span className="meta" style={{ color: 'var(--ink-4)' }}>Select for</span>
+                  <Seg small options={ROSTER_PURPOSES} value={rosterPurpose} onChange={changeRosterPurpose} label="Select wallets for" />
+                </div>
                 <span className="meta" style={{ color: 'var(--ink-4)' }}>
                   {syncing ? 'syncing balances…' : syncedAgo === null ? 'balances not synced' : `balances synced ${syncedAgo}s ago`}
                   {!syncing && balanceFailures > 0 && <span style={{ color: 'var(--danger)' }}> · {balanceFailures} failed</span>}
@@ -637,13 +733,16 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                   ) : visibleMembers.map(m => {
                     const isSelected = selectedIds.has(m.wallet_id)
                     const disabled = !selectable(m)
-                    const minSol = sol(minimumBuyLamports(m), 4)
+                    const disabledReason = !disabled ? undefined
+                      : baseReserve === null ? 'Loading the wallet reserve…'
+                      : !balances[m.public_key] ? 'Balance not read yet'
+                      : `Nothing available to buy with: needs more than ${formatSol(baseReserve, 6)} SOL, the reserve kept for fees and rent`
                     return (
                       <div
                         key={m.wallet_id}
                         className="t-row hover glow glow-sm"
                         onClick={() => { if (!disabled) toggle(m.wallet_id) }}
-                        title={disabled ? `Needs ${minSol} SOL to cover rent, its token account and fees before it can trade` : undefined}
+                        title={disabledReason}
                         style={{
                           gridTemplateColumns: rosterCols, padding: '9px 20px',
                           cursor: disabled ? 'not-allowed' : 'pointer',
@@ -695,7 +794,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
             </div>
 
             <div className="stack">
-              {actionError && <div className="alert" role="alert">{actionError}</div>}
+              {fundingError && <div className="alert" role="alert">{fundingError}</div>}
 
               {/* 1 distribute */}
               <div className="glass glow">
@@ -754,7 +853,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                       label="Split mode"
                     />
                     <div className="hint" style={{ fontSize: 11 }}>
-                      Even gives every wallet the same amount · Random varies the amounts. Each wallet keeps a reserve for rent and fees.
+                      Even gives every wallet the same amount · Random varies the amounts. Each wallet keeps a reserve for rent and fees{baseReserve !== null ? ` (${formatSol(baseReserve, 6)} SOL)` : ''}.
                     </div>
                   </div>
 
@@ -820,122 +919,246 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                 )}
               </div>
 
-              {/* 2 execute buy */}
+              {/* 2 buy */}
               <div className="glass glow">
                 <div className="card-head">
                   <div className="row-flex">
                     <span className="step">2</span>
-                    <span className="section-title">Execute buy</span>
+                    <span className="section-title">Buy</span>
                   </div>
-                  {unfundedSelected > 0 && (
-                    <span className="tag tag-danger">
-                      {unfundedSelected} {unfundedSelected === 1 ? 'wallet' : 'wallets'} unfunded
+                  {buySelected.length > 0 && (
+                    <span className={overLimit ? 'tag tag-danger' : 'tag tag-accent'}>
+                      {buySelected.length} {buySelected.length === 1 ? 'wallet' : 'wallets'}
                     </span>
                   )}
                 </div>
                 <div className="card-body">
-                  <div className="label">Price walk preview</div>
-                  {!token ? (
-                    <div className="hint" style={{ padding: '22px 0' }}>Load a token to preview the walk.</div>
-                  ) : walk.length === 0 ? (
-                    <div className="hint" style={{ padding: '22px 0' }}>
-                      Select funded wallets in the roster to preview the walk.
+                  <div className="stack" style={{ gap: 9 }}>
+                    <Line k="Pool" v={poolValid ? `${poolToken ? `${poolToken.symbol} · ` : ''}${truncateAddress(poolAddress, 6, 6)}` : 'Set a pool above'} />
+                    <Line k="Wallets" v={buySelected.length === 0 ? 'Select wallets in the roster' : buySelected.length === 1 ? '1 (individual buy)' : `${buySelected.length}`} />
+                  </div>
+
+                  {overLimit && (
+                    <div className="alert" role="alert" style={{ marginTop: 14 }}>
+                      {buySelected.length} wallets selected. Buy from at most {MAX_BUY_WALLETS_PER_REQUEST} per request for now: each wallet takes
+                      several seconds, and a longer run can outlast the server&apos;s timeout. Deselect {buySelected.length - MAX_BUY_WALLETS_PER_REQUEST} to continue.
                     </div>
-                  ) : (
-                    <>
-                      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 88, marginTop: 12, borderBottom: '1px solid rgba(233,233,237,.10)' }}>
-                        {walk.map((price, i) => {
-                          const t = walk.length === 1 ? 0 : i / (walk.length - 1)
-                          return (
-                            <div
-                              key={i}
-                              title={`Wallet ${i + 1} — ${usd(price)}`}
-                              style={{
-                                flex: 1, minWidth: 3, maxWidth: 24,
-                                height: `${18 + t * 82}%`,
-                                borderRadius: '4px 4px 0 0',
-                                background: `rgba(145,132,217,${(0.18 + t * 0.52).toFixed(2)})`,
-                              }}
-                            />
-                          )
-                        })}
+                  )}
+
+                  {buySelected.length >= 2 && (
+                    <div className="field" style={{ marginTop: 20 }}>
+                      <span className="label">Execution</span>
+                      <div className="seg seg-sm" role="tablist" aria-label="Execution mode">
+                        <button type="button" role="tab" aria-selected className="seg-opt">Sequential</button>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={false}
+                          aria-disabled
+                          disabled
+                          className="seg-opt"
+                          title="Coming soon"
+                          style={{ opacity: 0.45, cursor: 'not-allowed' }}
+                        >
+                          Bundle · coming soon
+                        </button>
                       </div>
-                      <div className="row-flex" style={{ justifyContent: 'space-between', marginTop: 8 }}>
-                        <span className="meta">Wallet 1 — {usd(walk[0])}</span>
-                        <span className="meta" style={{ color: 'var(--accent-300)' }}>
-                          Wallet {walk.length} — {usd(walk[walk.length - 1])} ({pct(walkImpact, 1)})
-                        </span>
+                      <div className="hint" style={{ fontSize: 11 }}>
+                        Sequential buys from one wallet after another; each succeeds or fails on its own.
                       </div>
-                    </>
+                    </div>
                   )}
 
                   <div className="field" style={{ marginTop: 20 }}>
-                    <label className="label" htmlFor="cc-slip">
-                      Slippage <span className="label-value mono">{slippageBps} bps</span>
-                    </label>
-                    <Range id="cc-slip" min={50} max={500} step={50} value={slippageBps} onChange={v => { setSlippageBps(v); setSimReady(false) }} />
+                    <span className="label">Amount</span>
+                    <Seg
+                      small
+                      options={AMOUNT_MODES}
+                      value={amountMode}
+                      onChange={v => { if (!buyLocked) { setAmountMode(v); setBuyError(null) } }}
+                      label="Amount mode"
+                    />
                   </div>
-                </div>
-                <div className="card-foot">
-                  <span className="meta">
-                    {fundedSelected.length} funded · {buyBundles} {buyBundles === 1 ? 'bundle' : 'bundles'} · {buyTxCount} tx · tip {sol(BUNDLE_TIP_LAMPORTS, 3)} SOL
-                  </span>
-                  {simReady ? (
-                    <div className="row-flex" style={{ gap: 7 }}>
-                      <button type="button" className="btn" onClick={() => setSimReady(false)}>Cancel</button>
-                      <button type="button" className="btn btn-accent" disabled={firing} onClick={handleFire}>
-                        {firing ? 'Firing…' : `Confirm and fire ${fundedSelected.length}`}
-                      </button>
+
+                  {amountMode === 'percent' ? (
+                    <div className="field" style={{ marginTop: 14 }}>
+                      <label className="label" htmlFor="cc-percent">
+                        Of each wallet&apos;s available SOL
+                        {'bps' in percent && <span className="label-value mono">{bpsLabel(percent.bps)}</span>}
+                      </label>
+                      <div className="row-flex" style={{ gap: 12, flexWrap: 'nowrap' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Range
+                            min={1}
+                            max={100}
+                            step={1}
+                            value={'bps' in percent ? Math.min(100, Math.max(1, Math.round(percent.bps / 100))) : 1}
+                            onChange={v => { if (!buyLocked) { setPercentInput(String(v)); setBuyError(null) } }}
+                          />
+                        </div>
+                        <input
+                          id="cc-percent"
+                          className="input mono"
+                          value={percentInput}
+                          onChange={e => { setPercentInput(e.target.value); setBuyError(null) }}
+                          onKeyDown={e => { if (e.key === 'Enter') reviewBuy() }}
+                          disabled={buyLocked}
+                          inputMode="decimal"
+                          placeholder="50"
+                          aria-label="Percent of available"
+                          aria-invalid={!!percentInput.trim() && 'error' in percent}
+                          style={{ width: 86, fontSize: 12, textAlign: 'right' }}
+                        />
+                        <span className="meta">%</span>
+                      </div>
+                      {percentInput.trim() && 'error' in percent && <div className="alert-inline" style={{ marginTop: 8 }}>{percent.error}</div>}
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      className="btn btn-accent"
-                      disabled={simulating || !token || fundedSelected.length === 0}
-                      onClick={handleSimulate}
-                    >
-                      {simulating ? 'Simulating…' : 'Simulate and fire'}
+                    <div style={{ marginTop: 14 }}>
+                      {buySelected.length === 0 ? (
+                        <div className="hint">Select wallets in the roster to set an amount for each.</div>
+                      ) : (
+                        <div style={{ borderRadius: 10, border: '1px solid var(--line-soft)', overflow: 'hidden' }}>
+                          <div className="t-head" style={{ gridTemplateColumns: amountCols, padding: '8px 12px' }}>
+                            <span>#</span><span>Wallet</span><span className="t-right">Balance</span><span className="t-right">Buy (SOL)</span>
+                          </div>
+                          {perWallet.map(({ m, raw, parsed }) => {
+                            const invalid = !!raw.trim() && 'error' in parsed
+                            const balance = balances[m.public_key]?.lamports
+                            const overBalance = 'lamports' in parsed && balance !== undefined && BigInt(parsed.lamports) >= BigInt(balance)
+                            return (
+                              <div key={m.wallet_id} className="t-row" style={{ gridTemplateColumns: amountCols, padding: '7px 12px', alignItems: 'center' }}>
+                                <span className="t-cell-mono" style={{ color: 'var(--ink-4)' }}>{m.index}</span>
+                                <span className="t-cell-mono" style={{ color: 'var(--ink-2)' }}>{truncateAddress(m.public_key, 5, 4)}</span>
+                                <span className="t-cell-mono t-right" style={{ color: 'var(--ink-3)' }}>{balance !== undefined ? formatSol(balance, 4) : '—'}</span>
+                                <input
+                                  className="input mono"
+                                  value={raw}
+                                  onChange={e => setPerWalletAmount(m.public_key, e.target.value)}
+                                  onKeyDown={e => { if (e.key === 'Enter') reviewBuy() }}
+                                  disabled={buyLocked}
+                                  inputMode="decimal"
+                                  placeholder="0.05"
+                                  aria-label={`SOL to spend from wallet ${m.index}`}
+                                  aria-invalid={invalid || overBalance}
+                                  title={invalid ? (parsed as { error: string }).error : overBalance ? 'More than this wallet holds' : undefined}
+                                  style={{ fontSize: 12, textAlign: 'right', padding: '6px 9px', borderColor: invalid || overBalance ? 'var(--danger-line)' : undefined }}
+                                />
+                              </div>
+                            )
+                          })}
+                          <div className="t-row" style={{ gridTemplateColumns: amountCols, padding: '8px 12px' }}>
+                            <span /><span className="meta">Total</span><span />
+                            <span className="t-cell-mono t-right" style={{ color: 'var(--ink-1)' }}>
+                              {perWalletLamports.length ? formatSol(perWalletTotal, 6) : '—'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      {firstPerWalletError && 'error' in firstPerWalletError.parsed && (
+                        <div className="alert-inline" style={{ marginTop: 8 }}>
+                          Wallet #{firstPerWalletError.m.index}: {firstPerWalletError.parsed.error}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="hint" style={{ fontSize: 11, marginTop: 12 }}>
+                    {baseReserve !== null ? (
+                      <>&ldquo;Available&rdquo; is a wallet&apos;s balance minus a {formatSol(baseReserve, 6)} SOL reserve kept back for fees and rent,
+                      including its new token account. Wallets with nothing available can&apos;t be selected for a buy.</>
+                    ) : reserveError ? (
+                      <span className="alert-inline">
+                        {reserveError}.{' '}
+                        <button type="button" className="btn-link" onClick={() => void fetchReserve()}>Retry</button>
+                      </span>
+                    ) : 'Loading the per-wallet reserve…'}
+                    {' '}The server works this out again at buy time and rejects any wallet whose amount is above it.
+                  </div>
+
+                  {buyError && (
+                    buyError.uncertain ? (
+                      <div className="alert" role="alert" style={{ marginTop: 16 }}>
+                        {buyError.message} The outcome is unknown: some buys may have gone through.
+                        Balances are being re-read; before trying again, check each selected wallet on Solscan.
+                      </div>
+                    ) : (
+                      <div className="alert-inline" role="alert" style={{ marginTop: 14 }}>{buyError.message}</div>
+                    )
+                  )}
+                </div>
+
+                {pendingBuy ? (
+                  <div className="callout" style={{ margin: '0 20px 18px' }} aria-live="polite">
+                    <div className="kicker kicker-accent" style={{ letterSpacing: '.16em' }}>Confirm · spends real SOL</div>
+                    <div className="stack" style={{ gap: 9, marginTop: 13 }}>
+                      <Line k="Pool" v={truncateAddress(pendingBuy.body.poolAddress, 6, 6)} />
+                      <Line k="Wallets" v={`${pendingBuy.body.walletPublicKeys.length} from ${pendingBuy.groupName}`} />
+                      <Line k="Mode" v={pendingBuy.body.walletPublicKeys.length === 1 ? 'Individual' : 'Sequential'} />
+                      {pendingBuy.body.amountMode === 'percent' ? (
+                        <Line k="Amount" v={`${bpsLabel(pendingBuy.body.percentBps)} of available, per wallet`} strong />
+                      ) : (
+                        <Line k="Amount" v={`${lamportsToSolString(pendingBuy.totalLamports ?? '0')} SOL total (per-wallet amounts)`} strong />
+                      )}
+                    </div>
+                    {buying && (
+                      <div className="hint" style={{ fontSize: 11, marginTop: 13 }}>
+                        Buying from {pendingBuy.body.walletPublicKeys.length === 1 ? 'the wallet' : 'each wallet in turn'} and waiting for on-chain
+                        confirmation. This takes several seconds per wallet; keep this tab open to see the result.
+                      </div>
+                    )}
+                    <div className="row-flex" style={{ justifyContent: 'flex-end', gap: 7, marginTop: 15 }}>
+                      <button type="button" className="btn" disabled={buying} onClick={() => setPendingBuy(null)}>Cancel</button>
+                      <button type="button" className="btn btn-accent" disabled={buying} onClick={confirmBuy}>
+                        {buying ? 'Buying…' : 'Confirm and buy'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="card-foot">
+                    <span className="meta" style={{ color: buyBlocker ? 'var(--ink-4)' : undefined }}>
+                      {buyBlocker ?? (amountMode === 'percent' && 'bps' in percent
+                        ? `${bpsLabel(percent.bps)} of available from ${buySelected.length} ${buySelected.length === 1 ? 'wallet' : 'wallets'}`
+                        : `${formatSol(perWalletTotal, 6)} SOL from ${buySelected.length} ${buySelected.length === 1 ? 'wallet' : 'wallets'}`)}
+                    </span>
+                    <button type="button" className="btn btn-accent" disabled={buying || !!buyBlocker} onClick={reviewBuy}>
+                      Buy
+                    </button>
+                  </div>
+                )}
+
+                {buyResult && (
+                  <BuyResultView
+                    request={buyResult.request}
+                    result={buyResult.result}
+                    onDismiss={() => setBuyResult(null)}
+                  />
+                )}
+              </div>
+
+              {/* withdraw (real SOL, the selected wallets → one destination) */}
+              <div className="glass glow">
+                <div className="card-head">
+                  <span className="section-title">Withdraw</span>
+                  {rosterPurpose === 'withdraw' ? (
+                    withdrawSelected.length > 0 && (
+                      <span className="tag tag-accent">
+                        {withdrawSelected.length} {withdrawSelected.length === 1 ? 'wallet' : 'wallets'}
+                      </span>
+                    )
+                  ) : (
+                    <button type="button" className="btn-link" disabled={buyLocked} onClick={() => changeRosterPurpose('withdraw')}>
+                      Select wallets to withdraw →
                     </button>
                   )}
                 </div>
-              </div>
-
-              {/* job monitor */}
-              <div className="glass-quiet">
-                <div className="card-head">
-                  <span className="section-title" style={{ fontSize: 13.5 }}>Job monitor</span>
-                  {job && <span className="meta" style={{ color: 'var(--ink-4)' }}>{job.job_id}</span>}
-                </div>
-                {!job ? (
-                  <div className="empty">No job yet. Distribute or fire a buy to see per-leg outcomes here.</div>
-                ) : job.legs.map(leg => (
-                  <div
-                    key={leg.leg}
-                    className="row-flex"
-                    style={{ gap: 10, flexWrap: 'nowrap', padding: '10px 20px', borderBottom: '1px solid rgba(233,233,237,.05)', opacity: leg.status === 'blocked' ? 0.55 : 1 }}
-                  >
-                    <StatusIcon status={leg.status} />
-                    <span className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap' }}>
-                      Leg {leg.leg} · {leg.transfers} {leg.transfers === 1 ? 'transfer' : 'transfers'}
-                    </span>
-                    <span className="mono" style={{
-                      fontSize: 11, marginLeft: 'auto', minWidth: 0, textAlign: 'right',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      color: leg.error ? 'var(--danger)' : 'var(--ink-3)',
-                    }}>
-                      {leg.error
-                        ? leg.error
-                        : leg.status === 'blocked'
-                          ? `blocked by leg ${leg.blocked_by}`
-                          : truncateAddress(leg.signature ?? '', 8, 8)}
-                    </span>
-                    {leg.status === 'failed' && (
-                      <button type="button" className="btn btn-xs" disabled={retrying === leg.leg} onClick={() => handleRetry(leg.leg)}>
-                        {retrying === leg.leg ? 'Retrying…' : 'Retry'}
-                      </button>
-                    )}
-                  </div>
-                ))}
+                <WithdrawPanel
+                  sources={withdrawSelected.map(m => ({ publicKey: m.public_key, label: `#${m.index}`, lamports: balances[m.public_key]?.lamports }))}
+                  quickPicks={fundingWallets.map(w => ({ publicKey: w.public_key, label: 'your funding wallet' }))}
+                  context={openGroup ? `from ${openGroup.name}` : undefined}
+                  emptyHint={rosterPurpose === 'withdraw' ? 'Select wallets in the roster' : 'Switch the roster to Withdraw to select wallets'}
+                  onFundsMoved={afterWithdraw}
+                />
               </div>
             </div>
           </div>
@@ -973,7 +1196,7 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
                       : <span className="hint" style={{ fontSize: 11 }}>Created {new Date(g.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}</span>}
                   </div>
                   <div className="meta" style={{ marginTop: 9 }}>
-                    {stats ? `${stats.funded} funded · ${sol(stats.lamports)} SOL` : 'Balances not synced'}
+                    {stats ? `${stats.funded === null ? '' : `${stats.funded} funded · `}${sol(stats.lamports)} SOL` : 'Balances not synced'}
                   </div>
                 </button>
               )
@@ -1000,15 +1223,6 @@ export default function CommandCenter({ initialMint = '', onNavigate }: {
 }
 
 /* ------------------------------------------------------------ subviews */
-
-function SolscanLink({ kind, id, children }: { kind: 'tx' | 'account'; id?: string; children: React.ReactNode }) {
-  if (!id) return <>{children}</>
-  return (
-    <a href={`${SOLSCAN}/${kind}/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', textUnderlineOffset: 2 }}>
-      {children}
-    </a>
-  )
-}
 
 /** "#1–#18" for a contiguous run, else "#2, #5, #9" (positions are 0-based, shown 1-based like the roster). */
 function positionsLabel(positions: number[]): string {
@@ -1103,11 +1317,70 @@ function DistributeResultView({ request, result, onDismiss }: {
   )
 }
 
-function Line({ k, v, strong }: { k: string; v: string; strong?: boolean }) {
+/** Per-wallet buy outcomes, matched to wallets by public key. */
+function BuyResultView({ request, result, onDismiss }: {
+  request: BuyRequest
+  result: BuyResult
+  onDismiss: () => void
+}) {
+  const total = result.results.length
+  const confirmed = result.results.filter(r => r.status === 'confirmed')
+  const failed = result.results.filter(r => r.status === 'failed')
+  const spentLamports = confirmed.reduce((sum, r) => sum + BigInt(r.amountIn ?? '0'), BigInt(0)).toString()
+  const anySendFailed = failed.some(r => r.error === 'SEND_FAILED')
+  const label = failed.length === 0 ? 'Confirmed' : confirmed.length === 0 ? 'Failed' : 'Partial'
+
   return (
-    <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 11.5 }}>
-      <span style={{ color: strong ? 'var(--accent-400)' : 'rgba(233,233,237,.55)' }}>{k}</span>
-      <span style={{ color: strong ? 'var(--accent-300)' : 'rgba(233,233,237,.78)' }}>{v}</span>
+    <div style={{ borderTop: '1px solid var(--line-soft)' }} aria-live="polite">
+      <div className="card-head" style={{ borderBottom: 0, paddingBottom: 8 }}>
+        <div className="row-flex" style={{ gap: 9 }}>
+          <span className="section-title" style={{ fontSize: 13.5 }}>Result · {request.groupName}</span>
+          <span className={failed.length ? 'tag tag-danger' : 'tag tag-accent'}>{label}</span>
+        </div>
+        <button type="button" className="btn btn-xs" onClick={onDismiss}>Dismiss</button>
+      </div>
+      <div className="meta" style={{ padding: '0 20px 12px' }}>
+        Bought from {confirmed.length} of {total} {total === 1 ? 'wallet' : 'wallets'} · {formatSol(spentLamports, 6)} SOL spent · pool {truncateAddress(request.body.poolAddress, 6, 6)}
+      </div>
+
+      {failed.length > 0 && (
+        <div className="alert" role="alert" style={{ margin: '0 20px 14px' }}>
+          {failed.length} of {total} {total === 1 ? 'wallet' : 'wallets'} did not buy; the reason is under each one below.
+          {confirmed.length > 0 && <> The confirmed buys are final. Running Buy again with the same selection buys again from <strong>every</strong> selected wallet, so deselect the confirmed ones first.</>}
+          {anySendFailed && <> A wallet marked &ldquo;not confirmed&rdquo; may still have bought: check it on Solscan before retrying it.</>}
+        </div>
+      )}
+
+      {result.results.map(r => {
+        const index = request.indexByKey[r.publicKey]
+        const ok = r.status === 'confirmed'
+        return (
+          <div key={r.publicKey} style={{ padding: '10px 20px', borderBottom: '1px solid rgba(233,233,237,.05)' }}>
+            <div className="row-flex" style={{ gap: 10, flexWrap: 'nowrap' }}>
+              <StatusIcon status={r.status} />
+              <span className="t-cell-mono" style={{ color: 'var(--ink-4)', minWidth: 22 }}>{index !== undefined ? `#${index}` : ''}</span>
+              <span className="t-cell-mono" style={{ color: 'var(--ink-2)' }}>{truncateAddress(r.publicKey, 5, 4)}</span>
+              <span className="t-cell-mono" style={{ color: ok ? 'var(--ink-1)' : 'var(--ink-4)', marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+                {r.amountIn ? `${formatSol(r.amountIn, 6)} SOL` : '—'}
+              </span>
+              <span className="mono" style={{ fontSize: 11, whiteSpace: 'nowrap', minWidth: 120, textAlign: 'right' }}>
+                {ok && r.signature
+                  ? <SolscanLink kind="tx" id={r.signature}>{truncateAddress(r.signature, 6, 6)}</SolscanLink>
+                  : <span style={{ color: ok ? 'var(--accent-400)' : 'var(--danger)' }}>{ok ? 'confirmed' : r.error === 'SEND_FAILED' ? 'not confirmed' : 'failed'}</span>}
+              </span>
+            </div>
+            {!ok && (
+              <div className="mono" style={{ fontSize: 11, color: 'var(--danger)', marginTop: 6, paddingLeft: 23, wordBreak: 'break-word' }}>
+                {r.error === 'SEND_FAILED' ? (
+                  <>Not confirmed — check the wallet on <SolscanLink kind="account" id={r.publicKey}>Solscan</SolscanLink> before retrying, it may have landed.</>
+                ) : (
+                  r.message ?? r.error ?? 'Failed'
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }

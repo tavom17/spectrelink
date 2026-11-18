@@ -247,3 +247,45 @@ export function CopyButton({ text }: { text: string }) {
     </button>
   )
 }
+
+/* ------------------------------------------------------ action results */
+
+export function SolscanLink({ kind, id, children }: { kind: 'tx' | 'account'; id?: string; children: ReactNode }) {
+  if (!id) return <>{children}</>
+  return (
+    <a href={`https://solscan.io/${kind}/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', textUnderlineOffset: 2 }}>
+      {children}
+    </a>
+  )
+}
+
+export function StatusIcon({ status }: { status: 'confirmed' | 'failed' | 'pending' }) {
+  if (status === 'confirmed') return (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--accent-400)', flexShrink: 0 }} aria-label="Confirmed">
+      <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M4.6 7.2 L6.3 8.9 L9.4 5.3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+  if (status === 'failed') return (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--danger)', flexShrink: 0 }} aria-label="Failed">
+      <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M5 5 L9 9 M9 5 L5 9" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+  return (
+    <svg width="13" height="13" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--ink-3)', flexShrink: 0 }} aria-label="Pending">
+      <circle cx="7" cy="7" r="5.6" stroke="currentColor" strokeWidth="1.1" />
+      <path d="M7 4 V7 L9 8.6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+/** Key/value line for confirmation callouts. `wrap` lets a long value (an address) break instead of overflow. */
+export function Line({ k, v, strong, wrap }: { k: string; v: string; strong?: boolean; wrap?: boolean }) {
+  return (
+    <div className="mono" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 11.5 }}>
+      <span style={{ color: strong ? 'var(--accent-400)' : 'rgba(233,233,237,.55)', flexShrink: 0 }}>{k}</span>
+      <span style={{ color: strong ? 'var(--accent-300)' : 'rgba(233,233,237,.78)', textAlign: 'right', ...(wrap ? { wordBreak: 'break-all' } : {}) }}>{v}</span>
+    </div>
+  )
+}

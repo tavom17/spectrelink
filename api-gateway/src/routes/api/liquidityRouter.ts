@@ -60,17 +60,45 @@ fastify.post("/bundleGroups/:groupID/distribute", async (request, reply) => {
 })
 
 
-//POST /api/liquidity/buy   body: { poolAddress, walletPublicKey }
+//POST /api/liquidity/buy
 fastify.post("/buy", async (request, reply) => {
     const user_ID = request.user.user_id
-    const { poolAddress, walletPublicKey } = request.body as { poolAddress: string, walletPublicKey: string }
+    //explicit fields — never spread the client body
+    const { poolAddress, walletPublicKeys, executionMode, amountMode, amounts, percentBps } = request.body as {
+        poolAddress: string, walletPublicKeys: string[], executionMode: string,
+        amountMode: string, amounts?: Record<string, string>, percentBps?: number
+    }
 
     const response = await fetch(`${process.env.LIQUIDITY_APP_URL}/liquidity/buy`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user_ID, poolAddress, walletPublicKey })
+        body: JSON.stringify({ user_ID, poolAddress, walletPublicKeys, executionMode, amountMode, amounts, percentBps })
     })
 
+    const data = await parseResponse(response);
+    return reply.status(response.status).send(data)
+})
+
+
+//POST /api/liquidity/withdraw
+fastify.post("/withdraw", async (request, reply) => {
+    const user_ID = request.user.user_id
+    const { walletPublicKeys, destination, mode, amounts } = request.body as {
+        walletPublicKeys: string[], destination: string, mode: string, amounts?: Record<string, string>
+    }
+
+    const response = await fetch(`${process.env.LIQUIDITY_APP_URL}/liquidity/withdraw`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_ID, walletPublicKeys, destination, mode, amounts })
+    })
+
+    const data = await parseResponse(response);
+    return reply.status(response.status).send(data)
+})
+
+fastify.get("/reserve", async (request, reply) => {
+    const response = await fetch(`${process.env.LIQUIDITY_APP_URL}/liquidity/reserve`)
     const data = await parseResponse(response);
     return reply.status(response.status).send(data)
 })

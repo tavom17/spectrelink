@@ -58,7 +58,12 @@ export async function exitPosition(
   return { exitTxSig: txSig }
 }
 
-
+//fails fast on a wrong pool — before any wallet spends anything
+export async function assertSolPairedPool(poolAddress: string){
+  const poolState = await cpAmm.fetchPoolState(new PublicKey(poolAddress))
+  if(!poolState.tokenAMint.equals(NATIVE_MINT) && !poolState.tokenBMint.equals(NATIVE_MINT))
+    throw new Error("POOL_NOT_SOL_PAIRED")
+}
 
 //SOL → token swap instructions for one wallet — no signing, no sending
 //caller compiles, wallet-app signs, caller sends

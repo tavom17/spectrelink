@@ -5,8 +5,13 @@ import { computeBaseReserve, distributionLogic } from "../service_functionality/
 import { buildDistributionTransactions, getGroupWallets, signWithWalletApp, sendAndConfirm,compileWithComputeBudget, measureComputeUnits } from "../service_functionality/bundleFunctions";
 import { RESERVE_CONFIG, MAX_TRANSFERS_PER_TX, DISTRIBUTION_PRIORITY_MICROLAMPORTS, TOKEN_ACCOUNT_SIZE } from "../config";
 import { distributionTransfer, distributionTxResult, splitMode } from "../interfaces";
-import { buildBuyInstructions } from "../service_functionality/meteora";
+import { assertSolPairedPool, buildBuyInstructions } from "../service_functionality/meteora";
 import { SWAP_SLIPPAGE_PERCENT, BUY_PRIORITY_MICROLAMPORTS, CU_SAFETY_MULTIPLIER, SIMULATION_CU_LIMIT } from "../config";
+import { BuyError, resolveBuyAmount, executeWalletBuy } from "../service_functionality/bundleFunctions";
+import { buyRequest, walletBuyResult } from "../interfaces";
+
+const MAX_BUY_WALLETS = 25;
+const LAMPORTS_STRING = /^[1-9]\d*$/;
 
 export async function bundleEndpoints(fastify: FastifyInstance){
 
@@ -113,69 +118,114 @@ fastify.post("/distribute", async (request, reply) => {
 })
 
 
-//single wallet buy — the building block the bundle loop will repeat
+///buy for one or many wallets — one wallet = individual buy
 fastify.post("/buy", async (request, reply) => {
-    const { user_ID, poolAddress, walletPublicKey } = request.body as {
-        user_ID: string, poolAddress: string, walletPublicKey: string
+    const { user_ID, poolAddress, walletPublicKeys, executionMode, amountMode, amounts, percentBps } = request.body as buyRequest
+
+    //---------- validate before touching the chain ----------
+    if(!user_ID || !poolAddress)
+        return reply.status(400).send({ error: "BAD_REQUEST", message: "user_ID and poolAddress are required" });
+
+    if(!Array.isArray(walletPublicKeys))
+        return reply.status(400).send({ error: "BAD_REQUEST", message: "walletPublicKeys must be an array" });
+
+    const keys = [...new Set(walletPublicKeys.map(key => String(key).trim()).filter(key => key.length > 0))];
+    if(keys.length === 0 || keys.length > MAX_BUY_WALLETS)
+        return reply.status(400).send({ error: "BAD_REQUEST", message: `Between 1 and ${MAX_BUY_WALLETS} wallets required` });
+
+    if(executionMode !== "sequential" && executionMode !== "bundle")
+        return reply.status(400).send({ error: "BAD_REQUEST", message: "executionMode must be 'sequential' or 'bundle'" });
+
+    //single wallet ignores the mode; bundles land in 1b
+    if(executionMode === "bundle" && keys.length > 1)
+        return reply.status(501).send({ error: "BUNDLE_MODE_NOT_AVAILABLE", message: "Bundle buys are not available yet — use sequential" });
+
+    if(amountMode === "percent"){
+        if(!Number.isInteger(percentBps) || percentBps! < 1 || percentBps! > 10_000)
+            return reply.status(400).send({ error: "BAD_REQUEST", message: "percentBps must be an integer from 1 to 10000" });
+    } else if(amountMode === "perWallet"){
+        const missing = keys.filter(key => !amounts || !LAMPORTS_STRING.test(String(amounts[key] ?? "")));
+        if(missing.length > 0)
+            return reply.status(400).send({ error: "BAD_REQUEST", message: `A positive lamports amount is required for: ${missing.join(", ")}` });
+    } else {
+        return reply.status(400).send({ error: "BAD_REQUEST", message: "amountMode must be 'perWallet' or 'percent'" });
     }
 
-    if(!user_ID || !poolAddress || !walletPublicKey)
-        return reply.status(400).send({ error: "BAD_REQUEST", message: "user_ID, poolAddress and walletPublicKey are required" });
+    try {
+    await assertSolPairedPool(poolAddress);
+} catch {
+    return reply.status(400).send({ error: "INVALID_POOL", message: "Not a SOL-paired Meteora DAMM v2 pool" });
+}
 
     try {
-        const [balance, systemRent, ataRent, latest] = await Promise.all([
-            connection.getBalance(new PublicKey(walletPublicKey)),
+        //reserve is the same for every wallet — fetch rents once
+        const [systemRent, ataRent] = await Promise.all([
             connection.getMinimumBalanceForRentExemption(0),
             connection.getMinimumBalanceForRentExemption(TOKEN_ACCOUNT_SIZE),
-            connection.getLatestBlockhash('confirmed'),
         ]);
-
-        //same reserve distribution set aside — spend only what's above it
         const baseReserve = computeBaseReserve(BigInt(systemRent), BigInt(ataRent), RESERVE_CONFIG);
-        const amountIn = BigInt(balance) - baseReserve;
 
-        if(amountIn <= 0n)
-            return reply.status(400).send({
-                error: "INSUFFICIENT_FUNDS",
-                message: `Wallet has ${balance} lamports, reserve is ${baseReserve}`,
-            });
+        //sequential — each wallet succeeds or fails on its own
+        const results: walletBuyResult[] = [];
+        for(const walletPublicKey of keys){
+            try {
+                const balance = BigInt(await connection.getBalance(new PublicKey(walletPublicKey), 'confirmed'));
+                const amountIn = resolveBuyAmount(balance - baseReserve, amountMode, amounts?.[walletPublicKey], percentBps);
 
-        const { instructions, minimumOut, outputTokenMint } =
-            await buildBuyInstructions(walletPublicKey, poolAddress, amountIn, SWAP_SLIPPAGE_PERCENT);
+                const buy = await executeWalletBuy(user_ID, poolAddress, walletPublicKey, amountIn);
 
-        //measure, then pay priority only on what we'll actually use (+20%)
-        const unitsConsumed = await measureComputeUnits(
-            connection, walletPublicKey, instructions, latest.blockhash, SIMULATION_CU_LIMIT, BUY_PRIORITY_MICROLAMPORTS
-        );
-        const unitLimit = Math.ceil(unitsConsumed * CU_SAFETY_MULTIPLIER);
+                results.push({
+                    publicKey: walletPublicKey,
+                    status: "confirmed",
+                    signature: buy.signature,
+                    amountIn: amountIn.toString(),
+                    minimumOut: buy.minimumOut,
+                });
 
-        const unsignedTx = compileWithComputeBudget(
-            walletPublicKey, instructions, latest.blockhash, unitLimit, BUY_PRIORITY_MICROLAMPORTS
-        );
+            } catch (error) {
+                if(error instanceof BuyError){
+                    //expected = their balance/input → warn; unexpected → error with the cause
+                    if(error.expected)
+                        request.log.warn({ wallet: walletPublicKey, code: error.code }, error.message);
+                    else
+                        request.log.error({ wallet: walletPublicKey, code: error.code, err: error.cause }, error.message);
 
-        const unsignedBytes = unsignedTx.serialize();
-        if(unsignedBytes.length > 1232)
-            throw new Error(`Buy transaction too large: ${unsignedBytes.length} bytes`);
+                    results.push({ publicKey: walletPublicKey, status: "failed", error: error.code, message: error.message });
+                } else {
+                    request.log.error({ wallet: walletPublicKey, err: error }, "Unexpected buy failure");
+                    results.push({ publicKey: walletPublicKey, status: "failed", error: "BUY_FAILED", message: "Buy failed" });
+                }
+            }
+        }
 
-        const unsignedBase64 = Buffer.from(unsignedBytes).toString('base64');
+        const confirmed = results.filter(result => result.status === "confirmed").length;
 
-        //slave signs alone — fee payer AND authority
-        const signed = await signWithWalletApp(user_ID, [walletPublicKey], unsignedBase64);
-        const signature = await sendAndConfirm(connection, signed, latest.blockhash, latest.lastValidBlockHeight);
-
-        return reply.status(200).send({
-            signature,
-            amountIn: amountIn.toString(),
-            minimumOut,
-            outputTokenMint,
-            unitsConsumed,
-            unitLimit,
+        //200 = every wallet bought; 207 = some or none did — details per wallet
+        return reply.status(confirmed === results.length ? 200 : 207).send({
+            executionMode: "sequential",
+            confirmed,
+            failed: results.length - confirmed,
+            results,
         });
 
     } catch (error) {
         request.log.error(error);
-        //TEMP: error.message exposed for debugging tonight — revert to a generic message once buys work
-        return reply.status(500).send({ error: "BUY_FAILED", message: (error as Error).message });
+        return reply.status(500).send({ error: "INTERNAL_ERROR", message: "Buy failed" });
+    }
+})
+
+//what every wallet keeps back for its own fees and rent — frontend uses it to show "available"
+fastify.get("/reserve", async (request, reply) => {
+    try {
+        const [systemRent, ataRent] = await Promise.all([
+            connection.getMinimumBalanceForRentExemption(0),
+            connection.getMinimumBalanceForRentExemption(TOKEN_ACCOUNT_SIZE),
+        ]);
+        const baseReserve = computeBaseReserve(BigInt(systemRent), BigInt(ataRent), RESERVE_CONFIG);
+        return reply.status(200).send({ baseReserve: baseReserve.toString() });
+    } catch (error) {
+        request.log.error(error);
+        return reply.status(500).send({ error: "INTERNAL_ERROR", message: "Failed to compute reserve" });
     }
 })
 

@@ -52,3 +52,70 @@ export interface distributionTxResult {
     signature?: string;
     error?: string;
 }
+
+export type executionMode = "sequential" | "bundle";
+export type buyAmountMode = "perWallet" | "percent";
+
+export type buyErrorCode =
+    | "INSUFFICIENT_FUNDS"
+    | "AMOUNT_EXCEEDS_AVAILABLE"
+    | "AMOUNT_TOO_SMALL"
+    | "SIMULATION_FAILED"
+    | "SIGNING_FAILED"
+    | "SEND_FAILED";
+
+export interface buyRequest {
+    user_ID: string;
+    poolAddress: string;
+    walletPublicKeys: string[];
+    executionMode: executionMode;
+    amountMode: buyAmountMode;
+    amounts?: Record<string, string>;   //perWallet: publicKey → lamports string
+    percentBps?: number;                //percent: 1–10000
+}
+
+export interface walletBuyResult {
+    publicKey: string;
+    status: "confirmed" | "failed";
+    signature?: string;
+    amountIn?: string;
+    minimumOut?: string;
+    error?: string;
+    message?: string;
+}
+
+export type withdrawMode = "all" | "amount";
+
+export interface withdrawRequest {
+    user_ID: string;
+    walletPublicKeys: string[];
+    destination: string;
+    mode: withdrawMode;
+    amounts?: Record<string, string>;   //amount mode: publicKey → lamports string
+}
+
+export interface closableTokenAccount {
+    address: string;
+    programId: string;
+}
+
+export interface withdrawPlan {
+    publicKey: string;
+    amount: bigint;                       //lamports to transfer (fee payer's is reduced by the fee)
+    closeAccounts: closableTokenAccount[];
+}
+
+export interface withdrawSkip {
+    publicKey: string;
+    error: string;
+    message: string;
+}
+
+export interface withdrawTxResult {
+    status: "confirmed" | "failed";
+    wallets: string[];
+    feePayer: string;
+    signature?: string;
+    error?: string;
+    message?: string;
+}
