@@ -1,8 +1,8 @@
 import Fastify from "fastify"
-import { launchRoutes } from "./routes/launchSetup"
-import { launchWorker } from "./launchInitializer"
-import { getStatus } from "./routes/launchStatus"
-import pool from "./db"
+import { launchRoutes } from "./service_routing/launchSetup"
+import { launchWorker } from "./service_functionality/launchInitializer"
+import { getStatus } from "./service_routing/launchStatus"
+import pool from "./service_dataOperations/databaseConnectivity"
 import fastifyMultipart from "@fastify/multipart"
 
 
