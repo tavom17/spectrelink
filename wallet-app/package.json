@@ -12,6 +12,8 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@irys/upload": "^0.0.15",
+    "@irys/upload-solana": "^0.1.8",
     "@solana-program/system": "^0.12.2",
     "@solana/kit": "^6.10.0",
     "@solana/web3.js": "^1.98.4",

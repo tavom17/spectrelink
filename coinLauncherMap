@@ -1,0 +1,451 @@
+# Coin Launcher Map
+
+Scope: `coin-launcher/src/` only. Generated 2026-11-19 from commit `f33514a4`.
+
+The coin-launcher is a Fastify service (port **3002**). It accepts a token launch request as multipart form data and puts it on a BullMQ queue (Redis). A worker in the same process then runs the full launch pipeline:
+derive keys (wallet-app) → upload image + metadata (Irys/Arweave) → create SPL mint → attach Metaplex metadata → mint supply (+ optional authority revoke) → create Meteora CP-AMM pool → optional Jupiter auto-buys → persist to Postgres (`tb_tokens`).
+
+---
+
+## 1. Directory Tree
+
+```
+coin-launcher/src/
+├── index.ts                         # Fastify bootstrap, route registration, server start
+├── connection.ts                    # Shared @solana/web3.js Connection (Helius RPC)
+├── service_routing/                 # HTTP route plugins (inbound API)
+│   ├── launchSetup.ts               # POST /launch/newToken  → enqueue launch job
+│   └── launchStatus.ts              # GET  /launch/status/:jobId → job progress/result
+├── service_functionality/           # Business logic / chain + 3rd-party integrations
+│   ├── launchInitializer.ts         # BullMQ Queue + Worker, LaunchJobData, full pipeline
+│   ├── solana.ts                    # Mint creation, metadata attach, supply mint, revoke
+│   ├── meteora.ts                   # Meteora CP-AMM pool creation
+│   ├── irys.ts                      # Irys (Arweave) image + metadata uploads
+│   └── jupiterSwap.ts               # Jupiter quote/swap auto-buys, supply-% guard
+└── service_dataOperations/          # Persistence layer
+    ├── databaseConnectivity.ts      # pg Pool (SSL) + connect-with-retry
+    └── databaseCalls.ts             # EMPTY (0 lines), placeholder
+```
+
+---
+
+## 2. Endpoints
+
+### 2.1 Inbound (served by coin-launcher, port 3002, host 0.0.0.0)
+
+| Method | Path | Defined in | Input | Response |
+|---|---|---|---|---|
+| GET | `/health` | `index.ts` | none | `200 { status: "ok", service: "coin-launcher" }` |
+| POST | `/launch/newToken` | `service_routing/launchSetup.ts` | Header `x-user-id`; `multipart/form-data` (1 image file + fields, see §4.3) | `202 { jobId }` · `400 { error: "Image is required" }` |
+| GET | `/launch/status/:jobId` | `service_routing/launchStatus.ts` | Path param `jobId` | `200 { progress, value, failed, state }` · `404 { error: "Job not found" }` · `500 <error>` |
+
+`x-user-id` is expected to be set upstream by the api-gateway. coin-launcher does not authenticate it.
+
+### 2.2 Outbound (called by coin-launcher)
+
+| Target | Method / Call | Called from | Purpose |
+|---|---|---|---|
+| wallet-app `${WALLET_APP_URL}/internal/derive` | POST `{ wallet_id, user_id, wallet_type }` | `launchInitializer.ts` | Returns `{ publicKey, secretKey: number[] }` for the `funding` wallet, and for the `slave` wallet when auto-buy is on |
+| wallet-app `${WALLET_APP_URL}/internal/listPublicKey?wallet_id=` | GET | `launchInitializer.ts` | Returns `[{ public_key, ... }]`. Used for the fee wallet (result currently unused) and the slave wallet (balance preflight) |
+| Jupiter `https://api.jup.ag/swap/v1/quote` | GET (header `x-api-key`) | `jupiterSwap.ts` | SOL → token quote, slippage 300 bps |
+| Jupiter `https://api.jup.ag/swap/v1/swap` | POST (header `x-api-key`) | `jupiterSwap.ts` | Builds a base64 serialized VersionedTransaction for the swap |
+| Irys (Solana bundler) | `@irys/upload` SDK | `irys.ts` | Fund node + upload image/metadata. Served via `https://gateway.irys.xyz/<id>` |
+| Solana RPC (Helius) | `HELIUS_RPC_URL` / `HELIUS_WS_URL` | `connection.ts`, `solana.ts`, `meteora.ts`, `jupiterSwap.ts`, `irys.ts`, `launchInitializer.ts` | All on-chain reads and writes |
+| Redis `redis-dev:6379` (hardcoded) | BullMQ | `launchInitializer.ts` | Queue `token-launch-queue` |
+| Postgres | `pg` Pool (SSL) | `databaseConnectivity.ts`, `launchInitializer.ts`, `index.ts` | `SELECT 1` health check; `INSERT INTO tb_tokens` |
+
+---
+
+## 3. Data Flow
+
+### 3.1 Request lifecycle
+
+```
+Client ──► api-gateway ──(x-user-id header)──► coin-launcher :3002
+                                                   │
+           POST /launch/newToken (multipart)       │
+           launchSetup.ts                          ▼
+             parse parts → imageBuffer + fields → LaunchJobData
+             imageBuffer serialized as number[] (Redis-safe JSON)
+             launchQueue.add("token-launch-queue", jobData)
+             ◄── 202 { jobId }
+                                                   │
+                                     Redis (redis-dev:6379)
+                                                   │
+                                                   ▼
+           launchWorker (launchInitializer.ts) picks up job
+                                                   │
+           GET /launch/status/:jobId  ◄── polled by client
+           launchStatus.ts → launchQueue.getJob → { progress, value, failed, state }
+```
+
+### 3.2 Worker pipeline (`launchWorker`, `service_functionality/launchInitializer.ts`)
+
+| # | Progress % / step text | Action | Function / external | Produces |
+|---|---|---|---|---|
+| 0 | none | Derive funding keypair | POST wallet-app `/internal/derive` (`wallet_type: "funding"`) | `fundingKeypair { publicKey, secretKey[] }` |
+| 0 | none | Look up fee wallet pubkey | GET wallet-app `/internal/listPublicKey` | `feeWalletData` (**unused**) |
+| 0 | none | *If auto-buy:* slave balance preflight | GET `/internal/listPublicKey` → `connectionRPC.getBalance` | Throws if `balance < solPerBuy × numberOfBuys × 1e9` |
+| 1 | 10 `Uploading image to Arweave...` | Upload image | `irys.uploadImage(buffer, mimeType, secretKey)` | `imageURL` |
+| 2 | 20 `Uploading metadata...` | Build + upload JSON metadata | `irys.uploadMetadata(metaData, secretKey)` | `metaDataURI` |
+| 3 | 35 `Creating mint account...` | Create SPL mint | `solana.createTokenMint(decimals, fundingKeypair)` | `mintAddress`, `mintTxSig` |
+| 3b | none | Mint readability poll (5 × 2s) | `connectionRPC.getAccountInfo` | Throws on RPC sync failure |
+| 4 | 50 `Attaching metadata...` | Metaplex metadata account | `solana.attachMetadata(...)` | `metadataTxSig` (Uint8Array → stored as **base64**) |
+| 5 | 65 `Minting supply...` | Create ATA, mint full supply, optional revoke | `solana.mintSupply(...)` | Return value not used |
+| 6 | 75 `Creating liquidity pool...` | Meteora CP-AMM pool (token/WSOL) | `meteora.createPool(...)` | `poolAddress`, `poolPosition`, `launchTxSig`, `positionNftMint` |
+| 7 | 85–94 `Auto-buy i of n...` | *If auto-buy:* supply-cap check on 1 quote, derive slave key, `n` swaps | `jupiterSwap.getQuote`, `validateSupplyPercent`, POST `/internal/derive` (`slave`), `autoBuy` ×n | Swap tx sigs (not persisted) |
+| 8 | 95 `Finalizing...` | Insert DB row | `pool.query(INSERT INTO tb_tokens ...)` | Row |
+| 9 | none | Job result | none | `{ mintAddress, poolAddress }`, or `{ error: "Token launch failed at DB insert" }` |
+
+Derived amounts:
+- `tokenBAmountLamports = floor(initialLiquiditySol × 1e9)` (SOL side of the pool)
+- `tokenAAmountBaseUnits = floor(supply × poolPercentage/100) × 10^decimals` (token side of the pool)
+- `solPerBuyLamports = floor(solPerBuy × 1e9)`
+
+### 3.3 Keys / money flow
+
+```
+funding wallet  ── pays ──► Irys funding (image + metadata upload fees)
+                ── pays ──► mint account rent + tx fees
+                ── is ────► mint authority (revoked if revoke=true), metadata update authority + creator (100%)
+                ── holds ─► 100% of minted supply in its ATA
+                ── deposits► poolPercentage% of supply + initialLiquiditySol into the Meteora pool
+                            (fundingWallet = payer + creator; position NFT keypair generated per launch)
+slave wallet    ── swaps ─► SOL → new token via Jupiter, numberOfBuys × solPerBuy
+fee wallet      ── only its ID is stored in tb_tokens (fee_wallet_id). position_tx_sig is NULL and reserved for
+                   a later funding→fee position ownership transfer
+```
+
+### 3.4 Persisted record: `tb_tokens`
+
+| Column | Source |
+|---|---|
+| user_id | `job.data.userId` (header `x-user-id`) |
+| fee_wallet_id | `job.data.feeWalletId` |
+| funding_wallet_id | `job.data.fundingWalletId` |
+| mint_address | `createTokenMint` |
+| name, symbol, decimals, supply | form fields |
+| metadata_uri | `uploadMetadata` |
+| image_uri | `uploadImage` |
+| metadata_tx_sig | `attachMetadata` signature, base64-encoded |
+| pool_address | `createPool.poolAddress` |
+| position_address | `createPool.poolPosition` |
+| position_nft_mint | `createPool.positionNftMint` |
+| position_tx_sig | `NULL` (reserved) |
+| launch_tx_sig | `createPool.launchTxSig` |
+| website, twitter, telegram | form fields |
+| launched_at | `now()` |
+
+---
+
+## 4. File-by-File Specification
+
+### 4.1 `src/index.ts`
+**Role:** Service entrypoint.
+
+| Symbol | Kind | Description |
+|---|---|---|
+| `fastify` | const | `Fastify({ logger: true })` instance |
+| `GET /health` | route | Liveness probe |
+| `launchWorker.isRunning()` | side effect | Importing `launchInitializer` starts the BullMQ worker. The status is logged at boot |
+| `fastify.register(fastifyMultipart)` | plugin | Enables `request.parts()` for the image upload |
+| `fastify.register(launchRoutes, { prefix: "/launch" })` | plugin | Mounts `POST /launch/newToken` |
+| `fastify.register(getStatus, { prefix: "/launch" })` | plugin | Mounts `GET /launch/status/:jobId` |
+| `start()` | `async () => void` | Runs `pool.query("SELECT 1")` to verify Postgres, then `listen({ port: 3002, host: "0.0.0.0" })`. On error it logs and calls `process.exit(1)` |
+
+Imports: `launchSetup.launchRoutes`, `launchStatus.getStatus`, `launchInitializer.launchWorker`, `databaseConnectivity.pool`, `@fastify/multipart`.
+
+---
+
+### 4.2 `src/connection.ts`
+**Role:** Single shared `@solana/web3.js` RPC connection.
+
+| Export | Type | Description |
+|---|---|---|
+| `connection` | `Connection` | `new Connection(HELIUS_RPC_URL, 'confirmed')` |
+
+Used by: `meteora.ts` (as `connection`), `jupiterSwap.ts` and `launchInitializer.ts` (as `connectionRPC`).
+Not used by: `solana.ts` (has its own `@solana/kit` rpc) and `irys.ts` (passes the URL to the SDK).
+
+---
+
+### 4.3 `src/service_routing/launchSetup.ts`
+**Role:** Launch submission endpoint.
+
+#### `launchRoutes(fastify: FastifyInstance): Promise<void>`
+Fastify plugin that registers **`POST /newToken`** (mounted at `/launch/newToken`).
+
+**Use case:** The frontend submits a token launch form with an image. The handler streams the multipart body, builds a `LaunchJobData`, enqueues it, and returns the job ID right away. The launch itself runs asynchronously.
+
+**Inputs:**
+- Header `x-user-id: string`
+- Multipart file part (any one file): read into `imageBuffer` with `mimeType`. If several files are sent, the last one wins.
+- Multipart fields (strings, coerced as below; defaults apply when a field is missing):
+
+| Field | Coercion | Default | Meaning |
+|---|---|---|---|
+| `name` | string | `''` | Token name |
+| `symbol` | string | `''` | Token ticker |
+| `description` | string | `''` | Metadata description |
+| `decimals` | `Number()` | `0` | Mint decimals |
+| `supply` | `Number()` | `0` | Whole-token supply (pre-decimals) |
+| `revoke` | `=== 'true'` | `true`* | Revoke mint authority after minting |
+| `lockMetaData` | `=== 'true'` | `true`* | Metadata immutable (`isMutable = !lockMetaData`) |
+| `configAddress` | string | `''` | Meteora CP-AMM config pubkey |
+| `poolPercentage` | `Number()` | `100` | % of supply deposited into the pool |
+| `initialLiquiditySol` | `Number()` | `0` | SOL deposited into the pool |
+| `fundingWalletId` | string | `''` | wallet-app ID of the payer/creator wallet |
+| `feeWalletId` | string | `''` | wallet-app ID of the fee wallet |
+| `website` / `twitter` / `telegram` | string | `''` | Socials (metadata + DB) |
+| `autoBuyEnabled` | `=== 'true'` | `false` | Enable post-launch buys |
+| `slaveWalletId` | string | `null` | wallet-app ID of the buyer wallet |
+| `numberOfBuys` | `Number()` | `0` | Count of sequential buys |
+| `solPerBuy` | `Number()` | `0` | SOL per buy |
+
+\*A boolean field becomes `false` when it is present with any value other than the string `'true'`.
+
+**Behavior:** `400` if no image. Otherwise `launchQueue.add("token-launch-queue", jobData)` → `202 { jobId }`. `imageBuffer` is converted with `Array.from(buffer)` so it survives JSON serialization in Redis.
+
+---
+
+### 4.4 `src/service_routing/launchStatus.ts`
+**Role:** Job polling endpoint.
+
+#### `getStatus(fastify: FastifyInstance): Promise<void>`
+Fastify plugin that registers **`GET /status/:jobId`** (mounted at `/launch/status/:jobId`).
+
+**Use case:** The client polls this endpoint after `newToken` to drive a progress UI and get the final result.
+
+| Param | Type | Source |
+|---|---|---|
+| `jobId` | string | path |
+
+**Response 200:**
+```
+{
+  progress: { step: string, percent: number } | 0,   // from job.updateProgress
+  value:    { mintAddress, poolAddress } | { error } | undefined,  // job.returnvalue
+  failed:   string | undefined,                       // job.failedReason (thrown errors)
+  state:    "waiting" | "active" | "completed" | "failed" | "delayed" | ...
+}
+```
+404 if the job is not found. 500 returns the raw error object.
+
+---
+
+### 4.5 `src/service_functionality/launchInitializer.ts`
+**Role:** Queue, worker, and launch orchestration (the core of the service).
+
+#### Constants
+| Name | Value | Notes |
+|---|---|---|
+| `connection` (Redis) | `{ host: 'redis-dev', port: 6379 }` | Hardcoded and shadows the name of the Solana connection, so the Solana one is imported as `connectionRPC` |
+
+#### `interface LaunchJobData`
+| Field | Type | Notes |
+|---|---|---|
+| `userId` | string | from `x-user-id` |
+| `imageBuffer` | number[] | Buffer serialized for Redis |
+| `revoke` | boolean | revoke mint authority (default true) |
+| `lockMetaData` | boolean | immutable metadata |
+| `mimeType` | string | image content type |
+| `poolPercentage` | number | % of supply into pool |
+| `name`, `symbol`, `description` | string | token info |
+| `decimals` | number | |
+| `supply` | number | whole tokens |
+| `configAddress` | string | Meteora config |
+| `initialLiquiditySol` | number | SOL side |
+| `fundingWalletId`, `feeWalletId` | string | wallet-app IDs |
+| `website`, `twitter`, `telegram` | string | |
+| `autoBuyEnabled` | boolean | |
+| `slaveWalletId` | string \| null | |
+| `numberOfBuys` | number | |
+| `solPerBuy` | number | SOL |
+
+#### `launchQueue: Queue`
+`new Queue('token-launch-queue', { connection })`. Producer side, used by `launchSetup.ts` (`add`) and `launchStatus.ts` (`getJob`).
+
+#### `launchWorker: Worker`
+`new Worker('token-launch-queue', processor, { connection })`. Uses default concurrency (1) and default attempts (1, no retry).
+
+**Processor `async (job: Job<LaunchJobData>) => { mintAddress, poolAddress } | { error }`:** see the full step table in §3.2.
+- A thrown error marks the job `failed` and sets `failedReason`. Thrown errors come from the slave balance check, Irys, mint, the readability poll, metadata, mint supply, the pool, the supply cap, and swaps.
+- A DB insert error is **caught**. The job then completes successfully with `{ error: "Token launch failed at DB insert" }`.
+
+---
+
+### 4.6 `src/service_functionality/solana.ts`
+**Role:** SPL token mint lifecycle using `@solana/kit` and Metaplex UMI.
+
+Module state:
+- `rpc = createSolanaRpc(HELIUS_RPC_URL)`
+- `rpcSubscriptions = createSolanaRpcSubscriptions(HELIUS_WS_URL)`
+- `tokenProgramAddress = TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` (legacy SPL Token)
+- `rentProgramAddress = SysvarRent111111111111111111111111111111111`
+
+#### `createTokenMint(decimals, fundingKeypair) → Promise<{ mintAddress: string, mintTxSig: string }>`
+| Param | Type | Description |
+|---|---|---|
+| `decimals` | number | Mint decimals |
+| `fundingKeypair` | `{ publicKey: string, secretKey: number[] }` | Payer and mint authority |
+
+**Use case:** Creates a new mint account and initializes it in a single v0 transaction.
+**Steps:** rent-exempt lamports for 82 bytes → generate a throwaway mint keypair → `getCreateAccountInstruction` (owner = Token program) + `getInitializeMintInstruction` (mintAuthority = funding, freezeAuthority = **null**) → sign → `sendAndConfirm` at `finalized`.
+
+#### `attachMetadata(mintAddress, name, symbol, metadataUri, lockMetaData, fundingKeypair) → Promise<{ metadataTxSig: Uint8Array }>`
+| Param | Type | Description |
+|---|---|---|
+| `mintAddress` | string | Mint to attach to |
+| `name`, `symbol` | string | On-chain metadata |
+| `metadataUri` | string | Irys JSON URL |
+| `lockMetaData` | boolean | `isMutable = !lockMetaData` |
+| `fundingKeypair` | `{ publicKey, secretKey[] }` | Mint authority, payer, update authority |
+
+**Use case:** Creates a Metaplex Token Metadata account (`createMetadataAccountV3`) so wallets and explorers show the name, symbol, and image.
+**Details:** UMI with `mplTokenMetadata()`. Signer identity is the funding key. `sellerFeeBasisPoints: 0`, creators = `[funding, verified, 100%]`, no collection/uses. Verifies that UMI can read the mint first and throws if it can't. Sends with `skipPreflight: true` and confirms at `finalized`.
+**Precondition:** Must run **before** `mintSupply`, because the mint authority is needed and may be revoked there.
+
+#### `mintSupply(mintAddress, supply, decimals, revokeMint, fundingKeypair) → Promise<{ mintSupplyTxSig: string }>`
+| Param | Type | Description |
+|---|---|---|
+| `mintAddress` | string | Mint |
+| `supply` | bigint | Whole tokens |
+| `decimals` | number | Scales the amount by `10^decimals` |
+| `revokeMint` | boolean | Append SetAuthority(MintTokens → null) |
+| `fundingKeypair` | `{ publicKey, secretKey[] }` | Payer, owner, mint authority |
+
+**Use case:** Mints the entire supply to the funding wallet's ATA. Can also permanently revoke mint authority in the same transaction to save fees.
+**Steps:** `findAssociatedTokenPda` → `getCreateAssociatedTokenInstructionAsync` → `getMintToInstruction(amount = supply × 10^decimals)` → [optional `getSetAuthorityInstruction`] → v0 tx → `sendAndConfirm` (`finalized`, `skipPreflight: true`).
+
+---
+
+### 4.7 `src/service_functionality/meteora.ts`
+**Role:** Liquidity pool creation on Meteora DAMM v2 (`@meteora-ag/cp-amm-sdk`).
+
+Module state: `cpAmm = new CpAmm(connection)`, `TOKEN_PROGRAM_ID` = legacy SPL Token.
+
+#### `createPool(mintAddress, tokenAAmount, tokenBAmount, decimals, configAddress, fundingKeypair) → Promise<{ poolAddress, launchTxSig, poolPosition, positionNftMint }>`
+| Param | Type | Description |
+|---|---|---|
+| `mintAddress` | string | Token A (new token) |
+| `tokenAAmount` | bigint | Token base units to deposit |
+| `tokenBAmount` | bigint | Lamports of WSOL to deposit |
+| `decimals` | number | *Unused* |
+| `configAddress` | string | Meteora pool config (fee tier etc.) |
+| `fundingKeypair` | `{ publicKey, secretKey[] }` | Payer and creator |
+
+**Use case:** Opens a token/SOL CP-AMM pool seeded with the funding wallet's tokens and SOL, and creates the creator's LP position NFT.
+**Steps:** `preparePoolCreationParams` (full price range `MIN_SQRT_PRICE..MAX_SQRT_PRICE`, `collectFeeMode: 1`) → `initSqrtPrice`, `liquidityDelta` → derive `poolAddress(config, mint, WSOL)` and `positionAddress(positionNft)` → `cpAmm.createPool({ activationPoint: null, ... })` → `connection.sendTransaction(tx, [fundingWallet, positionNftKeypair])` → confirm at `confirmed`.
+**Returns:** pool PDA, tx signature, position PDA, and the position NFT mint (from a freshly generated keypair whose secret key is discarded after signing).
+
+---
+
+### 4.8 `src/service_functionality/irys.ts`
+**Role:** Permanent storage of the image and metadata on Arweave via Irys.
+
+#### `getIrys(secretKey: number[]) → Promise<{ instance, balance }>` *(private)*
+Builds `Uploader(Solana).withWallet(secretKey).withRpc(HELIUS_RPC_URL)` and reads the current Irys node balance. It does **not** fund.
+
+#### `uploadImage(imageBuffer: Buffer, mimeType: string, secretKey: number[]) → Promise<string>`
+**Use case:** Uploads the token logo.
+**Steps:** `getPrice(byteLength)` → fund only if `balance < cost` (a leftover balance from earlier launches is reused) → `upload(buffer, tags: Content-Type=mimeType)`.
+**Returns:** `https://gateway.irys.xyz/<id>`. Throws `Irys image upload failed: ...`.
+
+#### `uploadMetadata(metadata: object, secretKey: number[]) → Promise<string>`
+**Use case:** Uploads the off-chain JSON that the Metaplex `uri` points to.
+Shape built by the worker:
+```
+{ name, symbol, description, image: imageURL, external_url: website,
+  extensions: { twitter, telegram, website } }
+```
+Price is calculated from the UTF-8 **byte** length, then funded if needed, then uploaded with `Content-Type: application/json`.
+**Returns:** gateway URL. Throws `Irys metadata upload failed: ...`.
+
+---
+
+### 4.9 `src/service_functionality/jupiterSwap.ts`
+**Role:** Post-launch auto-buys through Jupiter Swap API v1.
+
+Constants: `JUPITER_QUOTE_URL`, `JUPITER_SWAP_URL`, `SOL_MINT = So111...112`, `MAX_SUPPLY_PERCENT = 0.5` (i.e. **0.5 %**), `headers = { 'x-api-key': JUPITER_API_KEY }`.
+
+#### `getQuote(mintAddress: string, amountInLamports: bigint) → Promise<any>`
+GET quote for SOL → `mintAddress` at `slippageBps=300` (3%). Throws on a non-OK HTTP status. Returns the Jupiter quote object (uses `outAmount`, `error`).
+
+#### `validateSupplyPercent(outAmount: string, totalSupply: bigint, decimals: number) → void`
+**Use case:** Anti-sniping guard. Throws if a single buy's quoted `outAmount` is ≥ 0.5% of the total supply (`supply × 10^decimals`).
+Called once by the worker before the buy loop. It checks the **per-buy** amount, not the cumulative total.
+
+#### `autoBuy(mintAddress, amountInLamports, slaveKeypair) → Promise<{ buyTxSig: string, tokensReceived: string }>`
+| Param | Type | Description |
+|---|---|---|
+| `mintAddress` | string | Token to buy |
+| `amountInLamports` | bigint | SOL in |
+| `slaveKeypair` | `{ publicKey: string, secretKey: number[] }` | Buyer wallet |
+
+**Steps:** quote → POST swap (`dynamicComputeUnitLimit: true`, `prioritizationFeeLamports: 'auto'`) → deserialize the base64 `VersionedTransaction` → sign with the slave key → `sendRawTransaction` (`skipPreflight: false`, `maxRetries: 3`) → confirm at `confirmed`.
+**Returns:** the tx sig and the *quoted* `outAmount` (not the actual amount received).
+
+---
+
+### 4.10 `src/service_dataOperations/databaseConnectivity.ts`
+**Role:** Postgres connection pool.
+
+| Symbol | Kind | Description |
+|---|---|---|
+| `pool` (default export) | `pg.Pool` | Configured from `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`. SSL uses the CA from `DB_SSL_CA_PATH` with `rejectUnauthorized: true` |
+| `pool.on("error")` | handler | Logs and calls `process.exit(1)` on an idle client error |
+| `connectWithRetry(maxAttempts = 5, baseDelayMs = 1000)` | `async → void` | Exponential backoff (1s, 2s, 4s, 8s). Runs on import, and `process.exit(1)` if all attempts fail |
+
+Consumers: `index.ts` (`SELECT 1`), `launchInitializer.ts` (`INSERT INTO tb_tokens`).
+
+### 4.11 `src/service_dataOperations/databaseCalls.ts`
+Empty file (0 lines). This is a placeholder for moving SQL (for example the `tb_tokens` insert) out of the worker.
+
+---
+
+## 5. Module Dependency Graph
+
+```
+index.ts
+ ├─► service_routing/launchSetup.ts ──► service_functionality/launchInitializer.ts (launchQueue, LaunchJobData)
+ ├─► service_routing/launchStatus.ts ─► service_functionality/launchInitializer.ts (launchQueue)
+ ├─► service_functionality/launchInitializer.ts (launchWorker)
+ │     ├─► irys.ts            (uploadImage, uploadMetadata)
+ │     ├─► solana.ts          (createTokenMint, attachMetadata, mintSupply)
+ │     ├─► meteora.ts         (createPool) ──► connection.ts
+ │     ├─► jupiterSwap.ts     (getQuote, validateSupplyPercent, autoBuy) ──► connection.ts
+ │     ├─► connection.ts      (connectionRPC)
+ │     └─► service_dataOperations/databaseConnectivity.ts (pool)
+ └─► service_dataOperations/databaseConnectivity.ts (pool)
+```
+
+---
+
+## 6. Environment Variables
+
+| Var | Used in | Purpose |
+|---|---|---|
+| `HELIUS_RPC_URL` | connection.ts, solana.ts, irys.ts | Solana HTTP RPC |
+| `HELIUS_WS_URL` | solana.ts | Solana WS (tx confirmation) |
+| `WALLET_APP_URL` | launchInitializer.ts | wallet-app internal API base |
+| `JUPITER_API_KEY` | jupiterSwap.ts | Jupiter auth |
+| `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | databaseConnectivity.ts | Postgres |
+| `DB_SSL_CA_PATH` | databaseConnectivity.ts | CA cert file path |
+| *(none)* Redis | launchInitializer.ts | Hardcoded `redis-dev:6379` |
+
+---
+
+## 7. Observations / Gaps (found while mapping, not fixed)
+
+1. **DB insert failure looks like success.** The catch returns `{ error }`, so BullMQ marks the job `completed` even though the mint and pool are already on-chain and no DB record exists. The real error is also discarded.
+2. **wallet-app responses aren't checked.** `/internal/derive` and `/internal/listPublicKey` responses are `.json()`'d without `response.ok` checks. A failure surfaces later as an unclear error (e.g. `secretKey` undefined).
+3. **`feeWalletData` is fetched but unused.** The `feeWalletPublicKey` line is commented out.
+4. **`metadata_tx_sig` is stored as base64.** Solana signatures are normally base58, so explorers won't resolve the stored value.
+5. **Supply cap is per buy, not cumulative.** `numberOfBuys` buys at just under 0.5% each can together exceed the intended cap. The check also uses one quote taken before any buy, and later buys move the price.
+6. **Slave balance preflight ignores fees.** It doesn't account for tx and priority fees or ATA rent.
+7. **No input validation** on numeric fields (`supply`, `decimals`, `poolPercentage`, etc.) and no check that `x-user-id` is present.
+8. **Status endpoint has no ownership check.** Any caller with a `jobId` can read another user's job.
+9. **Redis host is hardcoded** (`redis-dev`), unlike every other dependency, which comes from env vars.
+10. **`createPool` takes `decimals` but never uses it.** `mintSupply`'s returned signature is also discarded.
+11. **The position NFT keypair secret is discarded.** The position NFT is owned by the funding wallet, so this is fine, but no NFT secret is retained.
+12. **Mixed Solana SDKs:** `@solana/kit` (solana.ts), `@solana/web3.js` (meteora, jupiter, readability poll), and UMI (metadata). As a result there are three separate RPC clients.
