@@ -31,6 +31,23 @@ type RpcNotification<TNotification> = Readonly<{
 
 type RpcSubscriptionId = number;
 
+/**
+ * The numeric allow-list is keyed by API method names (`blockNotifications`),
+ * but the notification payload's `method` field is the singular wire name
+ * (`blockNotification`). Map that back to the API key so the transformer does
+ * not fall through to an empty keypath list.
+ *
+ * Kept local so this package does not depend on `@solana/rpc-transformers`.
+ * Keep in sync with `toAllowedNumericMethodName` there; that helper also maps
+ * `*Subscribe` because custom plan executors may still pass the request name.
+ */
+function getApiMethodNameFromNotificationMethod(notificationMethod: string): string {
+    if (notificationMethod.endsWith('Notification') && !notificationMethod.endsWith('Notifications')) {
+        return `${notificationMethod}s`;
+    }
+    return notificationMethod;
+}
+
 type RpcSubscriptionNotificationEvents<TNotification> = Omit<RpcSubscriptionChannelEvents<TNotification>, 'message'> & {
     notification: TNotification;
 };
@@ -92,8 +109,15 @@ function getMemoizedDemultiplexedNotificationPublisherFromChannelAndResponseTran
                 if (!('method' in message)) {
                     return;
                 }
+                // The publisher is memoized per (channel, transformer), so
+                // `subscribeRequest` is whichever request created it. `methodName` is
+                // derived from this notification; `params` may belong to a different
+                // subscription on a shared channel. The default transformer ignores params.
                 const transformedNotification = responseTransformer
-                    ? responseTransformer(message.params.result, subscribeRequest)
+                    ? responseTransformer(message.params.result, {
+                          methodName: getApiMethodNameFromNotificationMethod(message.method),
+                          params: subscribeRequest.params,
+                      })
                     : message.params.result;
                 return [`notification:${message.params.subscription}`, transformedNotification];
             })),

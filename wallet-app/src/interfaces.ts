@@ -48,3 +48,21 @@ export interface signerRow {
     public_key: string;
     derivation_path: string;
 }
+
+//below used only for irys uploads --recently moved from coin-launcher to provide "safe" signing
+export interface tokenMetadataInput {
+    name: string;
+    symbol: string;
+    description: string;
+    website: string;
+    twitter: string;
+    telegram: string;
+}
+
+export interface uploadAssetsRequest {
+    user_ID: string;
+    fundingWalletId: string;
+    imageBase64: string;
+    mimeType: string;
+    metadata: tokenMetadataInput;
+}

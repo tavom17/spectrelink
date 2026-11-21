@@ -250,7 +250,7 @@ export function CopyButton({ text }: { text: string }) {
 
 /* ------------------------------------------------------ action results */
 
-export function SolscanLink({ kind, id, children }: { kind: 'tx' | 'account'; id?: string; children: ReactNode }) {
+export function SolscanLink({ kind, id, children }: { kind: 'tx' | 'account' | 'token'; id?: string; children: ReactNode }) {
   if (!id) return <>{children}</>
   return (
     <a href={`https://solscan.io/${kind}/${encodeURIComponent(id)}`} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', textUnderlineOffset: 2 }}>

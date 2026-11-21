@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useAuth } from '@/lib/auth'
 import { useApiFetch } from '@/lib/api'
 import poolConfigs from '@/lib/poolConfigs.json'
-import { Sheet, SheetHead, Switch, Seg, Range, StepHead, CopyButton, ChevronDown, CheckIcon, CloseIcon } from '@/components/ui'
+import { Sheet, SheetHead, Switch, Seg, Range, StepHead, CopyButton, ChevronDown, CheckIcon, CloseIcon, SolscanLink } from '@/components/ui'
 
 interface Wallet {
   wallet_id: string
@@ -52,18 +52,16 @@ interface LaunchStep {
   doneAt: number
 }
 
-// Mirrors the job.updateProgress percent milestones in launchInitializer.ts. When auto-buy
-// is enabled, the backend runs the auto-buy loop (85-94%) between pool creation (75%) and
-// finalizing (95%), so that step is inserted only for auto-buy launches.
+// Mirrors the job.updateProgress percent milestones in launchInitializer.ts:
+// 15 upload, 40 token, 70 pool, 95 finalizing (below 15 the job is running preflight checks).
+// When auto-buy is enabled, the auto-buy loop (85-94%) runs between pool creation and
+// finalizing, so that step is inserted only for auto-buy launches.
 function buildLaunchSteps(autoBuyEnabled: boolean): LaunchStep[] {
   const steps: LaunchStep[] = [
-    { label: 'Preparing wallet keys',       activeAt: 0,  doneAt: 10  },
-    { label: 'Uploading image to Arweave',  activeAt: 10, doneAt: 20  },
-    { label: 'Uploading metadata',          activeAt: 20, doneAt: 35  },
-    { label: 'Creating mint account',       activeAt: 35, doneAt: 50  },
-    { label: 'Attaching on-chain metadata', activeAt: 50, doneAt: 65  },
-    { label: 'Minting token supply',        activeAt: 65, doneAt: 75  },
-    { label: 'Creating liquidity pool',     activeAt: 75, doneAt: autoBuyEnabled ? 85 : 95 },
+    { label: 'Preparing launch',                 activeAt: 0,  doneAt: 15 },
+    { label: 'Uploading image and metadata',     activeAt: 15, doneAt: 40 },
+    { label: 'Creating token (mint, metadata, supply)', activeAt: 40, doneAt: 70 },
+    { label: 'Creating liquidity pool',          activeAt: 70, doneAt: autoBuyEnabled ? 85 : 95 },
   ]
   if (autoBuyEnabled) {
     steps.push({ label: 'Auto-buying tokens', activeAt: 85, doneAt: 95 })
@@ -89,6 +87,68 @@ function getStepStatus(
   if (percent >= step.doneAt) return 'done'
   if (percent >= step.activeAt) return state === 'failed' ? 'failed' : 'active'
   return 'pending'
+}
+
+// Mirrors ALLOWED_IMAGE_TYPES / MAX_IMAGE_BYTES in coin-launcher launchValidation.ts.
+const ALLOWED_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp']
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+
+function checkImage(file: File): string | null {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return 'Image must be PNG, JPEG, GIF or WebP'
+  if (file.size > MAX_IMAGE_BYTES) return 'Image must be 5 MB or smaller'
+  return null
+}
+
+type FieldKey =
+  | 'image' | 'name' | 'symbol' | 'decimals' | 'supply' | 'initialLiquiditySol'
+  | 'poolPercentage' | 'configAddress' | 'fundingWalletId'
+  | 'slaveWalletId' | 'numberOfBuys' | 'solPerBuy'
+
+// Maps a server validation message (launchValidation.ts) to the form field(s) it concerns.
+// Order matters: auto-buy rules are checked before the generic "SOL"/"wallet" ones.
+const FIELD_PATTERNS: [RegExp, FieldKey[]][] = [
+  [/^image/i,                         ['image']],
+  [/^name/i,                          ['name']],
+  [/^symbol/i,                        ['symbol']],
+  [/^decimals/i,                      ['decimals']],
+  [/^supply is too large/i,           ['supply', 'decimals']],
+  [/^supply/i,                        ['supply']],
+  [/^pool percentage/i,               ['poolPercentage']],
+  [/^initial liquidity/i,             ['initialLiquiditySol']],
+  [/pool config/i,                    ['configAddress']],
+  [/funding wallet/i,                 ['fundingWalletId']],
+  [/^auto-buy needs a wallet/i,       ['slaveWalletId']],
+  [/^auto-buy needs at least/i,       ['numberOfBuys']],
+  [/^auto-buy sol per buy/i,          ['solPerBuy']],
+]
+
+function fieldsForError(msg: string): FieldKey[] {
+  return FIELD_PATTERNS.find(([re]) => re.test(msg))?.[1] ?? []
+}
+
+// Base58 Solana address (32–44 chars, no 0/O/I/l).
+const SOLANA_ADDRESS_RE = /[1-9A-HJ-NP-Za-km-z]{32,44}/g
+
+/** Full failure text with every Solana address rendered as a Solscan link. */
+function FailureText({ text }: { text: string }) {
+  const parts: React.ReactNode[] = []
+  let last = 0
+  for (const m of text.matchAll(SOLANA_ADDRESS_RE)) {
+    const start = m.index ?? 0
+    const addr = m[0]
+    if (start > last) parts.push(text.slice(last, start))
+    const isMint = /\bmint\s*$/i.test(text.slice(0, start))
+    parts.push(
+      <SolscanLink key={start} kind={isMint ? 'token' : 'account'} id={addr}>{addr}</SolscanLink>
+    )
+    last = start + addr.length
+  }
+  if (last < text.length) parts.push(text.slice(last))
+  return <span style={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{parts}</span>
+}
+
+function isLaunchedButNotSaved(text: string) {
+  return /launched on-chain/i.test(text) && /not saved/i.test(text)
 }
 
 function truncate(pk: string) {
@@ -130,7 +190,6 @@ export default function Launchpad() {
   const [supply, setSupply] = useState('')
   const [initialLiquiditySol, setInitialLiquiditySol] = useState('')
   const [fundingWalletId, setFundingWalletId] = useState('')
-  const [feeWalletId, setFeeWalletId] = useState('')
 
   // pool config
   const [configAddress, setConfigAddress] = useState(DEFAULT_CONFIG_ADDRESS)
@@ -140,6 +199,7 @@ export default function Launchpad() {
   const [poolPercentage, setPoolPercentage] = useState(100)
   const [revoke, setRevoke] = useState(true)
   const [lockMetaData, setLockMetaData] = useState(true)
+  const [keepFreeze, setKeepFreeze] = useState(false)
   const [website, setWebsite] = useState('')
   const [twitter, setTwitter] = useState('')
   const [telegram, setTelegram] = useState('')
@@ -154,11 +214,13 @@ export default function Launchpad() {
   const [solPerBuy, setSolPerBuy] = useState('')
 
   // wallet picker
-  const [pickerOpen, setPickerOpen] = useState<'funding' | 'fee' | 'slave' | null>(null)
+  const [pickerOpen, setPickerOpen] = useState<'funding' | 'slave' | null>(null)
 
   // submission + job
   const [submitting, setSubmitting] = useState(false)
-  const [error, setError] = useState('')
+  const [errors, setErrors] = useState<string[]>([])
+  const [invalid, setInvalid] = useState<Partial<Record<FieldKey, boolean>>>({})
+  const [imageError, setImageError] = useState('')
   const [jobId, setJobId] = useState<string | null>(null)
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
@@ -239,16 +301,34 @@ export default function Launchpad() {
 
   function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null
+    const problem = file ? checkImage(file) : null
     if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setInvalid(prev => ({ ...prev, image: !!problem }))
+    setImageError(problem ?? '')
+    if (problem) {
+      e.target.value = ''   // allow re-picking the same file after fixing it
+      setImage(null)
+      setImagePreview(null)
+      return
+    }
     setImage(file)
     setImagePreview(file ? URL.createObjectURL(file) : null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!accessToken || !image) return
+    if (!accessToken) return
+    const imageProblem = image ? checkImage(image) : 'Image is required'
+    if (imageProblem) {
+      setImageError(imageProblem)
+      setInvalid(prev => ({ ...prev, image: true }))
+      return
+    }
+    if (!image) return
     setSubmitting(true)
-    setError('')
+    setErrors([])
+    setInvalid({})
+    setImageError('')
 
     const fd = new FormData()
     fd.append('image', image)
@@ -261,9 +341,9 @@ export default function Launchpad() {
     fd.append('poolPercentage', String(advanced ? poolPercentage : 100))
     fd.append('revoke', String(advanced ? revoke : true))
     fd.append('lockMetaData', String(advanced ? lockMetaData : true))
+    fd.append('revokeFreeze', String(advanced ? !keepFreeze : true))
     fd.append('configAddress', configAddress)
     fd.append('fundingWalletId', fundingWalletId)
-    fd.append('feeWalletId', feeWalletId)
     fd.append('website', advanced ? website : '')
     fd.append('twitter', advanced ? twitter : '')
     fd.append('telegram', advanced ? telegram : '')
@@ -281,31 +361,44 @@ export default function Launchpad() {
         credentials: 'include',
         body: fd,
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? `Server error (${res.status})`)
+      let data: { jobId?: string; error?: string; message?: string; errors?: unknown } = {}
+      try { data = await res.json() } catch { /* non-JSON body (e.g. proxy error) */ }
+      if (!res.ok) {
+        const list = Array.isArray(data.errors)
+          ? data.errors.filter((x): x is string => typeof x === 'string' && x.length > 0)
+          : []
+        if (list.length > 0) {
+          const marks: Partial<Record<FieldKey, boolean>> = {}
+          for (const msg of list) for (const f of fieldsForError(msg)) marks[f] = true
+          const imgMsg = list.find(msg => fieldsForError(msg).includes('image'))
+          setErrors(list)
+          setInvalid(marks)
+          if (imgMsg) setImageError(imgMsg)
+        } else {
+          setErrors([data.message || data.error || `Server error (${res.status})`])
+        }
+        return
+      }
       setJobHasAutoBuy(autoBuyEnabled)
-      setJobId(data.jobId)
+      setJobId(data.jobId ?? null)
       setModalOpen(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Launch failed')
+      setErrors([err instanceof Error ? err.message : 'Launch failed'])
     } finally {
       setSubmitting(false)
     }
   }
 
   const fundingWallets = wallets.filter(w => w.wallet_type === 'funding')
-  const feeWallets    = wallets.filter(w => w.wallet_type === 'fee')
   const slaveWallets  = wallets.filter(w => w.wallet_type === 'slave')
   const selectedFunding = fundingWallets.find(w => w.wallet_id === fundingWalletId)
-  const selectedFee     = feeWallets.find(w => w.wallet_id === feeWalletId)
   const selectedSlave   = slaveWallets.find(w => w.wallet_id === slaveWalletId)
 
-  const pickerWallets  = pickerOpen === 'funding' ? fundingWallets : pickerOpen === 'slave' ? slaveWallets : feeWallets
-  const pickerSelected = pickerOpen === 'funding' ? fundingWalletId : pickerOpen === 'slave' ? slaveWalletId : feeWalletId
+  const pickerWallets  = pickerOpen === 'slave' ? slaveWallets : fundingWallets
+  const pickerSelected = pickerOpen === 'slave' ? slaveWalletId : fundingWalletId
   function handlePickerSelect(id: string) {
-    if (pickerOpen === 'funding') setFundingWalletId(id)
-    else if (pickerOpen === 'slave') setSlaveWalletId(id)
-    else setFeeWalletId(id)
+    if (pickerOpen === 'slave') setSlaveWalletId(id)
+    else setFundingWalletId(id)
     setPickerOpen(null)
   }
 
@@ -330,9 +423,10 @@ export default function Launchpad() {
   const percent = getPercent(jobStatus)
   const isDone = jobStatus?.state === 'completed'
   const isFailed = jobStatus?.state === 'failed'
+  const progressStep = jobStatus?.progress && typeof jobStatus.progress === 'object' ? jobStatus.progress.step : null
   const launchSteps = useMemo(() => buildLaunchSteps(jobHasAutoBuy), [jobHasAutoBuy])
 
-  const launchDisabled = submitting || loadingWallets || !fundingWalletId || !feeWalletId || (autoBuyEnabled && !slaveWalletId)
+  const launchDisabled = submitting || loadingWallets || !fundingWalletId || (autoBuyEnabled && !slaveWalletId)
 
   /* ── presentation-only derivations ─────────────────────────────── */
 
@@ -356,12 +450,11 @@ export default function Launchpad() {
   const preflight: { text: string; ok: boolean }[] = [
     { text: image ? 'Token image ready' : 'Token image not chosen', ok: !!image },
     { text: selectedFunding ? 'Funding wallet selected' : 'Funding wallet not selected', ok: !!selectedFunding },
-    { text: selectedFee ? 'Fee wallet selected' : 'Fee wallet not selected', ok: !!selectedFee },
     ...(autoBuyEnabled ? [{ text: selectedSlave ? 'Auto-buy wallet selected' : 'Auto-buy wallet not selected', ok: !!selectedSlave }] : []),
     { text: solPrice != null ? 'SOL price loaded' : 'SOL price unavailable', ok: solPrice != null },
   ]
 
-  function walletButton(type: 'funding' | 'fee' | 'slave', selected: Wallet | undefined, id: string) {
+  function walletButton(type: 'funding' | 'slave', selected: Wallet | undefined, id: string) {
     return (
       <button
         type="button"
@@ -369,6 +462,7 @@ export default function Launchpad() {
         className="input select-btn"
         onClick={() => setPickerOpen(type)}
         disabled={loadingWallets}
+        style={(type === 'slave' ? invalid.slaveWalletId : invalid.fundingWalletId) ? { borderColor: 'var(--danger-line)' } : undefined}
       >
         {loadingWallets
           ? <span className="placeholder">Loading…</span>
@@ -395,19 +489,17 @@ export default function Launchpad() {
       <div className="split-layout">
         <form id="launch-form" onSubmit={handleSubmit} className="stack">
 
-          {error && <div className="alert" role="alert">{error}</div>}
-
           {/* ── 1 Token identity ───────────────────────────────── */}
           <section className="glass glow card">
             <StepHead n={1} title="Token identity" />
             <div className="grid-auto" style={{ '--min': '200px', gap: 16 } as React.CSSProperties}>
               <div className="field">
                 <label className="label" htmlFor="lp-name">Token name</label>
-                <input id="lp-name" className="input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Spectre Coin" required />
+                <input id="lp-name" className="input" type="text" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Spectre Coin" required aria-invalid={invalid.name || undefined} />
               </div>
               <div className="field">
                 <label className="label" htmlFor="lp-symbol">Symbol</label>
-                <input id="lp-symbol" className="input mono" type="text" value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())} placeholder="e.g. SPCT" maxLength={10} required />
+                <input id="lp-symbol" className="input mono" type="text" value={symbol} onChange={e => setSymbol(e.target.value.toUpperCase())} placeholder="e.g. SPCT" maxLength={10} required aria-invalid={invalid.symbol || undefined} />
               </div>
             </div>
 
@@ -419,7 +511,7 @@ export default function Launchpad() {
             <div className="row-flex" style={{ gap: 14, marginTop: 16, flexWrap: 'nowrap' }}>
               <div style={{
                 width: 56, height: 56, borderRadius: 11, flex: 'none', overflow: 'hidden',
-                border: imagePreview ? '1px solid var(--line-2)' : '1px dashed rgba(233,233,237,.16)',
+                border: invalid.image ? '1px solid var(--danger-line)' : imagePreview ? '1px solid var(--line-2)' : '1px dashed rgba(233,233,237,.16)',
                 background: 'rgba(16,18,32,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 {imagePreview
@@ -430,8 +522,11 @@ export default function Launchpad() {
                 <span className="label">Token image</span>
                 <label className="btn btn-accent btn-sm" style={{ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {image ? image.name : 'Choose file →'}
-                  <input type="file" accept="image/*" onChange={handleImageChange} required style={{ display: 'none' }} />
+                  <input type="file" accept={ALLOWED_IMAGE_TYPES.join(',')} onChange={handleImageChange} required aria-invalid={invalid.image || undefined} aria-describedby={imageError ? 'lp-image-err' : undefined} style={{ display: 'none' }} />
                 </label>
+                {imageError
+                  ? <div id="lp-image-err" className="alert-inline" role="alert">{imageError}</div>
+                  : <div className="hint">PNG, JPEG, GIF or WebP · max 5 MB</div>}
               </div>
             </div>
           </section>
@@ -463,15 +558,15 @@ export default function Launchpad() {
             <div className="grid-auto" style={{ '--min': '170px', gap: 16 } as React.CSSProperties}>
               <div className="field">
                 <label className="label" htmlFor="lp-dec">Decimals</label>
-                <input id="lp-dec" className="input mono" type="number" value={decimals} onChange={e => setDecimals(Number(e.target.value))} min={0} max={9} required />
+                <input id="lp-dec" className="input mono" type="number" value={decimals} onChange={e => setDecimals(Number(e.target.value))} min={0} max={9} required aria-invalid={invalid.decimals || undefined} />
               </div>
               <div className="field">
                 <label className="label" htmlFor="lp-supply">Total supply</label>
-                <input id="lp-supply" className="input mono" type="number" value={supply} onChange={e => setSupply(e.target.value)} placeholder="e.g. 1000000000" min={1} required />
+                <input id="lp-supply" className="input mono" type="number" value={supply} onChange={e => setSupply(e.target.value)} placeholder="e.g. 1000000000" min={1} required aria-invalid={invalid.supply || undefined} />
               </div>
               <div className="field">
                 <label className="label" htmlFor="lp-liq">Initial liquidity (SOL)</label>
-                <input id="lp-liq" className="input mono" type="number" value={initialLiquiditySol} onChange={e => setInitialLiquiditySol(e.target.value)} placeholder="e.g. 1.5" min={0} step="0.01" required />
+                <input id="lp-liq" className="input mono" type="number" value={initialLiquiditySol} onChange={e => setInitialLiquiditySol(e.target.value)} placeholder="e.g. 1.5" min={0} step="0.01" required aria-invalid={invalid.initialLiquiditySol || undefined} />
               </div>
             </div>
 
@@ -480,13 +575,17 @@ export default function Launchpad() {
                 <div className="field" style={{ marginTop: 22 }}>
                   <label className="label" htmlFor="lp-pool">
                     Pool % of supply
-                    <span className="label-value mono">{poolPercentage}%</span>
+                    <span className="label-value mono" style={invalid.poolPercentage ? { color: 'var(--danger)' } : undefined}>{poolPercentage}%</span>
                   </label>
                   <Range id="lp-pool" min={1} max={100} value={poolPercentage} onChange={setPoolPercentage} />
                 </div>
                 <div className="row-flex" style={{ gap: '16px 26px', marginTop: 22 }}>
                   <Switch checked={revoke} onChange={setRevoke} label="Revoke mint authority" />
                   <Switch checked={lockMetaData} onChange={setLockMetaData} label="Lock metadata" />
+                  <Switch checked={keepFreeze} onChange={setKeepFreeze} label="Keep freeze authority" />
+                </div>
+                <div className="hint" style={{ marginTop: 10, color: keepFreeze ? 'var(--danger)' : undefined }}>
+                  Keeping freeze authority lets the funding wallet freeze holders&apos; token accounts. Most traders and tools treat that as a red flag. Revoked is the safe default.
                 </div>
               </>
             )}
@@ -506,6 +605,7 @@ export default function Launchpad() {
                   onChange={e => setConfigAddress(e.target.value)}
                   placeholder="e.g. FxWh7P9b5sU6LBu4b5SYZbYinTLnEUxWjiBDKVpj7ooF"
                   required
+                  aria-invalid={invalid.configAddress || undefined}
                   style={{ fontSize: 12 }}
                 />
               </div>
@@ -523,10 +623,7 @@ export default function Launchpad() {
                 <label className="label" htmlFor="lp-funding">Funding wallet</label>
                 {walletButton('funding', selectedFunding, 'lp-funding')}
               </div>
-              <div className="field">
-                <label className="label" htmlFor="lp-fee">Fee wallet</label>
-                {walletButton('fee', selectedFee, 'lp-fee')}
-              </div>
+              {/* Fee wallet selector removed: fee wallets are parked until the pool-ownership transfer design is decided. */}
             </div>
 
             <div style={{ marginTop: 22, paddingTop: 20, borderTop: '1px solid rgba(233,233,237,.07)' }}>
@@ -551,6 +648,7 @@ export default function Launchpad() {
                         value={numberOfBuys}
                         onChange={e => setNumberOfBuys(Math.max(1, Math.min(10, Number(e.target.value))))}
                         min={1} max={10} step={1}
+                        aria-invalid={invalid.numberOfBuys || undefined}
                       />
                     </div>
                     <div className="field">
@@ -563,6 +661,7 @@ export default function Launchpad() {
                         onChange={e => setSolPerBuy(e.target.value)}
                         placeholder="0.0000"
                         min={0} step="0.0001"
+                        aria-invalid={invalid.solPerBuy || undefined}
                       />
                     </div>
                   </div>
@@ -607,8 +706,15 @@ export default function Launchpad() {
             <button type="submit" form="launch-form" className="btn btn-accent btn-block" style={{ marginTop: 16 }} disabled={launchDisabled}>
               {submitting ? 'Queuing…' : 'Launch token →'}
             </button>
+            {errors.length > 0 && (
+              <div className="alert" role="alert" style={{ marginTop: 12 }}>
+                <ul style={{ margin: 0, paddingLeft: 18 }}>
+                  {errors.map((msg, i) => <li key={i}>{msg}</li>)}
+                </ul>
+              </div>
+            )}
             <div className="hint" style={{ marginTop: 11, textAlign: 'center', fontSize: 11 }}>
-              {advanced ? 'Advanced launch' : 'Default launch · 100% of supply to pool, mint revoked, metadata locked'}
+              {advanced ? 'Advanced launch' : 'Default launch · 100% of supply to pool, mint and freeze revoked, metadata locked'}
             </div>
           </div>
 
@@ -737,7 +843,7 @@ export default function Launchpad() {
                 <div className={isFailed ? 'progress-fill failed' : 'progress-fill'} style={{ width: `${percent}%` }} />
               </div>
               <div className="meta" style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between' }}>
-                <span>{isFailed ? 'Failed' : isDone ? 'Complete' : 'In progress'}</span>
+                <span>{isFailed ? 'Failed' : isDone ? 'Complete' : progressStep ?? 'In progress'}</span>
                 <span>{percent}%</span>
               </div>
             </div>
@@ -761,8 +867,13 @@ export default function Launchpad() {
           )}
 
           {isFailed && jobStatus?.failed && (
-            <div className="sheet-section">
-              <div className="alert">{jobStatus.failed}</div>
+            <div className="sheet-section stack" style={{ gap: 12 }}>
+              <div className="alert" role="alert"><FailureText text={jobStatus.failed} /></div>
+              {isLaunchedButNotSaved(jobStatus.failed) && (
+                <div className="callout" style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+                  Your token and pool exist on-chain. Do not relaunch — contact support to recover the record.
+                </div>
+              )}
             </div>
           )}
         </Sheet>

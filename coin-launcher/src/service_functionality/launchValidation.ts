@@ -5,7 +5,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const U64_MAX = 18_446_744_073_709_551_615n;
 
 //pure — returns every problem at once so the form can show them all
-export function validateLaunchInput(data: Omit<LaunchJobData, "imageBuffer">, imageBytes: number): string[] {
+export function validateLaunchInput(data: Omit<LaunchJobData, "imageBase64">, imageBytes: number): string[] {
     const errors: string[] = [];
 
     if(imageBytes === 0) errors.push("Image is required");

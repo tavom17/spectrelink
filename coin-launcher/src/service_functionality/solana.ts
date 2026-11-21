@@ -1,259 +1,143 @@
-import { createKeyPairSignerFromBytes, createSolanaRpc, generateKeyPairSigner, type Address,address, setTransactionMessageFeePayerSigner, setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, createTransactionMessage, pipe, signTransactionMessageWithSigners, getSignatureFromTransaction, createSolanaRpcSubscriptions, sendAndConfirmTransactionFactory,Instruction } from "@solana/kit"
-import { CreateAccountInput, getCreateAccountInstruction } from "@solana-program/system"
-import * as token from "@solana-program/token"
-import { createUmi } from '@metaplex-foundation/umi-bundle-defaults'
-import { createMetadataAccountV3, mplTokenMetadata, updateV1 } from '@metaplex-foundation/mpl-token-metadata'
-import { createSignerFromKeypair, publicKey, signerIdentity } from "@metaplex-foundation/umi"
+import {
+    address, createNoopSigner, generateKeyPairSigner, pipe, some, none,
+    createTransactionMessage, setTransactionMessageFeePayerSigner, setTransactionMessageLifetimeUsingBlockhash,
+    appendTransactionMessageInstructions, partiallySignTransactionMessageWithSigners,
+    getBase64EncodedWireTransaction, type Blockhash, type Instruction,
+} from "@solana/kit";
+import { getCreateAccountInstruction } from "@solana-program/system";
+import { getSetComputeUnitLimitInstruction, getSetComputeUnitPriceInstruction } from "@solana-program/compute-budget";
+import {
+    TOKEN_2022_PROGRAM_ADDRESS, AuthorityType, extension, getMintSize,
+    getInitializeMetadataPointerInstruction, getInitializeMintInstruction, getInitializeTokenMetadataInstruction,
+    getUpdateTokenMetadataUpdateAuthorityInstruction, findAssociatedTokenPda,
+    getCreateAssociatedTokenIdempotentInstruction, getMintToInstruction, getSetAuthorityInstruction,
+} from "@solana-program/token-2022";
+import { connection } from "../connection";
+import { signWithWalletApp } from "./walletApp";
+import { sendAndConfirmSigned } from "./transactions";
+import { LAUNCH_PRIORITY_MICROLAMPORTS, MINT_TX_CU_LIMIT } from "../config";
+import { token2022LaunchParams } from "../interfaces";
 
 
+//ONE atomic tx: mint account + metadata pointer + mint + on-mint metadata + supply + authority changes
+//the mint keypair is ephemeral — it signs here and is discarded; wallet-app signs as funding
+export async function createToken2022(params: token2022LaunchParams): Promise<{ mintAddress: string; txSig: string }> {
 
-const rpc = createSolanaRpc(process.env.HELIUS_RPC_URL!)
-const rpcSubscriptions = createSolanaRpcSubscriptions(process.env.HELIUS_WS_URL!)
+    const fundingAddress = address(params.fundingPublicKey);
+    const funding = createNoopSigner(fundingAddress);     //marks funding as a required signer — wallet-app fills it
+    const mint = await generateKeyPairSigner();          //ephemeral — never stored
 
-const tokenProgramAddress : Address = address("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
-const rentProgramAddress : Address = address("SysvarRent111111111111111111111111111111111")
+    //space: pointer extension only — InitializeTokenMetadata grows the account itself
+    //lamports: the FULL final size (pointer + metadata) — underfund this and the metadata step fails
+    const metadataPointerExtension = extension("MetadataPointer", {
+        authority: fundingAddress,
+        metadataAddress: mint.address,
+    });
+    const tokenMetadataExtension = extension("TokenMetadata", {
+        updateAuthority: some(fundingAddress),
+        mint: mint.address,
+        name: params.name,
+        symbol: params.symbol,
+        uri: params.uri,
+        additionalMetadata: new Map(),           //socials/description live in the Arweave JSON, not on-chain
+    });
 
+    const space = BigInt(getMintSize([metadataPointerExtension]));
+    const fullSize = getMintSize([metadataPointerExtension, tokenMetadataExtension]);
+    const [rentLamports, latest] = await Promise.all([
+        connection.getMinimumBalanceForRentExemption(fullSize),
+        connection.getLatestBlockhash("confirmed"),
+    ]);
 
+    //funding's Token-2022 ATA — receives the full supply
+    const [fundingAta] = await findAssociatedTokenPda({
+        owner: fundingAddress,
+        tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+        mint: mint.address,
+    });
 
-export async function createTokenMint(
-  decimals: number,
-  fundingKeypair: { publicKey: string, secretKey: number[] }
-): Promise<{ mintAddress: string, mintTxSig: string }>{
+    //order matters: pointer BEFORE InitializeMint, and CreateAccount + pointer + mint in the same tx
+    const instructions: Instruction[] = [
+        getSetComputeUnitLimitInstruction({ units: MINT_TX_CU_LIMIT }),
+        getSetComputeUnitPriceInstruction({ microLamports: LAUNCH_PRIORITY_MICROLAMPORTS }),
 
+        getCreateAccountInstruction({
+            payer: funding,
+            newAccount: mint,
+            lamports: rentLamports,
+            space,
+            programAddress: TOKEN_2022_PROGRAM_ADDRESS,
+        }),
+        getInitializeMetadataPointerInstruction({
+            mint: mint.address,
+            authority: fundingAddress,
+            metadataAddress: mint.address,
+        }),
+        getInitializeMintInstruction({
+            mint: mint.address,
+            decimals: params.decimals,
+            mintAuthority: fundingAddress,
+            freezeAuthority: params.revokeFreeze ? null : fundingAddress,   //revoked by default
+        }),
+        getInitializeTokenMetadataInstruction({
+            metadata: mint.address,
+            updateAuthority: fundingAddress,
+            mint: mint.address,
+            mintAuthority: funding,
+            name: params.name,
+            symbol: params.symbol,
+            uri: params.uri,
+        }),
 
-const lamports = await rpc.getMinimumBalanceForRentExemption(82n).send()
-const blockhash = await rpc.getLatestBlockhash().send();
+        getCreateAssociatedTokenIdempotentInstruction({
+            payer: funding,
+            ata: fundingAta,
+            owner: fundingAddress,
+            mint: mint.address,
+            tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+        }),
+        getMintToInstruction({
+            mint: mint.address,
+            token: fundingAta,
+            mintAuthority: funding,
+            amount: params.supply * 10n ** BigInt(params.decimals),
+        }),
+    ];
 
-//create signer for throwaway keypair for mint account
-const mintKeypair = await generateKeyPairSigner()
-//create signer from funding keypairs 
-const fundingSigner = await createKeyPairSignerFromBytes(new Uint8Array(fundingKeypair.secretKey))
+    //revoke AFTER minting — the mint authority is needed above
+    if(params.revokeMint)
+        instructions.push(getSetAuthorityInstruction({
+            owned: mint.address,
+            owner: funding,
+            authorityType: AuthorityType.MintTokens,
+            newAuthority: null,
+        }));
 
+    //lock metadata = remove its update authority, permanently
+    if(params.lockMetadata)
+        instructions.push(getUpdateTokenMetadataUpdateAuthorityInstruction({
+            metadata: mint.address,
+            updateAuthority: funding,
+            newUpdateAuthority: none(),
+        }));
 
-//take all the data created above and form the account input for create account instruction
-const accountInput : CreateAccountInput = {
-  payer: fundingSigner,
-  newAccount: mintKeypair,
-  lamports: lamports,
-  space: 82n,
-  programAddress: tokenProgramAddress
+    const message = pipe(
+        createTransactionMessage({ version: 0 }),
+        m => setTransactionMessageFeePayerSigner(funding, m),
+        m => setTransactionMessageLifetimeUsingBlockhash(
+            { blockhash: latest.blockhash as Blockhash, lastValidBlockHeight: BigInt(latest.lastValidBlockHeight) }, m),
+        m => appendTransactionMessageInstructions(instructions, m),
+    );
+
+    //the mint keypair signs now; the noop funding signer leaves its slot empty for wallet-app
+    const partiallySigned = await partiallySignTransactionMessageWithSigners(message);
+    const partialBase64 = getBase64EncodedWireTransaction(partiallySigned);
+
+    if(Buffer.from(partialBase64, "base64").length > 1232)
+        throw new Error("Mint transaction exceeds 1232 bytes");
+
+    const signed = await signWithWalletApp(params.userId, [params.fundingPublicKey], partialBase64);
+    const txSig = await sendAndConfirmSigned(signed, latest);
+
+    return { mintAddress: mint.address, txSig };
 }
-
-const account = getCreateAccountInstruction(accountInput)
-
-const fundingAddress: Address = address(fundingKeypair.publicKey);
-
-
-//create parameter for mint instruction
-const mintInput: token.InitializeMintInput = {
-  mint: mintKeypair.address,
-  rent: rentProgramAddress,
-  decimals: decimals,
-  mintAuthority: fundingAddress,
-  freezeAuthority: null
-}
-
-const mint = token.getInitializeMintInstruction(mintInput)
-
-
-//create the transaction itself with both the instructions created above for account and mint
-const transactionMessage = pipe(
-  createTransactionMessage({ version: 0 }),
-  tx => setTransactionMessageFeePayerSigner(fundingSigner, tx),
-  tx => setTransactionMessageLifetimeUsingBlockhash(blockhash.value, tx),
-  tx => appendTransactionMessageInstructions([account, mint], tx)
-);
-
-
-const signedTransaction =
-await signTransactionMessageWithSigners(transactionMessage);
-const transactionSignature = getSignatureFromTransaction(signedTransaction);
-
-const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions })
-await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], { commitment: "finalized" })
-
-return {mintAddress: mintKeypair.address, mintTxSig: transactionSignature}
-}
-
-//everything we do here is really to convert types to umi types for metaplex upload
-export async function attachMetadata( 
-  mintAddress: string,
-  name: string,
-  symbol: string,
-  metadataUri: string,
-  lockMetaData: boolean,
-  fundingKeypair: { publicKey: string, secretKey: number[] }) {
-
-const umi = createUmi(process.env.HELIUS_RPC_URL!).use(mplTokenMetadata())
-
-let keypair = umi.eddsa.createKeypairFromSecretKey(new Uint8Array(fundingKeypair.secretKey))
-
-const signer = createSignerFromKeypair(umi,keypair)
-
-umi.use(signerIdentity(signer))
-
-
-const metaDataInstruction = {
-    mint: publicKey(mintAddress),
-    mintAuthority: signer,
-    payer: signer,
-    updateAuthority: signer,
-    collectionDetails: null,
-    data: {
-      name: name,
-      symbol: symbol,
-      uri: metadataUri,
-      sellerFeeBasisPoints: 0,
-      creators: [{ address: signer.publicKey, verified: true, share: 100 }],
-      collection: null,
-      uses: null
-    },
-    isMutable: !lockMetaData
-}
-
-// console.log("attachMetadata inputs:", {
-//   mintAddress,
-//   name,
-//   symbol,
-//   metadataUri,
-//   lockMetaData,
-//   isMutable: !lockMetaData,
-//   fundingPublicKey: fundingKeypair.publicKey
-// })
-
-const mintAccount = await umi.rpc.getAccount(publicKey(mintAddress))
-console.log("UMI sees mint account:", mintAccount.exists, "data length:", mintAccount.exists ? mintAccount.data.length : 0)
-
-if (!mintAccount.exists || mintAccount.data.length === 0) {
-  throw new Error('UMI cannot read mint account — aborting metadata attachment')
-}
-
-const result = await createMetadataAccountV3(umi, metaDataInstruction)
-  .sendAndConfirm(umi, { 
-    send: { skipPreflight: true },
-    confirm: { commitment: 'finalized' } 
-  })
-
-return {metadataTxSig:  result.signature}
-}
-
-
-
-
-
-
-
-
-
-export async function mintSupply(
-  mintAddress: string,
-  supply: bigint,
-  decimals: number,
-  revokeMint: boolean,
-  fundingKeypair: { publicKey: string, secretKey: number[] }
-): Promise<{ mintSupplyTxSig: string }>{
-
-
-
-  
-//associated token account time
-//token isnt held by the wallet address or the mint address
-//its held in another account that is created from the wallet and mint address
-const fundingSigner = await createKeyPairSignerFromBytes(new Uint8Array(fundingKeypair.secretKey))
-
-const fundingAddress: Address = address(fundingKeypair.publicKey);
-const mintTypeAddress: Address = address(mintAddress);
-
-
-
-//need seed object for finding associated token pda : 
-const ataSeeds : token.AssociatedTokenSeeds = {
-    /** The wallet address of the associated token account. */
-    owner: fundingAddress,
-    /** The address of the token program to use. */
-    tokenProgram: tokenProgramAddress,
-    /** The mint address of the associated token account. */
-    mint: mintTypeAddress
-};
-
-const ataToken = await token.findAssociatedTokenPda(ataSeeds)
-
-const ataInstruction = await token.getCreateAssociatedTokenInstructionAsync({
-    payer: fundingSigner,
-    owner: fundingAddress,
-    mint: mintTypeAddress,
-    ata: ataToken[0]
-})
-
-
-const mintInput : token.MintToInput = {
-  /** The mint account. */
-    mint: mintTypeAddress,
-    /** The account to mint tokens to. */
-    token: ataToken[0],
-    /** The mint's minting authority or its multisignature account. */
-    mintAuthority: fundingAddress,
-    amount: (supply * 10n ** BigInt(decimals))
-}
-  
-
-const mintInstruction = token.getMintToInstruction(mintInput)
-const instructions: Instruction[] = [ataInstruction, mintInstruction]
-
-
-//optional revoke mint auth : adding to this function to save on transaction fees and bundling with mint instructions
-//build trust, have the option to revoke mint authority from the new token, 
-//checkable now in form fill out, prohibits the minting of tokens post launch (first minting)
-if(revokeMint){
-const authInput : token.SetAuthorityInput= {
-    /** The mint or account to change the authority of. */
-    owned: address(mintAddress),
-    /** The current authority or the multisignature account of the mint or account to update. */
-    owner: address(fundingKeypair.publicKey),
-    authorityType: token.AuthorityType.MintTokens,
-    newAuthority: null
-    
-};
-
-  const authInstruction =token.getSetAuthorityInstruction(authInput)
-
-   instructions.push(authInstruction)
-
-}
-
-const blockhash = await rpc.getLatestBlockhash().send();
-
-//create the transaction itself with both the instructions created above for account and mint
-const transactionMessage = pipe(
-  createTransactionMessage({ version: 0 }),
-  tx => setTransactionMessageFeePayerSigner(fundingSigner, tx),
-  tx => setTransactionMessageLifetimeUsingBlockhash(blockhash.value, tx),
-  tx => appendTransactionMessageInstructions(instructions, tx)
-);
-
-
-const signedTransaction =
-await signTransactionMessageWithSigners(transactionMessage);
-const transactionSignature = getSignatureFromTransaction(signedTransaction);
-
-const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions })
-await sendAndConfirm(signedTransaction as Parameters<typeof sendAndConfirm>[0], { 
-  commitment: "finalized",
-  skipPreflight: true 
-})
-
-
-
-
-
-
-
- return {mintSupplyTxSig: transactionSignature} 
-}
-
-
-
-
-
-
-

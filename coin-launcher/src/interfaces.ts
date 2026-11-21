@@ -1,7 +1,8 @@
 export interface LaunchJobData {
     userId: string
-    imageBuffer: number[]        //Buffer serialized as array for Redis
+    imageBase64: string       //Buffer serialized as array for Redis
     revoke: boolean              //revoke mint authority, default true
+    revokeFreeze: boolean
     lockMetaData: boolean
     mimeType: string
     poolPercentage: number
@@ -46,4 +47,30 @@ export interface tokenRecord {
     mintAuthorityRevoked: boolean;
     freezeAuthorityRevoked: boolean;
     metadataLocked: boolean;
+}
+
+
+// in LaunchJobData — new advanced setting, default true (revoked)
+//revokeFreeze: boolean
+
+export interface token2022LaunchParams {
+    userId: string;
+    fundingPublicKey: string;
+    decimals: number;
+    supply: bigint;            //whole tokens
+    name: string;
+    symbol: string;
+    uri: string;               //Arweave metadata JSON
+    revokeMint: boolean;
+    revokeFreeze: boolean;
+    lockMetadata: boolean;
+}
+
+export interface poolLaunchParams {
+    userId: string;
+    fundingPublicKey: string;
+    mintAddress: string;
+    tokenAAmount: bigint;      //token base units into the pool
+    tokenBAmount: bigint;      //lamports into the pool
+    configAddress: string;
 }

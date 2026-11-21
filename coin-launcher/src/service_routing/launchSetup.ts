@@ -15,6 +15,7 @@ fastify.post('/newToken', async (request, reply) => {
     //variable decs
     let imageBuffer: Buffer | null = null
     let revoke: boolean = true
+    let revokeFreeze: boolean = true
     let lockMetaData: boolean = true
     let mimeType: string = ''
     let name: string = ''
@@ -49,6 +50,7 @@ fastify.post('/newToken', async (request, reply) => {
                     case 'description': description = part.value as string; break
                     case 'decimals': decimals = Number(part.value); break
                     case 'revoke': revoke = part.value === 'true'; break
+                    case 'revokeFreeze': revokeFreeze = part.value === 'true'; break
                     case 'lockMetaData': lockMetaData = part.value === 'true'; break
                     case 'supply': supply = Number(part.value); break
                     case 'configAddress': configAddress = part.value as string; break
@@ -71,8 +73,8 @@ fastify.post('/newToken', async (request, reply) => {
         return reply.status(400).send({ error: "BAD_REQUEST", message: "Could not read the launch form (check the image size)" })
     }
 
-    const fields: Omit<LaunchJobData, "imageBuffer"> = {
-        userId, revoke, lockMetaData, mimeType,
+    const fields: Omit<LaunchJobData, "imageBase64"> = {
+        userId, revoke,revokeFreeze, lockMetaData, mimeType,
         name: name.trim(), symbol: symbol.trim(), description,
         poolPercentage, decimals, supply, configAddress, initialLiquiditySol,
         fundingWalletId, feeWalletId, website, twitter, telegram,
@@ -85,7 +87,8 @@ fastify.post('/newToken', async (request, reply) => {
         return reply.status(400).send({ error: "VALIDATION_FAILED", message: errors.join("; "), errors })
 
     try {
-        const jobData: LaunchJobData = { ...fields, imageBuffer: Array.from(imageBuffer!) }
+        //base64 in Redis — ~3x smaller than number[], and exactly what wallet-app's upload takes
+        const jobData: LaunchJobData = { ...fields, imageBase64: imageBuffer!.toString('base64') }
         const job = await launchQueue.add("token-launch-queue", jobData)
         return reply.status(202).send({ jobId: job.id })
     } catch (error) {

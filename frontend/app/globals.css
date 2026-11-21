@@ -251,6 +251,7 @@ button { color: inherit; }
 .input:hover:not(:disabled) { border-color: rgba(145,132,217,.34); }
 .input:focus, .input:focus-visible { border-color: var(--accent); background: var(--field-focus); outline: none; }
 .input:disabled { opacity: .5; cursor: not-allowed; }
+.input[aria-invalid=true], .input[aria-invalid=true]:hover { border-color: var(--danger-line); }
 textarea.input { resize: vertical; min-height: 84px; }
 select.input { appearance: none; cursor: pointer; padding-right: 34px;
   background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);

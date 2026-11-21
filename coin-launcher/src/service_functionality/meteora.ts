@@ -1,70 +1,76 @@
 import { Keypair, PublicKey } from "@solana/web3.js"
 import BN from "bn.js"
-import { CpAmm, MAX_SQRT_PRICE, MIN_SQRT_PRICE, derivePoolAddress,derivePositionAddress } from "@meteora-ag/cp-amm-sdk"
-import { connection } from '../connection'
+import { CpAmm, MAX_SQRT_PRICE, MIN_SQRT_PRICE, derivePoolAddress, derivePositionAddress } from "@meteora-ag/cp-amm-sdk"
+import { connection } from "../connection"
+import { signWithWalletApp } from "./walletApp"
+import { compileWithComputeBudget, measureComputeUnits, sendAndConfirmSigned } from "./transactions"
+import { LAUNCH_PRIORITY_MICROLAMPORTS, SIMULATION_CU_LIMIT, CU_SAFETY_MULTIPLIER } from "../config"
+import { poolLaunchParams } from "../interfaces"
 
 const cpAmm = new CpAmm(connection)
-const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+const TOKEN_2022_PROGRAM_ID = new PublicKey("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb")   //our mint
+const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")        //WSOL stays legacy
+const WSOL_MINT = new PublicKey("So11111111111111111111111111111111111111112")
 
 
+//pool tx: position-NFT keypair is ephemeral and signs here; wallet-app signs as funding
+export async function createPool(params: poolLaunchParams): Promise<{ poolAddress: string; launchTxSig: string; poolPosition: string; positionNftMint: string }> {
 
-export async function createPool(
-  mintAddress: string,
-  tokenAAmount: bigint,
-  tokenBAmount: bigint,
-  decimals: number,
-  configAddress: string,
-  fundingKeypair: { publicKey: string, secretKey: number[] }
-): Promise<{ poolAddress: string, launchTxSig: string, poolPosition: string, positionNftMint: string }> {
-
-  
-  const fundingWallet = Keypair.fromSecretKey(new Uint8Array(fundingKeypair.secretKey))
+  const funding = new PublicKey(params.fundingPublicKey)
+  const mint = new PublicKey(params.mintAddress)
+  const config = new PublicKey(params.configAddress)
   const positionNftKeypair = Keypair.generate()
 
+  const tokenAAmount = new BN(params.tokenAAmount.toString())
+  const tokenBAmount = new BN(params.tokenBAmount.toString())
+
   const { initSqrtPrice, liquidityDelta } = cpAmm.preparePoolCreationParams({
-    tokenAAmount: new BN(tokenAAmount.toString()),
-    tokenBAmount: new BN(tokenBAmount.toString()),
+    tokenAAmount,
+    tokenBAmount,
     minSqrtPrice: MIN_SQRT_PRICE,
     maxSqrtPrice: MAX_SQRT_PRICE,
-    collectFeeMode: 1
+    collectFeeMode: 1,
   })
 
-// after preparing the pool params, before sending:
-const poolAddress = derivePoolAddress(
-  new PublicKey(configAddress),
-  new PublicKey(mintAddress),
-  new PublicKey("So11111111111111111111111111111111111111112")
-)
-
-const positionAddress = derivePositionAddress(
-  positionNftKeypair.publicKey
-)
-
+  const poolAddress = derivePoolAddress(config, mint, WSOL_MINT)
+  const positionAddress = derivePositionAddress(positionNftKeypair.publicKey)
 
   const poolTx = await cpAmm.createPool({
-    payer: fundingWallet.publicKey,
-    creator: fundingWallet.publicKey,
-    config: new PublicKey(configAddress),
+    payer: funding,
+    creator: funding,
+    config,
     positionNft: positionNftKeypair.publicKey,
-    tokenAMint: new PublicKey(mintAddress),
-    tokenBMint: new PublicKey("So11111111111111111111111111111111111111112"),
-    tokenAAmount: new BN(tokenAAmount.toString()),
-    tokenBAmount: new BN(tokenBAmount.toString()),
+    tokenAMint: mint,
+    tokenBMint: WSOL_MINT,
+    tokenAAmount,
+    tokenBAmount,
     initSqrtPrice,
     liquidityDelta,
     activationPoint: null,
-    tokenAProgram: TOKEN_PROGRAM_ID,
-    tokenBProgram: TOKEN_PROGRAM_ID
+    tokenAProgram: TOKEN_2022_PROGRAM_ID,
+    tokenBProgram: TOKEN_PROGRAM_ID,
   })
 
+  const latest = await connection.getLatestBlockhash("confirmed")
 
-  const txSig = await connection.sendTransaction(poolTx, [fundingWallet, positionNftKeypair])
-  await connection.confirmTransaction(txSig, "confirmed")
+  //measure, then pay priority only on what's used (+20%)
+  const unitsConsumed = await measureComputeUnits(funding, poolTx.instructions, latest.blockhash, SIMULATION_CU_LIMIT, LAUNCH_PRIORITY_MICROLAMPORTS)
+  const unitLimit = Math.ceil(unitsConsumed * CU_SAFETY_MULTIPLIER)
 
- return {
-  poolAddress: poolAddress.toString(),
-  launchTxSig: txSig,
-  poolPosition: positionAddress.toString(),
-  positionNftMint: positionNftKeypair.publicKey.toString()
-}
+  const tx = compileWithComputeBudget(funding, poolTx.instructions, latest.blockhash, unitLimit, LAUNCH_PRIORITY_MICROLAMPORTS)
+  if(tx.serialize().length > 1232)
+    throw new Error("Pool transaction exceeds 1232 bytes")
+
+  //position NFT signs its slot; /sign's ALREADY_SIGNED only checks the funding slot it's asked for
+  tx.sign([positionNftKeypair])
+
+  const signed = await signWithWalletApp(params.userId, [params.fundingPublicKey], Buffer.from(tx.serialize()).toString("base64"))
+  const launchTxSig = await sendAndConfirmSigned(signed, latest)
+
+  return {
+    poolAddress: poolAddress.toBase58(),
+    launchTxSig,
+    poolPosition: positionAddress.toBase58(),
+    positionNftMint: positionNftKeypair.publicKey.toBase58(),
+  }
 }

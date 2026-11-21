@@ -34,18 +34,23 @@ export async function walletEndpoints(fastify: FastifyInstance){
 
 
 //quick get to send public key in exchange for wallet_id
-      fastify.get("/listPublicKey", async (request, reply) => {
-      const { wallet_ID } = request.query as { wallet_ID: string }        
-        try {
+    fastify.get("/listPublicKey", async (request, reply) => {
+      const { wallet_ID } = request.query as { wallet_ID: string }
 
-            const results = await listPublicKey(pool,wallet_ID)
-            
-            if(!results || results.rowCount === 0)
-                return reply.status(200).send(`No wallet results for wallet_id : ${wallet_ID}`)
+        if(!wallet_ID)
+            return reply.status(400).send({ error: "BAD_REQUEST", message: "wallet_ID is required" })
+
+        try {
+            const results = await listPublicKey(pool, wallet_ID)
+
+            //a specific wallet that doesn't exist is an error — 404 JSON, never a 200 sentence
+            if(results.rowCount === 0)
+                return reply.status(404).send({ error: "WALLET_NOT_FOUND", message: "Wallet not found" })
 
             return reply.status(200).send(results.rows)
         } catch (error) {
-            reply.status(500).send(["Internal service error"])
+            request.log.error(error)
+            return reply.status(500).send({ error: "INTERNAL_ERROR", message: "Failed to look up wallet" })
         }
       })
 
